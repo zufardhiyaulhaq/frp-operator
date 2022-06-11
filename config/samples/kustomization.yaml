@@ -1,0 +1,5 @@
+## Append samples you want in your CSV to this file as resources ##
+resources:
+- frp_v1alpha1_client.yaml
+- frp_v1alpha1_upstream.yaml
+#+kubebuilder:scaffold:manifestskustomizesamples

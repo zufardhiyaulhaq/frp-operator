@@ -1,0 +1,24 @@
+# permissions for end users to edit upstreams.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: upstream-editor-role
+rules:
+- apiGroups:
+  - frp.zufardhiyaulhaq.com
+  resources:
+  - upstreams
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - frp.zufardhiyaulhaq.com
+  resources:
+  - upstreams/status
+  verbs:
+  - get

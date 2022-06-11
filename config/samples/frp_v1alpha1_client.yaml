@@ -1,0 +1,6 @@
+apiVersion: frp.zufardhiyaulhaq.com/v1alpha1
+kind: Client
+metadata:
+  name: client-sample
+spec:
+  # TODO(user): Add fields here

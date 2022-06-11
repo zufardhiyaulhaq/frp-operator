@@ -1,0 +1,6 @@
+apiVersion: frp.zufardhiyaulhaq.com/v1alpha1
+kind: Upstream
+metadata:
+  name: upstream-sample
+spec:
+  # TODO(user): Add fields here
