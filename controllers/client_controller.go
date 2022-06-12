@@ -182,15 +182,6 @@ func (r *ClientReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	}
 
 	log.Info("compare configmap")
-	configmap, err = builder.NewConfigMapBuilder().
-		SetConfig(configuration).
-		SetName(client.Name).
-		SetNamespace(client.Namespace).
-		Build()
-	if err != nil {
-		return ctrl.Result{}, err
-	}
-
 	if !reflect.DeepEqual(createdConfigMap.Data, configmap.Data) {
 		log.Info("found config diff, update configmap")
 
@@ -200,7 +191,9 @@ func (r *ClientReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 			return ctrl.Result{}, err
 		}
 
-		time.Sleep(10 * time.Second)
+		// TODO: need to figure out how to make sure configmap is sync in the pod rather than implementing sleep
+		time.Sleep(120 * time.Second)
+
 		log.Info("reload config")
 		config.Common.AdminAddress = service.Name + "." + service.Namespace + ".svc"
 		err = handler.Reload(config)
