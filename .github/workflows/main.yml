@@ -98,7 +98,7 @@ jobs:
       - name: deploy applications
         run: kubectl apply -f ./examples/deployment
       - name: deploy frp
-        run: kubectl apply -f ./examples/http/simple
+        run: kubectl apply -f ./examples/client
       - name: waiting frp-operator to start
         run: sleep 180
       - name: check client object
