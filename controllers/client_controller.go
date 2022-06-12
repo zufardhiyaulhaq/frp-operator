@@ -28,6 +28,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
@@ -194,7 +195,7 @@ func (r *ClientReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		log.Info("found config diff, update configmap")
 
 		createdConfigMap.Data = configmap.Data
-		err := r.Client.Update(ctx, createdConfigMap, &client.UpdateOptions{})
+		err := r.Client.Update(ctx, createdConfigMap, &ctrlclient.UpdateOptions{})
 		if err != nil {
 			return ctrl.Result{}, err
 		}
