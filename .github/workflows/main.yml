@@ -94,12 +94,18 @@ jobs:
           version: "${{ matrix.kubernetes }}"
           k3d-args: --no-lb
       - name: deploy charts
-        run: helm install frp-operator ./charts/frp-operator --values ./charts/frp-operator/values.yaml --set operator.tag=main
+        run: helm install frp-operator ./charts/frp-operator --values ./charts/frp-operator/values.yaml --set operator.tag=latest
       - name: deploy applications
         run: kubectl apply -f ./examples/deployment
       - name: deploy frp
         run: kubectl apply -f ./examples/http/simple
       - name: waiting frp-operator to start
         run: sleep 180
-      - name: check frp object
-        run: kubectl get frp -A
+      - name: check client object
+        run: kubectl get client -A
+      - name: check upstream object
+        run: kubectl get upstream -A
+      - name: check pod object
+        run: kubectl get pod -A
+      - name: check configmap object
+        run: kubectl get configmap -A
