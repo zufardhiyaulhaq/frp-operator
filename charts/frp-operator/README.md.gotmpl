@@ -15,6 +15,25 @@ helm repo add zufardhiyaulhaq https://charts.zufardhiyaulhaq.com/
 helm install my-release zufardhiyaulhaq/frp-operator --values values.yaml
 ```
 
+## Prerequisite
+To expose your private Kubernetes service into public network. You need public machine running FRP Server that act as a proxy. Currently the operator doesn't have capability to spine a new machine on cloud providers, but this can be setup in a minute.
+
+1. Create machine on cloud provider
+2. Download `frps` [binary[(https://github.com/fatedier/frp)
+3. Create server configuration
+```
+vi frps.ini
+
+[common]
+bind_address = 0.0.0.0
+bind_port = 7000
+token = yourtoken
+```
+4. Run FRP server
+```
+frps -c ./frps.ini
+```
+
 ## Usage
 1. Apply some example
 ```console
