@@ -1,0 +1,12 @@
+apiVersion: frp.zufardhiyaulhaq.com/v1alpha1
+kind: Upstream
+metadata:
+  name: nginx
+  namespace: default
+spec:
+  client: client-01
+  tcp:
+    host: nginx-service.default.svc.cluster.local
+    port: 80
+    server:
+      port: 8080

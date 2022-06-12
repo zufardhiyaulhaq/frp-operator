@@ -1,0 +1,13 @@
+---
+apiVersion: v2
+name: frp-operator
+description: Expose your service in Kubernetes to the Internet with open source FRP!
+version: 1.0.0
+appVersion: 0.1.0
+type: application
+home: https://github.com/zufardhiyaulhaq/frp-operator
+
+maintainers:
+- name: Zufar Dhiyaulhaq
+  email: zufardhiyaulhaq@gmail.com
+  url: https://zufardhiyaulhaq.com

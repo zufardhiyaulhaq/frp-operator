@@ -1,0 +1,14 @@
+apiVersion: frp.zufardhiyaulhaq.com/v1alpha1
+kind: Client
+metadata:
+  name: client-01
+  namespace: default
+spec:
+  server:
+    host: 178.128.100.87
+    port: 7000
+    authentication:
+      token:
+        secret:
+          name: client-01-secret
+          key: token

@@ -1,0 +1,43 @@
+{{ template "chart.header" . }}
+{{ template "chart.description" . }}
+
+{{ template "chart.versionBadge" . }}{{ template "chart.typeBadge" . }}{{ template "chart.appVersionBadge" . }}[![made with Go](https://img.shields.io/badge/made%20with-Go-brightgreen)](http://golang.org) [![Github master branch build](https://img.shields.io/github/workflow/status/zufardhiyaulhaq/frp-operator/Master)](https://github.com/zufardhiyaulhaq/frp-operator/actions/workflows/master.yml) [![GitHub issues](https://img.shields.io/github/issues/zufardhiyaulhaq/frp-operator)](https://github.com/zufardhiyaulhaq/frp-operator/issues) [![GitHub pull requests](https://img.shields.io/github/issues-pr/zufardhiyaulhaq/frp-operator)](https://github.com/zufardhiyaulhaq/frp-operator/pulls)
+
+## Installing
+
+To install the chart with the release name `my-release`:
+
+```console
+helm repo add zufardhiyaulhaq https://charts.zufardhiyaulhaq.com/
+helm install my-release zufardhiyaulhaq/frp-operator --values values.yaml
+```
+
+## Usage
+1. Apply some example
+```console
+kubectl apply -f examples/deployment/
+kubectl apply -f examples/client/
+```
+2. Check frpc object
+```console
+kubectl get client
+NAME        AGE
+client-01   17m
+
+kubectl get upstream
+NAME    AGE
+nginx   17m
+```
+
+3. access the URL
+```console
+http://178.128.100.87:8080/
+```
+
+{{ template "chart.requirementsSection" . }}
+
+{{ template "chart.valuesSection" . }}
+
+see example files [here](https://github.com/zufardhiyaulhaq/frp-operator/blob/master/charts/frp-operator/values.yaml)
+
+{{ template "helm-docs.versionFooter" . }}

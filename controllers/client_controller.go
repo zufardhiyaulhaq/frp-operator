@@ -49,6 +49,7 @@ type ClientReconciler struct {
 //+kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups="",resources=services,verbs=get;list;watch;create;update;patch;delete
 
 func (r *ClientReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := log.FromContext(ctx)
@@ -114,6 +115,33 @@ func (r *ClientReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return ctrl.Result{}, err
 	}
 
+	log.Info("Build service")
+	service, err := builder.NewServiceBuilder().
+		SetName(client.Name).
+		SetNamespace(client.Namespace).
+		Build()
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+
+	log.Info("set reference service")
+	if err := controllerutil.SetControllerReference(client, service, r.Scheme); err != nil {
+		return ctrl.Result{}, err
+	}
+
+	log.Info("get service")
+	createdService := &corev1.Service{}
+	err = r.Client.Get(context.TODO(), types.NamespacedName{Name: service.Name, Namespace: service.Namespace}, createdService)
+	if err != nil && errors.IsNotFound(err) {
+		log.Info("create service")
+		err = r.Client.Create(context.TODO(), service)
+		if err != nil {
+			return ctrl.Result{}, err
+		}
+	} else if err != nil {
+		return ctrl.Result{}, err
+	}
+
 	log.Info("Build pod")
 	pod, err := builder.NewPodBuilder().
 		SetName(client.Name).
@@ -149,7 +177,7 @@ func (r *ClientReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	}
 
 	if !reflect.DeepEqual(createdConfigMap.Data, configmap.Data) {
-		config.Common.AdminAddress = createdPod.Status.PodIP
+		config.Common.AdminAddress = service.Name + "." + service.Namespace + ".svc"
 		err := handler.Reload(config)
 		if err != nil {
 			return ctrl.Result{}, err
