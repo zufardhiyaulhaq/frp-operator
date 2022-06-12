@@ -7,14 +7,14 @@ For small things like fixing typos in documentation, you can [make edits through
 ### Setup your machine
 Prerequisites:
 - make
-- [Go 1.16](https://golang.org/doc/install)
-- [operator-sdk v1.11.0](https://sdk.operatorframework.io/)
+- [Go 1.17](https://golang.org/doc/install)
+- [operator-sdk v1.21.0](https://sdk.operatorframework.io/)
 
 Fork and clone **[frp-operator](https://github.com/zufardhiyaulhaq/frp-operator)** repository.
 
 - deploy CRDs
 ```
-kubectl apply -f config/crd/bases/frp.com_frps.yaml
+kubectl apply -f config/crd/bases/
 ```
 
 - Run frp-operator locally
@@ -24,8 +24,8 @@ make install run
 
 - deploy some examples
 ```
-cd examples/helloworld/
-kubectl apply -f .
+kubectl apply -f examples/deployment/
+kubectl apply -f examples/client/
 ```
 
 ### Submit a pull request
