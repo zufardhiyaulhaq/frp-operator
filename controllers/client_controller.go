@@ -18,6 +18,7 @@ package controllers
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 	"time"
 
@@ -55,12 +56,14 @@ func (r *ClientReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	log := log.FromContext(ctx)
 	log.Info("Start Client Reconciler")
 
+	log.Info("find client configuration")
 	client := &frpv1alpha1.Client{}
 	err := r.Client.Get(ctx, req.NamespacedName, client)
 	if err != nil {
 		return ctrl.Result{}, nil
 	}
 
+	log.Info("list upstream configuration")
 	upstreams := &frpv1alpha1.UpstreamList{}
 	err = r.Client.List(ctx, upstreams)
 	if err != nil {
@@ -73,6 +76,7 @@ func (r *ClientReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 			filteredUpstreams = append(filteredUpstreams, upstream)
 		}
 	}
+	log.Info(fmt.Sprintf("find %d upstream for %s", len(filteredUpstreams), client.Name))
 
 	config, err := models.NewConfig(r.Client, client, filteredUpstreams)
 	if err != nil {
@@ -176,9 +180,29 @@ func (r *ClientReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
 	}
 
+	log.Info("compare configmap")
+	configmap, err = builder.NewConfigMapBuilder().
+		SetConfig(configuration).
+		SetName(client.Name).
+		SetNamespace(client.Namespace).
+		Build()
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+
 	if !reflect.DeepEqual(createdConfigMap.Data, configmap.Data) {
+		log.Info("found config diff, update configmap")
+
+		createdConfigMap.Data = configmap.Data
+		err := r.Client.Update(ctx, createdConfigMap, &client.UpdateOptions{})
+		if err != nil {
+			return ctrl.Result{}, err
+		}
+
+		time.Sleep(10 * time.Second)
+		log.Info("reload config")
 		config.Common.AdminAddress = service.Name + "." + service.Namespace + ".svc"
-		err := handler.Reload(config)
+		err = handler.Reload(config)
 		if err != nil {
 			return ctrl.Result{}, err
 		}
