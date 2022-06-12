@@ -4,6 +4,6 @@ authors:
 - family-names: "Dhiyaulhaq"
   given-names: "Zufar"
 title: "frp-operator"
-version: 1.0.0
+version: 0.1.0
 date-released: 2022-06-12
 url: "https://github.com/zufardhiyaulhaq/frp-operator"
