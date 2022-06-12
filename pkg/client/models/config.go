@@ -13,7 +13,7 @@ import (
 
 type ServerAuthenticationType int64
 
-const DEFAULT_ADMIN_ADDRESS = "127.0.0.1"
+const DEFAULT_ADMIN_ADDRESS = "0.0.0.0"
 const DEFAULT_ADMIN_PORT = 7400
 const DEFAULT_ADMIN_USERNAME = "frpc-user"
 const DEFAULT_ADMIN_PASSWORD = "frpc-password"

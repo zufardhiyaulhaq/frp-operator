@@ -58,7 +58,7 @@ func (r *ClientReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	client := &frpv1alpha1.Client{}
 	err := r.Client.Get(ctx, req.NamespacedName, client)
 	if err != nil {
-		return ctrl.Result{}, err
+		return ctrl.Result{}, nil
 	}
 
 	upstreams := &frpv1alpha1.UpstreamList{}
