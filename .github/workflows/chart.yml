@@ -3,7 +3,7 @@ name: Upload releases to charts
 on:
   push:
     branches:
-    - master
+    - main
 
 env:
   CHART_USERNAME: ${{ secrets.CHART_USERNAME }}
@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Checkout
-      uses: actions/checkout@master
+      uses: actions/checkout@main
     - name: Deploy
       run: |
         cd charts/releases
