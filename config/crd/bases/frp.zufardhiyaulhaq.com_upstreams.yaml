@@ -43,6 +43,11 @@ spec:
                     type: string
                   port:
                     type: integer
+                  proxyProtocol:
+                    enum:
+                    - v1
+                    - v2
+                    type: string
                   server:
                     properties:
                       port:

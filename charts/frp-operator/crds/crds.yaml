@@ -84,6 +84,7 @@ status:
   conditions: []
   storedVersions: []
 ---
+---
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
@@ -128,6 +129,11 @@ spec:
                     type: string
                   port:
                     type: integer
+                  proxyProtocol:
+                    enum:
+                    - v1
+                    - v2
+                    type: string
                   server:
                     properties:
                       port:

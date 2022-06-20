@@ -30,6 +30,9 @@ type UpstreamSpec_TCP struct {
 	Host   string                  `json:"host"`
 	Port   int                     `json:"port"`
 	Server UpstreamSpec_TCP_Server `json:"server"`
+	// +kubebuilder:validation:Enum=v1;v2
+	// +optional
+	ProxyProtocol *string `json:"proxyProtocol"`
 }
 
 type UpstreamSpec_TCP_Server struct {

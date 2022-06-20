@@ -55,9 +55,10 @@ type Upstream struct {
 }
 
 type Upstream_TCP struct {
-	Host       string
-	Port       int
-	ServerPort int
+	Host          string
+	Port          int
+	ServerPort    int
+	ProxyProtocol *string
 }
 
 func NewConfig(k8sclient client.Client, clientObject *frpv1alpha1.Client, upstreamObjects []frpv1alpha1.Upstream) (Config, error) {
@@ -102,6 +103,7 @@ func NewConfig(k8sclient client.Client, clientObject *frpv1alpha1.Client, upstre
 			upstream.TCP.Host = upstreamObject.Spec.TCP.Host
 			upstream.TCP.Port = upstreamObject.Spec.TCP.Port
 			upstream.TCP.ServerPort = upstreamObject.Spec.TCP.Server.Port
+			upstream.TCP.ProxyProtocol = upstreamObject.Spec.TCP.ProxyProtocol
 		}
 
 		upstreams = append(upstreams, upstream)
