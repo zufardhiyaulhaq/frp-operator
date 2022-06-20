@@ -6,7 +6,7 @@ server_addr = {{ .Common.ServerAddress }}
 server_port = {{ .Common.ServerPort }}
 
 {{ if eq .Common.ServerAuthentication.Type 1 }}
-token: {{ .Common.ServerAuthentication.Token }}
+token = {{ .Common.ServerAuthentication.Token }}
 {{ end }}
 
 admin_addr = {{ .Common.AdminAddress }}
@@ -24,6 +24,7 @@ remote_port = {{ $upstream.TCP.ServerPort }}
 {{ if eq $upstream.TCP.ProxyProtocol }}
 proxy_protocol_version = {{ $upstream.TCP.ProxyProtocol }}
 {{ end }}
+use_encryption = true
 {{ end }}
 {{ end }}
 `

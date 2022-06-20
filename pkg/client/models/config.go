@@ -103,7 +103,10 @@ func NewConfig(k8sclient client.Client, clientObject *frpv1alpha1.Client, upstre
 			upstream.TCP.Host = upstreamObject.Spec.TCP.Host
 			upstream.TCP.Port = upstreamObject.Spec.TCP.Port
 			upstream.TCP.ServerPort = upstreamObject.Spec.TCP.Server.Port
-			upstream.TCP.ProxyProtocol = upstreamObject.Spec.TCP.ProxyProtocol
+
+			if upstream.TCP.ProxyProtocol != nil {
+				upstream.TCP.ProxyProtocol = upstreamObject.Spec.TCP.ProxyProtocol
+			}
 		}
 
 		upstreams = append(upstreams, upstream)
