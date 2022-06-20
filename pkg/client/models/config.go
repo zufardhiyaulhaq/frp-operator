@@ -104,7 +104,7 @@ func NewConfig(k8sclient client.Client, clientObject *frpv1alpha1.Client, upstre
 			upstream.TCP.Port = upstreamObject.Spec.TCP.Port
 			upstream.TCP.ServerPort = upstreamObject.Spec.TCP.Server.Port
 
-			if upstream.TCP.ProxyProtocol != nil {
+			if upstreamObject.Spec.TCP.ProxyProtocol != nil {
 				upstream.TCP.ProxyProtocol = upstreamObject.Spec.TCP.ProxyProtocol
 			}
 		}

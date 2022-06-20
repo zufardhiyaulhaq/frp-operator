@@ -21,7 +21,7 @@ type = tcp
 local_ip = {{ $upstream.TCP.Host }}
 local_port = {{ $upstream.TCP.Port }}
 remote_port = {{ $upstream.TCP.ServerPort }}
-{{ if eq $upstream.TCP.ProxyProtocol }}
+{{ if eq $upstream.TCP.ProxyProtocol . }}
 proxy_protocol_version = {{ $upstream.TCP.ProxyProtocol }}
 {{ end }}
 use_encryption = true
