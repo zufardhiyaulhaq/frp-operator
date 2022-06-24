@@ -3,10 +3,10 @@ entries:
   frp-operator:
   - apiVersion: v2
     appVersion: 0.2.0
-    created: "2022-06-25T01:00:38.759886+07:00"
+    created: "2022-06-25T01:14:41.408103+07:00"
     description: Expose your service in Kubernetes to the Internet with open source
       FRP!
-    digest: e2c91089be33642386e6e0eb98c3316ef38ee8c2bc0e3cde1be8789364778be8
+    digest: d821ceaed80b863ec4c642b930bb9a13e8aacb2cf206eaf8c109fa6fb754a783
     home: https://github.com/zufardhiyaulhaq/frp-operator
     maintainers:
     - email: zufardhiyaulhaq@gmail.com
@@ -17,4 +17,4 @@ entries:
     urls:
     - frp-operator-1.0.0.tgz
     version: 1.0.0
-generated: "2022-06-25T01:00:38.757303+07:00"
+generated: "2022-06-25T01:14:41.407174+07:00"
