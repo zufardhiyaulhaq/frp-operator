@@ -39,16 +39,6 @@ jobs:
         uses: actions/checkout@v2
       - name: Build binary
         run: make build
-  scan:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Check out code
-        uses: actions/checkout@v2
-      - name: Perform SonarQube Scan
-        uses: kitabisa/sonarqube-action@v1.1.0
-        with:
-          host: ${{ secrets.SONARQUBE_HOST }}
-          login: ${{ secrets.SONARQUBE_TOKEN }}
   image:
     runs-on: ubuntu-latest
     steps:
