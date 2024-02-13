@@ -22,13 +22,13 @@ webServer.password = {{ .Common.AdminPassword }}
 name = {{ $upstream.TCP.Name }}
 type = {{ $upstream.TCP.Type }}
 subdomain = {{ $upstream.TCP.SubDomain }}
-local_ip = {{ $upstream.TCP.Host }}
-local_port = {{ $upstream.TCP.Port }}
-remote_port = {{ $upstream.TCP.ServerPort }}
+localIP = {{ $upstream.TCP.Host }}
+localPort = {{ $upstream.TCP.Port }}
+remotePort = {{ $upstream.TCP.ServerPort }}
 {{ if $upstream.TCP.ProxyProtocol }}
-proxy_protocol_version = {{ $upstream.TCP.ProxyProtocol }}
+transport.proxyProtocolVersion = {{ $upstream.TCP.ProxyProtocol }}
 {{ end }}
-use_encryption = true
+transport.useEncryption = true
 {{ end }}
 {{ end }}
 `
