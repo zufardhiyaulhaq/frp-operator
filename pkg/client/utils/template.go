@@ -1,30 +1,34 @@
 package utils
 
 const CLIENT_TEMPLATE = `
+# frpc.toml
 [common]
-server_addr = {{ .Common.ServerAddress }}
-server_port = {{ .Common.ServerPort }}
+serverAddr = {{ .Common.ServerAddress }}
+serverPort = {{ .Common.ServerPort }}
 
 {{ if eq .Common.ServerAuthentication.Type 1 }}
-token = {{ .Common.ServerAuthentication.Token }}
+auth.method = "token"
+auth.token = {{ .Common.ServerAuthentication.Token }}
 {{ end }}
 
-admin_addr = {{ .Common.AdminAddress }}
-admin_port = {{ .Common.AdminPort }}
-admin_user = {{ .Common.AdminUsername }}
-admin_pwd = {{ .Common.AdminPassword }}
+webServer.addr = {{ .Common.AdminAddress }}
+webServer.port = {{ .Common.AdminPort }}
+webServer.user = {{ .Common.AdminUsername }}
+webServer.password = {{ .Common.AdminPassword }}
 
 {{ range $upstream := .Upstreams }}
 [{{ $upstream.Name }}]
 {{ if eq $upstream.Type 1 }}
-type = tcp
-local_ip = {{ $upstream.TCP.Host }}
-local_port = {{ $upstream.TCP.Port }}
-remote_port = {{ $upstream.TCP.ServerPort }}
+name = {{ $upstream.TCP.Name }}
+type = {{ $upstream.TCP.Type }}
+subdomain = {{ $upstream.TCP.SubDomain }}
+localIP = {{ $upstream.TCP.Host }}
+localPort = {{ $upstream.TCP.Port }}
+remotePort = {{ $upstream.TCP.ServerPort }}
 {{ if $upstream.TCP.ProxyProtocol }}
-proxy_protocol_version = {{ $upstream.TCP.ProxyProtocol }}
+transport.proxyProtocolVersion = {{ $upstream.TCP.ProxyProtocol }}
 {{ end }}
-use_encryption = true
+transport.useEncryption = true
 {{ end }}
 {{ end }}
 `
