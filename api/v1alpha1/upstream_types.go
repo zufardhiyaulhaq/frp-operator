@@ -27,6 +27,9 @@ type UpstreamSpec struct {
 }
 
 type UpstreamSpec_TCP struct {
+    Name   string                  `json:"name"`
+    Type   string                  `json:"type"`
+    SubDomain   string             `json:"subdomain"`
 	Host   string                  `json:"host"`
 	Port   int                     `json:"port"`
 	Server UpstreamSpec_TCP_Server `json:"server"`

@@ -49,7 +49,7 @@ func (n *PodBuilder) Build() (*corev1.Pod, error) {
 				{
 					Name:    "frpc",
 					Image:   n.Image,
-					Command: []string{"frpc", "-c", "/frp/config.ini"},
+					Command: []string{"frpc", "-c", "/frp/config.toml"},
 					Ports: []corev1.ContainerPort{
 						{ContainerPort: int32(4040)},
 					},
