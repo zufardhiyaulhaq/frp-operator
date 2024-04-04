@@ -241,12 +241,11 @@ catalog-push: ## Push a catalog image.
 
 .PHONY: lint
 lint: 
-	go get github.com/golangci/golangci-lint/cmd/golangci-lint
+	go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.50.1
 	golangci-lint run --verbose --timeout 300s
 
 .PHONY: readme
 readme:
-	GO111MODULE=on go get github.com/norwoodj/helm-docs/cmd/helm-docs
 	helm-docs -c ./charts/frp-operator -d > README.md
 	helm-docs -c ./charts/frp-operator
 
