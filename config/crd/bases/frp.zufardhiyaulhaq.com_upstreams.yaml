@@ -39,6 +39,19 @@ spec:
                 type: string
               tcp:
                 properties:
+                  healthCheck:
+                    properties:
+                      intervalSeconds:
+                        type: integer
+                      maxFailed:
+                        type: integer
+                      timeoutSeconds:
+                        type: integer
+                    required:
+                    - intervalSeconds
+                    - maxFailed
+                    - timeoutSeconds
+                    type: object
                   host:
                     type: string
                   port:
@@ -56,6 +69,25 @@ spec:
                     - port
                     type: object
                 required:
+                - healthCheck
+                - host
+                - port
+                - server
+                type: object
+              udp:
+                properties:
+                  host:
+                    type: string
+                  port:
+                    type: integer
+                  server:
+                    properties:
+                      port:
+                        type: integer
+                    required:
+                    - port
+                    type: object
+                required:
                 - host
                 - port
                 - server
@@ -63,6 +95,7 @@ spec:
             required:
             - client
             - tcp
+            - udp
             type: object
           status:
             description: UpstreamStatus defines the observed state of Upstream

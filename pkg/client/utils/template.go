@@ -17,18 +17,38 @@ webServer.user = {{ .Common.AdminUsername }}
 webServer.password = {{ .Common.AdminPassword }}
 
 {{ range $upstream := .Upstreams }}
+
 [{{ $upstream.Name }}]
+
 {{ if eq $upstream.Type 1 }}
-name = {{ $upstream.TCP.Name }}
-type = {{ $upstream.TCP.Type }}
-subdomain = {{ $upstream.TCP.SubDomain }}
+name = {{ $upstream.Name }}
+type = tcp
 localIP = {{ $upstream.TCP.Host }}
 localPort = {{ $upstream.TCP.Port }}
 remotePort = {{ $upstream.TCP.ServerPort }}
+
 {{ if $upstream.TCP.ProxyProtocol }}
 transport.proxyProtocolVersion = {{ $upstream.TCP.ProxyProtocol }}
 {{ end }}
+
+
+{{ if $upstream.TCP.HealthCheck }}
+healthCheck.type = "tcp"
+healthCheck.timeoutSeconds = $upstream.TCP.HealthCheck.TimeoutSeconds
+healthCheck.maxFailed = $upstream.TCP.HealthCheck.MaxFailed
+healthCheck.intervalSeconds = $upstream.TCP.HealthCheck.IntervalSeconds
+{{ end }}
+
 transport.useEncryption = true
 {{ end }}
+
+{{ if eq $upstream.Type 2 }}
+name = {{ $upstream.Name }}
+type = udp
+localIP = {{ $upstream.TCP.Host }}
+localPort = {{ $upstream.TCP.Port }}
+remotePort = {{ $upstream.TCP.ServerPort }}
+{{ end }}
+
 {{ end }}
 `

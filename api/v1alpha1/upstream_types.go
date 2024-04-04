@@ -24,21 +24,36 @@ import (
 type UpstreamSpec struct {
 	Client string            `json:"client"`
 	TCP    *UpstreamSpec_TCP `json:"tcp"`
+	UDP    *UpstreamSpec_UDP `json:"udp"`
 }
 
 type UpstreamSpec_TCP struct {
-    Name   string                  `json:"name"`
-    Type   string                  `json:"type"`
-    SubDomain   string             `json:"subdomain"`
 	Host   string                  `json:"host"`
 	Port   int                     `json:"port"`
 	Server UpstreamSpec_TCP_Server `json:"server"`
 	// +kubebuilder:validation:Enum=v1;v2
 	// +optional
-	ProxyProtocol *string `json:"proxyProtocol"`
+	ProxyProtocol *string                       `json:"proxyProtocol"`
+	HealthCheck   *UpstreamSpec_TCP_HealthCheck `json:"healthCheck"`
 }
 
 type UpstreamSpec_TCP_Server struct {
+	Port int `json:"port"`
+}
+
+type UpstreamSpec_TCP_HealthCheck struct {
+	TimeoutSeconds  int `json:"timeoutSeconds"`
+	MaxFailed       int `json:"maxFailed"`
+	IntervalSeconds int `json:"intervalSeconds"`
+}
+
+type UpstreamSpec_UDP struct {
+	Host   string                  `json:"host"`
+	Port   int                     `json:"port"`
+	Server UpstreamSpec_UDP_Server `json:"server"`
+}
+
+type UpstreamSpec_UDP_Server struct {
 	Port int `json:"port"`
 }
 

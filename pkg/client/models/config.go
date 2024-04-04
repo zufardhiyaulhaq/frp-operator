@@ -46,22 +46,34 @@ type UpstreamType int64
 
 const (
 	TCP UpstreamType = iota
+	UDP UpstreamType = iota
 )
 
 type Upstream struct {
 	Name string
 	Type UpstreamType
 	TCP  Upstream_TCP
+	UDP  Upstream_UDP
 }
 
 type Upstream_TCP struct {
-    Name          string
-    Type          string
-    SubDomain      string
 	Host          string
 	Port          int
 	ServerPort    int
 	ProxyProtocol *string
+	HealthCheck   *Upstream_TCP_HealthCheck
+}
+
+type Upstream_TCP_HealthCheck struct {
+	TimeoutSeconds  int
+	MaxFailed       int
+	IntervalSeconds int
+}
+
+type Upstream_UDP struct {
+	Host       string
+	Port       int
+	ServerPort int
 }
 
 func NewConfig(k8sclient client.Client, clientObject *frpv1alpha1.Client, upstreamObjects []frpv1alpha1.Upstream) (Config, error) {
@@ -101,6 +113,10 @@ func NewConfig(k8sclient client.Client, clientObject *frpv1alpha1.Client, upstre
 			Name: upstreamObject.Name,
 		}
 
+		if upstreamObject.Spec.TCP != nil && upstreamObject.Spec.UDP != nil {
+			return config, errors.NewBadRequest("Multiple protocol on the same Upstream object")
+		}
+
 		if upstreamObject.Spec.TCP != nil {
 			upstream.Type = 1
 			upstream.TCP.Host = upstreamObject.Spec.TCP.Host
@@ -110,6 +126,19 @@ func NewConfig(k8sclient client.Client, clientObject *frpv1alpha1.Client, upstre
 			if upstreamObject.Spec.TCP.ProxyProtocol != nil {
 				upstream.TCP.ProxyProtocol = upstreamObject.Spec.TCP.ProxyProtocol
 			}
+
+			if upstreamObject.Spec.TCP.HealthCheck != nil {
+				upstream.TCP.HealthCheck.IntervalSeconds = upstreamObject.Spec.TCP.HealthCheck.IntervalSeconds
+				upstream.TCP.HealthCheck.MaxFailed = upstreamObject.Spec.TCP.HealthCheck.MaxFailed
+				upstream.TCP.HealthCheck.TimeoutSeconds = upstreamObject.Spec.TCP.HealthCheck.TimeoutSeconds
+			}
+		}
+
+		if upstreamObject.Spec.UDP != nil {
+			upstream.Type = 2
+			upstream.UDP.Host = upstreamObject.Spec.UDP.Host
+			upstream.UDP.Port = upstreamObject.Spec.UDP.Port
+			upstream.UDP.ServerPort = upstreamObject.Spec.UDP.Server.Port
 		}
 
 		upstreams = append(upstreams, upstream)
