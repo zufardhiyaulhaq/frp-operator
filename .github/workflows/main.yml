@@ -66,14 +66,14 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        kubernetes: [v1.22.9]
+        kubernetes: [v1.29.3]
     steps:
       - name: Checkout
         uses: actions/checkout@v2
       - name: Setup kubectl
         uses: azure/setup-kubectl@v1
         with:
-          version: 'v1.22.7'
+          version: 'v1.29.3'
       - name: Setup helm
         uses: azure/setup-helm@v1
         with:

@@ -151,7 +151,7 @@ func (r *ClientReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	pod, err := builder.NewPodBuilder().
 		SetName(client.Name).
 		SetNamespace(client.Namespace).
-		SetImage("fatedier/frpc:v0.54.0").
+		SetImage("fatedier/frpc:v0.56.0").
 		Build()
 	if err != nil {
 		return ctrl.Result{}, err
