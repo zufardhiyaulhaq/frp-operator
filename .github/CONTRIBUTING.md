@@ -7,7 +7,7 @@ For small things like fixing typos in documentation, you can [make edits through
 ### Setup your machine
 Prerequisites:
 - make
-- [Go 1.17](https://golang.org/doc/install)
+- [Go 1.19](https://golang.org/doc/install)
 - [operator-sdk v1.21.0](https://sdk.operatorframework.io/)
 
 Fork and clone **[frp-operator](https://github.com/zufardhiyaulhaq/frp-operator)** repository.
