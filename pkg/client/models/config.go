@@ -55,6 +55,9 @@ type Upstream struct {
 }
 
 type Upstream_TCP struct {
+    Name          string
+    Type          string
+    SubDomain      string
 	Host          string
 	Port          int
 	ServerPort    int

@@ -32,7 +32,7 @@ func (n *ConfigMapBuilder) SetNamespace(namespace string) *ConfigMapBuilder {
 
 func (n *ConfigMapBuilder) Build() (*corev1.ConfigMap, error) {
 	data := make(map[string]string)
-	data["config.ini"] = n.Config
+	data["config.toml"] = n.Config
 
 	configMap := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
