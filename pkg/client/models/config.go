@@ -113,6 +113,10 @@ func NewConfig(k8sclient client.Client, clientObject *frpv1alpha1.Client, upstre
 			Name: upstreamObject.Name,
 		}
 
+		if upstreamObject.Spec.TCP == nil && upstreamObject.Spec.UDP == nil {
+			return config, errors.NewBadRequest("TCP or UDP upstream is required")
+		}
+
 		if upstreamObject.Spec.TCP != nil && upstreamObject.Spec.UDP != nil {
 			return config, errors.NewBadRequest("Multiple protocol on the same Upstream object")
 		}

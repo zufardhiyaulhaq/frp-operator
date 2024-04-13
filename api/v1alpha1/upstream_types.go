@@ -22,9 +22,11 @@ import (
 
 // UpstreamSpec defines the desired state of Upstream
 type UpstreamSpec struct {
-	Client string            `json:"client"`
-	TCP    *UpstreamSpec_TCP `json:"tcp"`
-	UDP    *UpstreamSpec_UDP `json:"udp"`
+	Client string `json:"client"`
+	// +optional
+	TCP *UpstreamSpec_TCP `json:"tcp"`
+	// +optional
+	UDP *UpstreamSpec_UDP `json:"udp"`
 }
 
 type UpstreamSpec_TCP struct {
@@ -33,8 +35,9 @@ type UpstreamSpec_TCP struct {
 	Server UpstreamSpec_TCP_Server `json:"server"`
 	// +kubebuilder:validation:Enum=v1;v2
 	// +optional
-	ProxyProtocol *string                       `json:"proxyProtocol"`
-	HealthCheck   *UpstreamSpec_TCP_HealthCheck `json:"healthCheck"`
+	ProxyProtocol *string `json:"proxyProtocol"`
+	// +optional
+	HealthCheck *UpstreamSpec_TCP_HealthCheck `json:"healthCheck"`
 }
 
 type UpstreamSpec_TCP_Server struct {

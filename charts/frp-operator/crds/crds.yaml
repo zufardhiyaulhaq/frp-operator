@@ -3,7 +3,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.8.0
+    controller-gen.kubebuilder.io/version: v0.11.3
   creationTimestamp: null
   name: clients.frp.zufardhiyaulhaq.com
 spec:
@@ -77,18 +77,12 @@ spec:
     storage: true
     subresources:
       status: {}
-status:
-  acceptedNames:
-    kind: ""
-    plural: ""
-  conditions: []
-  storedVersions: []
 ---
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.8.0
+    controller-gen.kubebuilder.io/version: v0.11.3
   creationTimestamp: null
   name: upstreams.frp.zufardhiyaulhaq.com
 spec:
@@ -154,7 +148,6 @@ spec:
                     - port
                     type: object
                 required:
-                - healthCheck
                 - host
                 - port
                 - server
@@ -179,8 +172,6 @@ spec:
                 type: object
             required:
             - client
-            - tcp
-            - udp
             type: object
           status:
             description: UpstreamStatus defines the observed state of Upstream
@@ -190,9 +181,3 @@ spec:
     storage: true
     subresources:
       status: {}
-status:
-  acceptedNames:
-    kind: ""
-    plural: ""
-  conditions: []
-  storedVersions: []
