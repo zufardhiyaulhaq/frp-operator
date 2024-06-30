@@ -1,6 +1,6 @@
-serverAddr = "{{ server_address }}"
-serverPort = {{ server_port }}
-auth.method = "{{ server_token }}"
+bindPort = {{ server_port }}
+auth.method = "token"
+auth.token = "{{ server_token }}"
 
 webServer.addr = "{{ server_address }}"
 webServer.port = {{ webserver_port }}

@@ -2,7 +2,7 @@ operator:
   # image of frp-operator
   image: "zufardhiyaulhaq/frp-operator"
   # tag of frp-operator image
-  tag: "v0.3.0"
+  tag: "v0.3.1"
   # number of replica for deployment
   replica: 1
 
