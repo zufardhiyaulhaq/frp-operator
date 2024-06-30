@@ -35,6 +35,8 @@ token = yourtoken
 frps -c ./frps.ini
 ```
 
+You can reuse our build-in ansible playbook to setup the FRP server on your machine, please check https://github.com/zufardhiyaulhaq/frp-operator/tree/main/ansible/server
+
 ## Usage
 1. Apply some example
 ```console

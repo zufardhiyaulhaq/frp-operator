@@ -1,0 +1,9 @@
+version: 0.58.1
+
+server_address:
+server_port:
+server_token:
+
+webserver_port:
+webserver_user:
+webserver_password:

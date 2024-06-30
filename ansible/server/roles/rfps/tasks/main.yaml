@@ -1,0 +1,48 @@
+---
+  - name: Download FRP tarball
+    ansible.builtin.get_url:
+      url: https://github.com/fatedier/frp/releases/download/v{{ version }}/frp_{{ version }}_linux_amd64.tar.gz
+      dest: /tmp/frp_{{ version }}_linux_amd64.tar.gz
+      mode: '0644'
+
+  - name: Extract FRP tarball
+    ansible.builtin.unarchive:
+      src: /tmp/frp_{{ version }}_linux_amd64.tar.gz
+      dest: /opt/
+      remote_src: yes
+      creates: /opt/frp_{{ version }}_linux_amd64
+
+  - name: Copy frps to /usr/local/bin
+    ansible.builtin.copy:
+      src: /opt/frp_{{ version }}_linux_amd64/frps
+      dest: /usr/local/bin/frps
+      mode: '0755'
+      remote_src: yes
+
+  - name: Ensure frp server directory exists
+    ansible.builtin.file:
+      path: /etc/frp
+      state: directory
+
+  - name: Setup FRP server config for frps
+    ansible.builtin.template:
+      src: frps.toml.j2
+      dest: /etc/frp/frps.toml
+    notify: Reload systemd
+
+  - name: Ensure systemd service directory exists
+    ansible.builtin.file:
+      path: /etc/systemd/system
+      state: directory
+
+  - name: Setup FRP systemd service for frps
+    ansible.builtin.template:
+      src: frps.service.j2
+      dest: /etc/systemd/system/frps.service
+    notify: Reload systemd
+
+  - name: Enable and start FRP service
+    ansible.builtin.systemd:
+      name: frps
+      enabled: yes
+      state: started

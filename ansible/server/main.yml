@@ -1,0 +1,5 @@
+- name: setup FRP Server
+  become: yes
+  hosts: frps
+  roles:
+    - frps

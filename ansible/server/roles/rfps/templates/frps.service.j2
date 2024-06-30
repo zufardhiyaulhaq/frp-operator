@@ -1,0 +1,10 @@
+[Unit]
+Description=FRP Server
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/frps -c /etc/frp/frps.toml
+
+[Install]
+WantedBy=multi-user.target
