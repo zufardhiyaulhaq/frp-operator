@@ -1,6 +1,6 @@
 module github.com/zufardhiyaulhaq/frp-operator
 
-go 1.22
+go 1.19
 
 require (
 	k8s.io/api v0.26.2
