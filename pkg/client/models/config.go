@@ -31,6 +31,7 @@ type Config struct {
 type Common struct {
 	ServerAddress        string
 	ServerPort           int
+	ServerProtocol       string
 	ServerAuthentication ServerAuthentication
 	AdminAddress         string
 	AdminPort            int
@@ -105,13 +106,48 @@ type Upstream_UDP struct {
 func NewConfig(k8sclient client.Client, clientObject *frpv1alpha1.Client, upstreamObjects []frpv1alpha1.Upstream) (Config, error) {
 	config := Config{
 		Common: Common{
-			ServerAddress: clientObject.Spec.Server.Host,
-			ServerPort:    clientObject.Spec.Server.Port,
-			AdminAddress:  DEFAULT_ADMIN_ADDRESS,
-			AdminPort:     DEFAULT_ADMIN_PORT,
-			AdminUsername: DEFAULT_ADMIN_USERNAME,
-			AdminPassword: DEFAULT_ADMIN_PASSWORD,
+			ServerAddress:  clientObject.Spec.Server.Host,
+			ServerPort:     clientObject.Spec.Server.Port,
+			ServerProtocol: "TCP",
+			AdminAddress:   DEFAULT_ADMIN_ADDRESS,
+			AdminPort:      DEFAULT_ADMIN_PORT,
+			AdminUsername:  DEFAULT_ADMIN_USERNAME,
+			AdminPassword:  DEFAULT_ADMIN_PASSWORD,
 		},
+	}
+
+	if clientObject.Spec.Server.Protocol != nil {
+		config.Common.ServerProtocol = *clientObject.Spec.Server.Protocol
+	}
+
+	if clientObject.Spec.Server.AdminServer != nil {
+		config.Common.AdminPort = clientObject.Spec.Server.AdminServer.Port
+
+		// fetch admin username from secret
+		if clientObject.Spec.Server.AdminServer.Username != nil {
+			secret := &corev1.Secret{}
+
+			err := k8sclient.Get(context.TODO(), types.NamespacedName{Name: clientObject.Spec.Server.AdminServer.Username.Secret.Name, Namespace: clientObject.Namespace}, secret)
+			if err == nil {
+				usernameByte, ok := secret.Data[clientObject.Spec.Server.AdminServer.Username.Secret.Key]
+				if ok {
+					config.Common.AdminUsername = string(usernameByte)
+				}
+			}
+		}
+
+		// fetch admin password from secret
+		if clientObject.Spec.Server.AdminServer.Password != nil {
+			secret := &corev1.Secret{}
+
+			err := k8sclient.Get(context.TODO(), types.NamespacedName{Name: clientObject.Spec.Server.AdminServer.Password.Secret.Name, Namespace: clientObject.Namespace}, secret)
+			if err == nil {
+				usernameByte, ok := secret.Data[clientObject.Spec.Server.AdminServer.Password.Secret.Key]
+				if ok {
+					config.Common.AdminPassword = string(usernameByte)
+				}
+			}
+		}
 	}
 
 	if clientObject.Spec.Server.Authentication.Token != nil {

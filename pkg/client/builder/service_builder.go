@@ -10,10 +10,13 @@ import (
 type ServiceBuilder struct {
 	Name      string
 	Namespace string
+	AdminPort int
 }
 
 func NewServiceBuilder() *ServiceBuilder {
-	return &ServiceBuilder{}
+	return &ServiceBuilder{
+		AdminPort: models.DEFAULT_ADMIN_PORT,
+	}
 }
 
 func (n *ServiceBuilder) SetName(name string) *ServiceBuilder {
@@ -23,6 +26,11 @@ func (n *ServiceBuilder) SetName(name string) *ServiceBuilder {
 
 func (n *ServiceBuilder) SetNamespace(namespace string) *ServiceBuilder {
 	n.Namespace = namespace
+	return n
+}
+
+func (n *ServiceBuilder) SetAdminPort(adminPort int) *ServiceBuilder {
+	n.AdminPort = adminPort
 	return n
 }
 
@@ -39,10 +47,10 @@ func (n *ServiceBuilder) Build() (*corev1.Service, error) {
 				{
 					Name:     "http-api",
 					Protocol: corev1.ProtocolTCP,
-					Port:     models.DEFAULT_ADMIN_PORT,
+					Port:     int32(n.AdminPort),
 					TargetPort: intstr.IntOrString{
 						Type:   0,
-						IntVal: models.DEFAULT_ADMIN_PORT,
+						IntVal: int32(n.AdminPort),
 					},
 				},
 			},

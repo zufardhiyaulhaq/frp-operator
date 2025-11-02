@@ -41,6 +41,45 @@ spec:
             properties:
               server:
                 properties:
+                  adminServer:
+                    properties:
+                      password:
+                        properties:
+                          secret:
+                            properties:
+                              key:
+                                type: string
+                              name:
+                                type: string
+                            required:
+                            - key
+                            - name
+                            type: object
+                        required:
+                        - secret
+                        type: object
+                      port:
+                        type: integer
+                      username:
+                        properties:
+                          secret:
+                            properties:
+                              key:
+                                type: string
+                              name:
+                                type: string
+                            required:
+                            - key
+                            - name
+                            type: object
+                        required:
+                        - secret
+                        type: object
+                    required:
+                    - password
+                    - port
+                    - username
+                    type: object
                   authentication:
                     properties:
                       token:
@@ -65,10 +104,19 @@ spec:
                     type: string
                   port:
                     type: integer
+                  protocol:
+                    enum:
+                    - tcp
+                    - kcp
+                    - quic
+                    - websocket
+                    - wss
+                    type: string
                 required:
                 - authentication
                 - host
                 - port
+                - protocol
                 type: object
             required:
             - server

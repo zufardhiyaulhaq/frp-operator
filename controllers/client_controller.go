@@ -124,6 +124,7 @@ func (r *ClientReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	service, err := builder.NewServiceBuilder().
 		SetName(client.Name).
 		SetNamespace(client.Namespace).
+		SetAdminPort(config.Common.AdminPort).
 		Build()
 	if err != nil {
 		return ctrl.Result{}, err

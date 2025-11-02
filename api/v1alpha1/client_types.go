@@ -26,9 +26,12 @@ type ClientSpec struct {
 }
 
 type ClientSpec_Server struct {
-	Host           string                           `json:"host"`
-	Port           int                              `json:"port"`
+	Host string `json:"host"`
+	Port int    `json:"port"`
+	// +kubebuilder:validation:Enum=tcp;kcp;quic;websocket;wss
+	Protocol       *string                          `json:"protocol"`
 	Authentication ClientSpec_Server_Authentication `json:"authentication"`
+	AdminServer    *ClientSpec_Server_AdminServer   `json:"adminServer,omitempty"`
 }
 
 type ClientSpec_Server_Authentication struct {
@@ -36,6 +39,20 @@ type ClientSpec_Server_Authentication struct {
 }
 
 type ClientSpec_Server_Authentication_Token struct {
+	Secret Secret `json:"secret"`
+}
+
+type ClientSpec_Server_AdminServer struct {
+	Port     int                                     `json:"port"`
+	Username *ClientSpec_Server_AdminServer_Username `json:"username"`
+	Password *ClientSpec_Server_AdminServer_Password `json:"password"`
+}
+
+type ClientSpec_Server_AdminServer_Username struct {
+	Secret Secret `json:"secret"`
+}
+
+type ClientSpec_Server_AdminServer_Password struct {
 	Secret Secret `json:"secret"`
 }
 
