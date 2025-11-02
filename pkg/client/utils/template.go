@@ -33,15 +33,15 @@ transport.proxyProtocolVersion = "{{ $upstream.TCP.ProxyProtocol }}"
 
 {{ if $upstream.TCP.HealthCheck }}
 healthCheck.type = "tcp"
-healthCheck.timeoutSeconds = $upstream.TCP.HealthCheck.TimeoutSeconds
-healthCheck.maxFailed = $upstream.TCP.HealthCheck.MaxFailed
-healthCheck.intervalSeconds = $upstream.TCP.HealthCheck.IntervalSeconds
+healthCheck.timeoutSeconds = {{ $upstream.TCP.HealthCheck.TimeoutSeconds }}
+healthCheck.maxFailed = {{ $upstream.TCP.HealthCheck.MaxFailed }}
+healthCheck.intervalSeconds = {{ $upstream.TCP.HealthCheck.IntervalSeconds }}
 {{ end }}
 
 transport.useEncryption = true
 {{ if $upstream.TCP.Transport }}
 transport.useCompression = {{ $upstream.TCP.Transport.UseCompression }}
-if $upstream.TCP.Transport.BandwdithLimit }}
+{{ if $upstream.TCP.Transport.BandwdithLimit }}
 {{ if $upstream.TCP.Transport.BandwdithLimit.Enabled }}
 transport.bandwidthLimit = "{{ $upstream.TCP.Transport.BandwdithLimit.Limit }}{{ $upstream.TCP.Transport.BandwdithLimit.Type }}"
 transport.bandwidthLimitMode = "client"

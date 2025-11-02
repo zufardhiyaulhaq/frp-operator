@@ -15,8 +15,8 @@ limitations under the License.
 */
 
 // Package v1alpha1 contains API Schema definitions for the frp v1alpha1 API group
-//+kubebuilder:object:generate=true
-//+groupName=frp.zufardhiyaulhaq.com
+// +kubebuilder:object:generate=true
+// +groupName=frp.zufardhiyaulhaq.com
 package v1alpha1
 
 import (

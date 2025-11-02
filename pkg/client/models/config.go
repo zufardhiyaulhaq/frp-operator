@@ -2,6 +2,7 @@ package models
 
 import (
 	"context"
+	"sort"
 
 	corev1 "k8s.io/api/core/v1"
 
@@ -24,7 +25,7 @@ const (
 
 type Config struct {
 	Common    Common
-	Upstreams []Upstream
+	Upstreams Upstreams
 }
 
 type Common struct {
@@ -56,18 +57,43 @@ type Upstream struct {
 	UDP  Upstream_UDP
 }
 
+type Upstreams []Upstream
+
+func (p Upstreams) Len() int {
+	return len(p)
+}
+func (p Upstreams) Less(i, j int) bool {
+	return p[i].Name < p[j].Name
+}
+func (p Upstreams) Swap(i, j int) {
+	p[i], p[j] = p[j], p[i]
+}
+
 type Upstream_TCP struct {
 	Host          string
 	Port          int
 	ServerPort    int
 	ProxyProtocol *string
 	HealthCheck   *Upstream_TCP_HealthCheck
+	Transport     *Upstream_TCP_Transport
 }
 
 type Upstream_TCP_HealthCheck struct {
 	TimeoutSeconds  int
 	MaxFailed       int
 	IntervalSeconds int
+}
+
+type Upstream_TCP_Transport struct {
+	UseCompression bool
+	UseEncryption  bool
+	BandwdithLimit *Upstream_TCP_Transport_BandwidthLimit
+}
+
+type Upstream_TCP_Transport_BandwidthLimit struct {
+	Enabled bool
+	Limit   int
+	Type    string
 }
 
 type Upstream_UDP struct {
@@ -132,9 +158,26 @@ func NewConfig(k8sclient client.Client, clientObject *frpv1alpha1.Client, upstre
 			}
 
 			if upstreamObject.Spec.TCP.HealthCheck != nil {
-				upstream.TCP.HealthCheck.IntervalSeconds = upstreamObject.Spec.TCP.HealthCheck.IntervalSeconds
-				upstream.TCP.HealthCheck.MaxFailed = upstreamObject.Spec.TCP.HealthCheck.MaxFailed
-				upstream.TCP.HealthCheck.TimeoutSeconds = upstreamObject.Spec.TCP.HealthCheck.TimeoutSeconds
+				upstream.TCP.HealthCheck = &Upstream_TCP_HealthCheck{
+					TimeoutSeconds:  upstreamObject.Spec.TCP.HealthCheck.TimeoutSeconds,
+					MaxFailed:       upstreamObject.Spec.TCP.HealthCheck.MaxFailed,
+					IntervalSeconds: upstreamObject.Spec.TCP.HealthCheck.IntervalSeconds,
+				}
+			}
+
+			if upstreamObject.Spec.TCP.Transport != nil {
+				upstream.TCP.Transport = &Upstream_TCP_Transport{
+					UseCompression: upstreamObject.Spec.TCP.Transport.UseCompression,
+					UseEncryption:  upstreamObject.Spec.TCP.Transport.UseEncryption,
+				}
+
+				if upstreamObject.Spec.TCP.Transport.BandwdithLimit != nil {
+					upstream.TCP.Transport.BandwdithLimit = &Upstream_TCP_Transport_BandwidthLimit{
+						Enabled: upstreamObject.Spec.TCP.Transport.BandwdithLimit.Enabled,
+						Limit:   upstreamObject.Spec.TCP.Transport.BandwdithLimit.Limit,
+						Type:    upstreamObject.Spec.TCP.Transport.BandwdithLimit.Type,
+					}
+				}
 			}
 		}
 
@@ -148,6 +191,7 @@ func NewConfig(k8sclient client.Client, clientObject *frpv1alpha1.Client, upstre
 		upstreams = append(upstreams, upstream)
 	}
 	config.Upstreams = upstreams
+	sort.Sort(config.Upstreams)
 
 	return config, nil
 }

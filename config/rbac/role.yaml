@@ -2,48 +2,14 @@
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  creationTimestamp: null
   name: manager-role
 rules:
 - apiGroups:
   - ""
   resources:
   - configmaps
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - ""
-  resources:
   - pods
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - ""
-  resources:
   - secrets
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - ""
-  resources:
   - services
   verbs:
   - create
@@ -57,31 +23,6 @@ rules:
   - frp.zufardhiyaulhaq.com
   resources:
   - clients
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - frp.zufardhiyaulhaq.com
-  resources:
-  - clients/finalizers
-  verbs:
-  - update
-- apiGroups:
-  - frp.zufardhiyaulhaq.com
-  resources:
-  - clients/status
-  verbs:
-  - get
-  - patch
-  - update
-- apiGroups:
-  - frp.zufardhiyaulhaq.com
-  resources:
   - upstreams
   verbs:
   - create
@@ -94,12 +35,14 @@ rules:
 - apiGroups:
   - frp.zufardhiyaulhaq.com
   resources:
+  - clients/finalizers
   - upstreams/finalizers
   verbs:
   - update
 - apiGroups:
   - frp.zufardhiyaulhaq.com
   resources:
+  - clients/status
   - upstreams/status
   verbs:
   - get
