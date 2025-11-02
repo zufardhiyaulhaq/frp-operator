@@ -39,7 +39,7 @@ jobs:
         uses: actions/checkout@v2
       - name: Build binary
         run: make build
-  build:
+  image:
     runs-on: ubuntu-latest
     permissions:
       contents: read
