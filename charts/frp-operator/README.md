@@ -65,7 +65,7 @@ http://178.128.100.87:8080/
 |-----|------|---------|-------------|
 | operator.image | string | `"ghcr.io/zufardhiyaulhaq/frp-operator"` |  |
 | operator.replica | int | `1` |  |
-| operator.tag | string | `"v0.3.1"` |  |
+| operator.tag | string | `"v0.4.0"` |  |
 | resources.limits.cpu | string | `"200m"` |  |
 | resources.limits.memory | string | `"100Mi"` |  |
 | resources.requests.cpu | string | `"100m"` |  |
