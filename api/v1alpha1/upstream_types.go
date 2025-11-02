@@ -38,6 +38,8 @@ type UpstreamSpec_TCP struct {
 	ProxyProtocol *string `json:"proxyProtocol"`
 	// +optional
 	HealthCheck *UpstreamSpec_TCP_HealthCheck `json:"healthCheck"`
+	// +optional
+	Transport *UpstreamSpec_TCP_Transport `json:"transport"`
 }
 
 type UpstreamSpec_TCP_Server struct {
@@ -48,6 +50,23 @@ type UpstreamSpec_TCP_HealthCheck struct {
 	TimeoutSeconds  int `json:"timeoutSeconds"`
 	MaxFailed       int `json:"maxFailed"`
 	IntervalSeconds int `json:"intervalSeconds"`
+}
+
+type UpstreamSpec_TCP_Transport struct {
+	// +kubebuilder:default=true
+	UseEncryption bool `json:"useEncryption"`
+	// +kubebuilder:default=false
+	UseCompression bool `json:"useCompression"`
+	// +optional
+	BandwdithLimit *UpstreamSpec_TCP_Transport_BandwdithLimit `json:"bandwidthLimit"`
+}
+
+type UpstreamSpec_TCP_Transport_BandwdithLimit struct {
+	// +kubebuilder:default=false
+	Enabled bool `json:"enabled"`
+	Limit   int  `json:"limit"`
+	// +kubebuilder:validation:Enum=KB;MB
+	Type string `json:"type"`
 }
 
 type UpstreamSpec_UDP struct {
