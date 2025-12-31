@@ -21,7 +21,7 @@ cd frp-operator/ansible/server
 ```
 1. Adjust variables
 ```shell
-vi group_vars/all.yaml
+vi group_vars/all.yml
 ```
 1. Install ansible
 ```shell
