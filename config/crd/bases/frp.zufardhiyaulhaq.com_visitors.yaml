@@ -74,19 +74,18 @@ spec:
                 properties:
                   fallback:
                     properties:
-                      enable:
-                        type: boolean
-                      sftpName:
+                      serverName:
                         type: string
                       timeout:
                         type: integer
                     required:
-                    - enable
-                    - sftpName
+                    - serverName
                     - timeout
                     type: object
                   host:
                     type: string
+                  persistantConnection:
+                    type: boolean
                   port:
                     type: integer
                   serverName:
