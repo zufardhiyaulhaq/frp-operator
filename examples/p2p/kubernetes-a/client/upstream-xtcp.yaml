@@ -1,7 +1,7 @@
 apiVersion: frp.zufardhiyaulhaq.com/v1alpha1
 kind: Upstream
 metadata:
-  name: nginx
+  name: nginx-xtcp
   namespace: default
 spec:
   client: client-01

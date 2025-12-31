@@ -1,0 +1,25 @@
+apiVersion: frp.zufardhiyaulhaq.com/v1alpha1
+kind: Upstream
+metadata:
+  name: nginx-stcp
+  namespace: default
+spec:
+  client: client-01
+  stcp:
+    host: nginx-service.default.svc.cluster.local
+    port: 80
+    secretKey:
+      secret:
+        name: nginx-xtcp-secret
+        key: key
+    healthCheck:
+      timeoutSeconds: 5
+      maxFailed: 3
+      intervalSeconds: 10
+    transport:
+      useEncryption: true
+      useCompression: true
+      bandwidthLimit:
+        enabled: true
+        limit: 1024
+        type: MB
