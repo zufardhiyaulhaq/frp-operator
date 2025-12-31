@@ -1,0 +1,28 @@
+apiVersion: frp.zufardhiyaulhaq.com/v1alpha1
+kind: Visitor
+metadata:
+  name: nginx-xtcp
+  namespace: default
+spec:
+  client: client-01
+  xtcp:
+    # this will create listener that listerns on port 5000
+    # the visitor will create pod & service that you can call
+    host: 0.0.0.0
+    port: 5000
+
+    # the Upstream object name on kubernetes-a cluster
+    serverName: nginx-xtcp
+
+    # the same secret as defined in Upstream object on kubernetes-a cluster
+    secretKey:
+      secret:
+        name: nginx-xtcp-secret
+        key: key
+
+    persistantConnection: true
+    fallback:
+      # the Upstream object name on kubernetes-a cluster
+      serverName: nginx-sftp
+      # timeout in MS
+      timeout: 200

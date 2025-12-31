@@ -1,0 +1,15 @@
+apiVersion: frp.zufardhiyaulhaq.com/v1alpha1
+kind: Client
+metadata:
+  name: client-01
+  namespace: default
+spec:
+  server:
+    host: 167.172.86.218
+    port: 7000
+    authentication:
+      token:
+        secret:
+          name: client-01-secret
+          key: token
+    stunServer: stun.easyvoip.com:3478
