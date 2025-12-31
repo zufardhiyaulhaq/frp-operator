@@ -1,6 +1,8 @@
 package builder
 
 import (
+	"fmt"
+
 	"github.com/zufardhiyaulhaq/frp-operator/pkg/client/models"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -66,7 +68,7 @@ func (n *ServiceBuilder) Build() (*corev1.Service, error) {
 
 	for _, port := range n.VisitorPort {
 		servicePort := corev1.ServicePort{
-			Name:     "tcp-visitor-" + string(port),
+			Name:     "tcp-visitor-" + fmt.Sprint(port),
 			Protocol: corev1.ProtocolTCP,
 			Port:     int32(port),
 			TargetPort: intstr.IntOrString{
