@@ -7,8 +7,8 @@ For small things like fixing typos in documentation, you can [make edits through
 ### Setup your machine
 Prerequisites:
 - make
-- [Go 1.19](https://golang.org/doc/install)
-- [operator-sdk v1.21.0](https://sdk.operatorframework.io/)
+- [Go 1.23](https://golang.org/doc/install)
+- [operator-sdk v1.36.0](https://sdk.operatorframework.io/)
 
 Fork and clone **[frp-operator](https://github.com/zufardhiyaulhaq/frp-operator)** repository.
 
@@ -24,8 +24,8 @@ make install run
 
 - deploy some examples
 ```
-kubectl apply -f examples/deployment/
-kubectl apply -f examples/client/
+kubectl apply -f examples/simple/deployment/
+kubectl apply -f examples/simple/client/
 ```
 
 ### Submit a pull request
