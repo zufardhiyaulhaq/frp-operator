@@ -112,11 +112,14 @@ spec:
                     - websocket
                     - wss
                     type: string
+                  stunServer:
+                    type: string
                 required:
                 - authentication
                 - host
                 - port
                 - protocol
+                - stunServer
                 type: object
             required:
             - server

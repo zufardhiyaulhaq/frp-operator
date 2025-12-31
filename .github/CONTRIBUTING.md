@@ -28,6 +28,11 @@ kubectl apply -f examples/simple/deployment/
 kubectl apply -f examples/simple/client/
 ```
 
+- updating CRDs
+```
+make manifests && make generate
+```
+
 ### Submit a pull request
 As you are ready with your code contribution, push your branch to your `frp-operator` fork and open a pull request against the **main** branch.
 

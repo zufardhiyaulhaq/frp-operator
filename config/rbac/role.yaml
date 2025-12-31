@@ -22,6 +22,7 @@ rules:
 - apiGroups:
   - frp.zufardhiyaulhaq.com
   resources:
+  - Visitors
   - clients
   - upstreams
   verbs:
@@ -35,6 +36,7 @@ rules:
 - apiGroups:
   - frp.zufardhiyaulhaq.com
   resources:
+  - Visitors/finalizers
   - clients/finalizers
   - upstreams/finalizers
   verbs:
@@ -42,6 +44,7 @@ rules:
 - apiGroups:
   - frp.zufardhiyaulhaq.com
   resources:
+  - Visitors/status
   - clients/status
   - upstreams/status
   verbs:

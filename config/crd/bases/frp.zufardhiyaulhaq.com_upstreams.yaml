@@ -41,6 +41,81 @@ spec:
             properties:
               client:
                 type: string
+              stcp:
+                properties:
+                  healthCheck:
+                    properties:
+                      intervalSeconds:
+                        type: integer
+                      maxFailed:
+                        type: integer
+                      timeoutSeconds:
+                        type: integer
+                    required:
+                    - intervalSeconds
+                    - maxFailed
+                    - timeoutSeconds
+                    type: object
+                  host:
+                    type: string
+                  port:
+                    type: integer
+                  proxyProtocol:
+                    enum:
+                    - v1
+                    - v2
+                    type: string
+                  secretKey:
+                    properties:
+                      secret:
+                        properties:
+                          key:
+                            type: string
+                          name:
+                            type: string
+                        required:
+                        - key
+                        - name
+                        type: object
+                    required:
+                    - secret
+                    type: object
+                  transport:
+                    properties:
+                      bandwidthLimit:
+                        properties:
+                          enabled:
+                            default: false
+                            type: boolean
+                          limit:
+                            type: integer
+                          type:
+                            enum:
+                            - KB
+                            - MB
+                            type: string
+                        required:
+                        - enabled
+                        - limit
+                        - type
+                        type: object
+                      proxyURL:
+                        type: string
+                      useCompression:
+                        default: false
+                        type: boolean
+                      useEncryption:
+                        default: true
+                        type: boolean
+                    required:
+                    - useCompression
+                    - useEncryption
+                    type: object
+                required:
+                - host
+                - port
+                - secretKey
+                type: object
               tcp:
                 properties:
                   healthCheck:
@@ -125,6 +200,81 @@ spec:
                 - host
                 - port
                 - server
+                type: object
+              xtcp:
+                properties:
+                  healthCheck:
+                    properties:
+                      intervalSeconds:
+                        type: integer
+                      maxFailed:
+                        type: integer
+                      timeoutSeconds:
+                        type: integer
+                    required:
+                    - intervalSeconds
+                    - maxFailed
+                    - timeoutSeconds
+                    type: object
+                  host:
+                    type: string
+                  port:
+                    type: integer
+                  proxyProtocol:
+                    enum:
+                    - v1
+                    - v2
+                    type: string
+                  secretKey:
+                    properties:
+                      secret:
+                        properties:
+                          key:
+                            type: string
+                          name:
+                            type: string
+                        required:
+                        - key
+                        - name
+                        type: object
+                    required:
+                    - secret
+                    type: object
+                  transport:
+                    properties:
+                      bandwidthLimit:
+                        properties:
+                          enabled:
+                            default: false
+                            type: boolean
+                          limit:
+                            type: integer
+                          type:
+                            enum:
+                            - KB
+                            - MB
+                            type: string
+                        required:
+                        - enabled
+                        - limit
+                        - type
+                        type: object
+                      proxyURL:
+                        type: string
+                      useCompression:
+                        default: false
+                        type: boolean
+                      useEncryption:
+                        default: true
+                        type: boolean
+                    required:
+                    - useCompression
+                    - useEncryption
+                    type: object
+                required:
+                - host
+                - port
+                - secretKey
                 type: object
             required:
             - client
