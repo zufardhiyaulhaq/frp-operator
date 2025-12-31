@@ -27,6 +27,44 @@ type UpstreamSpec struct {
 	TCP *UpstreamSpec_TCP `json:"tcp"`
 	// +optional
 	UDP *UpstreamSpec_UDP `json:"udp"`
+	// +optional
+	STCP *UpstreamSpec_STCP `json:"stcp"`
+	// +optional
+	XTCP *UpstreamSpec_XTCP `json:"xtcp"`
+}
+
+type UpstreamSpec_STCP struct {
+	Host      string                      `json:"host"`
+	Port      int                         `json:"port"`
+	SecretKey UpstreamSpec_STCP_SecretKey `json:"secretKey"`
+	// +kubebuilder:validation:Enum=v1;v2
+	// +optional
+	ProxyProtocol *string `json:"proxyProtocol"`
+	// +optional
+	HealthCheck *UpstreamSpec_TCP_HealthCheck `json:"healthCheck"`
+	// +optional
+	Transport *UpstreamSpec_TCP_Transport `json:"transport"`
+}
+
+type UpstreamSpec_STCP_SecretKey struct {
+	Secret Secret `json:"secret"`
+}
+
+type UpstreamSpec_XTCP struct {
+	Host      string                      `json:"host"`
+	Port      int                         `json:"port"`
+	SecretKey UpstreamSpec_XTCP_SecretKey `json:"secretKey"`
+	// +kubebuilder:validation:Enum=v1;v2
+	// +optional
+	ProxyProtocol *string `json:"proxyProtocol"`
+	// +optional
+	HealthCheck *UpstreamSpec_TCP_HealthCheck `json:"healthCheck"`
+	// +optional
+	Transport *UpstreamSpec_TCP_Transport `json:"transport"`
+}
+
+type UpstreamSpec_XTCP_SecretKey struct {
+	Secret Secret `json:"secret"`
 }
 
 type UpstreamSpec_TCP struct {

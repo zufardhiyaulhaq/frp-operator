@@ -32,6 +32,7 @@ type ClientSpec_Server struct {
 	Protocol       *string                          `json:"protocol"`
 	Authentication ClientSpec_Server_Authentication `json:"authentication"`
 	AdminServer    *ClientSpec_Server_AdminServer   `json:"adminServer,omitempty"`
+	STUNServer     *string                          `json:"stunServer"`
 }
 
 type ClientSpec_Server_Authentication struct {

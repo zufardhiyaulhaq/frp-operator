@@ -15,6 +15,10 @@ webServer.port = {{ .Common.AdminPort }}
 webServer.user = "{{ .Common.AdminUsername }}"
 webServer.password = "{{ .Common.AdminPassword }}"
 
+{{ if .Common.STUNServer }}
+natHoleStunServer = "{{ .Common.STUNServer }}"
+{{ end }}
+
 {{ range $upstream := .Upstreams }}
 
 [[proxies]]
