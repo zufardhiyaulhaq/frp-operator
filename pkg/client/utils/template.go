@@ -64,5 +64,69 @@ localPort = {{ $upstream.UDP.Port }}
 remotePort = {{ $upstream.UDP.ServerPort }}
 {{ end }}
 
+{{ if eq $upstream.Type 3 }}
+name = "{{ $upstream.Name }}"
+type = "stcp"
+localIP = "{{ $upstream.STCP.Host }}"
+localPort = {{ $upstream.STCP.Port }}
+
+{{ if $upstream.STCP.ProxyProtocol }}
+transport.proxyProtocolVersion = "{{ $upstream.STCP.ProxyProtocol }}"
+{{ end }}
+
+{{ if $upstream.STCP.HealthCheck }}
+healthCheck.type = "tcp"
+healthCheck.timeoutSeconds = {{ $upstream.STCP.HealthCheck.TimeoutSeconds }}
+healthCheck.maxFailed = {{ $upstream.STCP.HealthCheck.MaxFailed }}
+healthCheck.intervalSeconds = {{ $upstream.STCP.HealthCheck.IntervalSeconds }}
+{{ end }}
+
+{{ if $upstream.STCP.Transport }}
+transport.useEncryption = {{ $upstream.STCP.Transport.UseEncryption }}
+transport.useCompression = {{ $upstream.STCP.Transport.UseCompression }}
+{{ if $upstream.STCP.Transport.BandwdithLimit }}
+{{ if $upstream.STCP.Transport.BandwdithLimit.Enabled }}
+transport.bandwidthLimit = "{{ $upstream.STCP.Transport.BandwdithLimit.Limit }}{{ $upstream.STCP.Transport.BandwdithLimit.Type }}"
+transport.bandwidthLimitMode = "client"
+{{ end }}
+{{ end }}
+{{ if $upstream.STCP.Transport.ProxyURL }}
+transport.proxyURL = "{{ $upstream.STCP.Transport.ProxyURL }}"
+{{ end }}
+{{ end }}
+{{ end }}
+
+{{ if eq $upstream.Type 4 }}
+name = "{{ $upstream.Name }}"
+type = "xtcp"
+localIP = "{{ $upstream.XTCP.Host }}"
+localPort = {{ $upstream.XTCP.Port }}
+
+{{ if $upstream.XTCP.ProxyProtocol }}
+transport.proxyProtocolVersion = "{{ $upstream.XTCP.ProxyProtocol }}"
+{{ end }}
+
+{{ if $upstream.XTCP.HealthCheck }}
+healthCheck.type = "tcp"
+healthCheck.timeoutSeconds = {{ $upstream.XTCP.HealthCheck.TimeoutSeconds }}
+healthCheck.maxFailed = {{ $upstream.XTCP.HealthCheck.MaxFailed }}
+healthCheck.intervalSeconds = {{ $upstream.XTCP.HealthCheck.IntervalSeconds }}
+{{ end }}
+
+{{ if $upstream.XTCP.Transport }}
+transport.useEncryption = {{ $upstream.XTCP.Transport.UseEncryption }}
+transport.useCompression = {{ $upstream.XTCP.Transport.UseCompression }}
+{{ if $upstream.XTCP.Transport.BandwdithLimit }}
+{{ if $upstream.XTCP.Transport.BandwdithLimit.Enabled }}
+transport.bandwidthLimit = "{{ $upstream.XTCP.Transport.BandwdithLimit.Limit }}{{ $upstream.XTCP.Transport.BandwdithLimit.Type }}"
+transport.bandwidthLimitMode = "client"
+{{ end }}
+{{ end }}
+{{ if $upstream.XTCP.Transport.ProxyURL }}
+transport.proxyURL = "{{ $upstream.XTCP.Transport.ProxyURL }}"
+{{ end }}
+{{ end }}
+{{ end }}
+
 {{ end }}
 `

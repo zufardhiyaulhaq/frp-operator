@@ -8,9 +8,10 @@ import (
 )
 
 type ServiceBuilder struct {
-	Name      string
-	Namespace string
-	AdminPort int
+	Name        string
+	Namespace   string
+	AdminPort   int
+	VisitorPort []int
 }
 
 func NewServiceBuilder() *ServiceBuilder {
@@ -31,6 +32,11 @@ func (n *ServiceBuilder) SetNamespace(namespace string) *ServiceBuilder {
 
 func (n *ServiceBuilder) SetAdminPort(adminPort int) *ServiceBuilder {
 	n.AdminPort = adminPort
+	return n
+}
+
+func (n *ServiceBuilder) AddVisitorPort(visitorPort int) *ServiceBuilder {
+	n.VisitorPort = append(n.VisitorPort, visitorPort)
 	return n
 }
 
@@ -56,6 +62,19 @@ func (n *ServiceBuilder) Build() (*corev1.Service, error) {
 			},
 			Type: "ClusterIP",
 		},
+	}
+
+	for _, port := range n.VisitorPort {
+		servicePort := corev1.ServicePort{
+			Name:     "tcp-visitor-" + string(port),
+			Protocol: corev1.ProtocolTCP,
+			Port:     int32(port),
+			TargetPort: intstr.IntOrString{
+				Type:   0,
+				IntVal: int32(port),
+			},
+		}
+		Service.Spec.Ports = append(Service.Spec.Ports, servicePort)
 	}
 
 	return Service, nil
