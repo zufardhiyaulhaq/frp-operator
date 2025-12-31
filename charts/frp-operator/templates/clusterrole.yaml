@@ -108,6 +108,32 @@ rules:
   - get
   - patch
   - update
+- apiGroups:
+  - frp.zufardhiyaulhaq.com
+  resources:
+  - visitors
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - frp.zufardhiyaulhaq.com
+  resources:
+  - visitors/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - frp.zufardhiyaulhaq.com
+  resources:
+  - visitors/status
+  verbs:
+  - get
+  - patch
+  - update
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
