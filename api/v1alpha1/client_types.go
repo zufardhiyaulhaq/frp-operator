@@ -29,10 +29,12 @@ type ClientSpec_Server struct {
 	Host string `json:"host"`
 	Port int    `json:"port"`
 	// +kubebuilder:validation:Enum=tcp;kcp;quic;websocket;wss
+	// +optional
 	Protocol       *string                          `json:"protocol"`
 	Authentication ClientSpec_Server_Authentication `json:"authentication"`
 	AdminServer    *ClientSpec_Server_AdminServer   `json:"adminServer,omitempty"`
-	STUNServer     *string                          `json:"stunServer"`
+	// +optional
+	STUNServer *string `json:"stunServer"`
 }
 
 type ClientSpec_Server_Authentication struct {

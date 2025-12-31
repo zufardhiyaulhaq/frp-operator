@@ -118,8 +118,6 @@ spec:
                 - authentication
                 - host
                 - port
-                - protocol
-                - stunServer
                 type: object
             required:
             - server
