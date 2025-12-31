@@ -363,18 +363,18 @@ func NewConfig(k8sclient client.Client,
 			if upstreamObject.Spec.XTCP.Transport != nil {
 				upstream.XTCP.Transport = &Upstream_TCP_Transport{
 					UseCompression: upstreamObject.Spec.XTCP.Transport.UseCompression,
-					UseEncryption:  upstreamObject.Spec.TCP.Transport.UseEncryption,
+					UseEncryption:  upstreamObject.Spec.XTCP.Transport.UseEncryption,
 				}
 
 				if upstreamObject.Spec.XTCP.Transport.ProxyURL != nil {
-					upstream.TCP.Transport.ProxyURL = upstreamObject.Spec.TCP.Transport.ProxyURL
+					upstream.XTCP.Transport.ProxyURL = upstreamObject.Spec.XTCP.Transport.ProxyURL
 				}
 
-				if upstreamObject.Spec.TCP.Transport.BandwdithLimit != nil {
-					upstream.TCP.Transport.BandwdithLimit = &Upstream_TCP_Transport_BandwidthLimit{
-						Enabled: upstreamObject.Spec.TCP.Transport.BandwdithLimit.Enabled,
-						Limit:   upstreamObject.Spec.TCP.Transport.BandwdithLimit.Limit,
-						Type:    upstreamObject.Spec.TCP.Transport.BandwdithLimit.Type,
+				if upstreamObject.Spec.XTCP.Transport.BandwdithLimit != nil {
+					upstream.XTCP.Transport.BandwdithLimit = &Upstream_TCP_Transport_BandwidthLimit{
+						Enabled: upstreamObject.Spec.XTCP.Transport.BandwdithLimit.Enabled,
+						Limit:   upstreamObject.Spec.XTCP.Transport.BandwdithLimit.Limit,
+						Type:    upstreamObject.Spec.XTCP.Transport.BandwdithLimit.Type,
 					}
 				}
 			}
