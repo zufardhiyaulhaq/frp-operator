@@ -23,6 +23,6 @@ spec:
     persistantConnection: true
     fallback:
       # the Upstream object name on kubernetes-a cluster
-      serverName: nginx-sftp
+      serverName: nginx-stcp
       # timeout in MS
       timeout: 200
