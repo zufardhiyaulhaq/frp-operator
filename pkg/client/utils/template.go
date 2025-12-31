@@ -149,13 +149,13 @@ serverName = "{{ $visitor.XTCP.ServerName }}"
 secretKey = "{{ $visitor.XTCP.SecretKey }}"
 bindAddr = "{{ $visitor.XTCP.Host }}"
 bindPort = {{ $visitor.XTCP.Port }}
-persistantConnection = {{ $visitor.XTCP.PersistantConnection }}
+keepTunnelOpen = {{ $visitor.XTCP.PersistantConnection }}
 {{ if $visitor.XTCP.Fallback }}
-fallbackTo = "{{ $visitor.XTCP.Fallback.ServerName }}-visitor"
-fallbackTimeout = {{ $visitor.XTCP.Fallback.Timeout }}
+fallbackTo = "{{ $visitor.Name }}-fallback"
+fallbackTimeoutMs = {{ $visitor.XTCP.Fallback.Timeout }}
 
 [[visitors]]
-name = "{{ $visitor.XTCP.Fallback.ServerName }}-visitor"
+name = "{{ $visitor.Name }}-fallback"
 type = "stcp"
 serverName = "{{ $visitor.XTCP.Fallback.ServerName }}"
 secretKey = "{{ $visitor.XTCP.SecretKey }}"

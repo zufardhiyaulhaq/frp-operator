@@ -15,7 +15,7 @@ spec:
     serverName: nginx-xtcp
 
     # the same secret as defined in Upstream object on kubernetes-a cluster
-    secretKey:
+    serverSecretKey:
       secret:
         name: nginx-xtcp-secret
         key: key
