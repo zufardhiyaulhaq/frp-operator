@@ -89,6 +89,7 @@ type Upstream_TCP_Transport struct {
 	UseCompression bool
 	UseEncryption  bool
 	BandwdithLimit *Upstream_TCP_Transport_BandwidthLimit
+	ProxyURL       *string
 }
 
 type Upstream_TCP_Transport_BandwidthLimit struct {
@@ -205,6 +206,10 @@ func NewConfig(k8sclient client.Client, clientObject *frpv1alpha1.Client, upstre
 				upstream.TCP.Transport = &Upstream_TCP_Transport{
 					UseCompression: upstreamObject.Spec.TCP.Transport.UseCompression,
 					UseEncryption:  upstreamObject.Spec.TCP.Transport.UseEncryption,
+				}
+
+				if upstreamObject.Spec.TCP.Transport.ProxyURL != nil {
+					upstream.TCP.Transport.ProxyURL = upstreamObject.Spec.TCP.Transport.ProxyURL
 				}
 
 				if upstreamObject.Spec.TCP.Transport.BandwdithLimit != nil {

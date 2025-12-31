@@ -30,7 +30,6 @@ remotePort = {{ $upstream.TCP.ServerPort }}
 transport.proxyProtocolVersion = "{{ $upstream.TCP.ProxyProtocol }}"
 {{ end }}
 
-
 {{ if $upstream.TCP.HealthCheck }}
 healthCheck.type = "tcp"
 healthCheck.timeoutSeconds = {{ $upstream.TCP.HealthCheck.TimeoutSeconds }}
@@ -38,8 +37,8 @@ healthCheck.maxFailed = {{ $upstream.TCP.HealthCheck.MaxFailed }}
 healthCheck.intervalSeconds = {{ $upstream.TCP.HealthCheck.IntervalSeconds }}
 {{ end }}
 
-transport.useEncryption = true
 {{ if $upstream.TCP.Transport }}
+transport.useEncryption = {{ $upstream.TCP.Transport.UseEncryption }}
 transport.useCompression = {{ $upstream.TCP.Transport.UseCompression }}
 {{ if $upstream.TCP.Transport.BandwdithLimit }}
 {{ if $upstream.TCP.Transport.BandwdithLimit.Enabled }}
@@ -47,8 +46,10 @@ transport.bandwidthLimit = "{{ $upstream.TCP.Transport.BandwdithLimit.Limit }}{{
 transport.bandwidthLimitMode = "client"
 {{ end }}
 {{ end }}
+{{ if $upstream.TCP.Transport.ProxyURL }}
+transport.proxyURL = "{{ $upstream.TCP.Transport.ProxyURL }}"
 {{ end }}
-
+{{ end }}
 {{ end }}
 
 {{ if eq $upstream.Type 2 }}
