@@ -22,9 +22,11 @@ import (
 
 // VisitorSpec defines the desired state of Visitor
 type VisitorSpec struct {
-	Client string            `json:"client"`
-	STCP   *VisitorSpec_STCP `json:"stcp"`
-	XTCP   *VisitorSpec_XTCP `json:"xtcp"`
+	Client string `json:"client"`
+	// +optional
+	STCP *VisitorSpec_STCP `json:"stcp"`
+	// +optional
+	XTCP *VisitorSpec_XTCP `json:"xtcp"`
 }
 
 type VisitorSpec_STCP struct {

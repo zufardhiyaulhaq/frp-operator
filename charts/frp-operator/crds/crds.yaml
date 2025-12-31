@@ -534,8 +534,6 @@ spec:
                 type: object
             required:
             - client
-            - stcp
-            - xtcp
             type: object
           status:
             description: VisitorStatus defines the observed state of Visitor
