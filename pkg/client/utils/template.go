@@ -69,6 +69,7 @@ name = "{{ $upstream.Name }}"
 type = "stcp"
 localIP = "{{ $upstream.STCP.Host }}"
 localPort = {{ $upstream.STCP.Port }}
+secretKey = "{{ $upstream.STCP.SecretKey }}"
 
 {{ if $upstream.STCP.ProxyProtocol }}
 transport.proxyProtocolVersion = "{{ $upstream.STCP.ProxyProtocol }}"
@@ -101,6 +102,7 @@ name = "{{ $upstream.Name }}"
 type = "xtcp"
 localIP = "{{ $upstream.XTCP.Host }}"
 localPort = {{ $upstream.XTCP.Port }}
+secretKey = "{{ $upstream.XTCP.SecretKey }}"
 
 {{ if $upstream.XTCP.ProxyProtocol }}
 transport.proxyProtocolVersion = "{{ $upstream.XTCP.ProxyProtocol }}"

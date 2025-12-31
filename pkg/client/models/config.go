@@ -126,6 +126,7 @@ func (p Upstreams) Swap(i, j int) {
 type Upstream_STCP struct {
 	Host          string
 	Port          int
+	SecretKey     string
 	ProxyProtocol *string
 	HealthCheck   *Upstream_TCP_HealthCheck
 	Transport     *Upstream_TCP_Transport
@@ -134,6 +135,7 @@ type Upstream_STCP struct {
 type Upstream_XTCP struct {
 	Host          string
 	Port          int
+	SecretKey     string
 	ProxyProtocol *string
 	HealthCheck   *Upstream_TCP_HealthCheck
 	Transport     *Upstream_TCP_Transport
@@ -311,6 +313,20 @@ func NewConfig(k8sclient client.Client,
 			upstream.STCP.Host = upstreamObject.Spec.STCP.Host
 			upstream.STCP.Port = upstreamObject.Spec.STCP.Port
 
+			// fetch secret key from secret
+			secret := &corev1.Secret{}
+			err := k8sclient.Get(context.TODO(), types.NamespacedName{Name: upstreamObject.Spec.STCP.SecretKey.Secret.Name, Namespace: clientObject.Namespace}, secret)
+			if err != nil && errors.IsNotFound(err) {
+				return config, err
+			} else if err != nil {
+				return config, err
+			}
+			secretKeyByte, ok := secret.Data[upstreamObject.Spec.STCP.SecretKey.Secret.Key]
+			if !ok {
+				return config, err
+			}
+			upstream.STCP.SecretKey = string(secretKeyByte)
+
 			if upstreamObject.Spec.STCP.ProxyProtocol != nil {
 				upstream.STCP.ProxyProtocol = upstreamObject.Spec.STCP.ProxyProtocol
 			}
@@ -347,6 +363,20 @@ func NewConfig(k8sclient client.Client,
 			upstream.Type = 4
 			upstream.XTCP.Host = upstreamObject.Spec.XTCP.Host
 			upstream.XTCP.Port = upstreamObject.Spec.XTCP.Port
+
+			// fetch secret key from secret
+			secret := &corev1.Secret{}
+			err := k8sclient.Get(context.TODO(), types.NamespacedName{Name: upstreamObject.Spec.XTCP.SecretKey.Secret.Name, Namespace: clientObject.Namespace}, secret)
+			if err != nil && errors.IsNotFound(err) {
+				return config, err
+			} else if err != nil {
+				return config, err
+			}
+			secretKeyByte, ok := secret.Data[upstreamObject.Spec.XTCP.SecretKey.Secret.Key]
+			if !ok {
+				return config, err
+			}
+			upstream.XTCP.SecretKey = string(secretKeyByte)
 
 			if upstreamObject.Spec.XTCP.ProxyProtocol != nil {
 				upstream.XTCP.ProxyProtocol = upstreamObject.Spec.XTCP.ProxyProtocol
