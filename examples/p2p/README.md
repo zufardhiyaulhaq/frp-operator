@@ -23,13 +23,35 @@ and create the Upstream
 kubectl apply -f examples/p2p/kubernetes-a/client
 ```
 
+the FTP client & nginx deployment will be created
+```
+(⎈|orbstack:default) [31/12/25 | 11:55:50]
+➜  frp-operator git:(main) k get pod
+NAME                                READY   STATUS    RESTARTS   AGE
+client-01-frpc                      1/1     Running   0          20m
+nginx-deployment-688845894b-kn27w   1/1     Running   0          103m
+(⎈|orbstack:default) [31/12/25 | 11:56:25]
+➜  frp-operator git:(main) k get svc
+NAME                                              TYPE        CLUSTER-IP        EXTERNAL-IP   PORT(S)    AGE
+client-01-frpc                                    ClusterIP   192.168.194.158   <none>        7400/TCP   95m
+nginx-service                                     ClusterIP   192.168.194.246   <none>        80/TCP     103m
+```
+
+checking the logs
+```
+025-12-31 16:35:34.085 [I] [client/control.go:172] [a0ec1886673a5764] [nginx-stcp] start proxy success
+2025-12-31 16:35:34.109 [I] [client/control.go:172] [a0ec1886673a5764] [nginx-xtcp] start proxy success
+2025-12-31 16:36:38.746 [I] [proxy/xtcp.go:80] [a0ec1886673a5764] [nginx-xtcp] nathole prepare success, nat type: HardNAT, behavior: BehaviorPortChanged, addresses: [104.28.159.130:36604 104.28.159.130:35515], assistedAddresses: [192.168.194.13:48886]
+2025-12-31 16:36:39.890 [I] [proxy/xtcp.go:101] [a0ec1886673a5764] [nginx-xtcp] get natHoleRespMsg, sid [17671989981c6569161d9c40cb], protocol [quic], candidate address [118.99.104.60:62279 118.99.104.60:32166], assisted address [192.168.194.12:58791], detectBehavior: {Role:sender Mode:0 TTL:0 SendDelayMs:0 ReadTimeoutMs:5000 CandidatePorts:[] SendRandomPorts:0 ListenRandomPorts:0}
+```
+
 ### Kubernetes B
 In Kubernetes B, we will create Visitor object. It's act as the gateway to call the nginx service on Kubernetes A.
 ```
 kubectl apply -f examples/p2p/kubernetes-b/client
 ```
 
-After you create the client & visitor, pod & service will spawn. If you notice, apart from 7400 for admin port, it will also show port 5000 which is port you defined on visitor-xtcp.yaml
+After you create the client & visitor, FRP client pod & service will spawn. If you notice, apart from 7400 for admin port, it will also show port 5000 which is port you defined on visitor-xtcp.yaml
 ```
 (⎈ |orbstack:default) [31/12/25 | 11:41:54] - [main]
 zufar.dhiyaullhaq@Zufar-Dhiyaulhaq frp-operator % k get svc
