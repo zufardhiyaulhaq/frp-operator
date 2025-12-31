@@ -129,4 +129,39 @@ transport.proxyURL = "{{ $upstream.XTCP.Transport.ProxyURL }}"
 {{ end }}
 
 {{ end }}
+
+{{ range $visitor := .Visitors }}
+
+[[visitors]]
+{{ if eq $visitor.Type 1 }}
+name = "{{ $visitor.Name }}"
+type = "stcp"
+serverName = "{{ $visitor.STCP.ServerName }}"
+secretKey = "{{ $visitor.STCP.SecretKey }}"
+bindAddr = "{{ $visitor.STCP.Host }}"
+bindPort = {{ $visitor.STCP.Port }}
+{{ end }}
+
+{{ if eq $visitor.Type 2 }}
+name = "{{ $visitor.Name }}"
+type = "xtcp"
+serverName = "{{ $visitor.XTCP.ServerName }}"
+secretKey = "{{ $visitor.XTCP.SecretKey }}"
+bindAddr = "{{ $visitor.XTCP.Host }}"
+bindPort = {{ $visitor.XTCP.Port }}
+persistantConnection = {{ $visitor.XTCP.PersistantConnection }}
+{{ if $visitor.XTCP.Fallback }}
+fallbackTo = "{{ $visitor.XTCP.Fallback.ServerName }}-visitor"
+fallbackTimeout = {{ $visitor.XTCP.Fallback.Timeout }}
+
+[[visitors]]
+name = "{{ $visitor.XTCP.Fallback.ServerName }}-visitor"
+type = "stcp"
+serverName = "{{ $visitor.XTCP.Fallback.ServerName }}"
+secretKey = "{{ $visitor.XTCP.SecretKey }}"
+bindPort = -1
+{{ end }}
+{{ end }}
+
+{{ end }}
 `

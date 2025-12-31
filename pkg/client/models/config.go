@@ -26,6 +26,7 @@ const (
 type Config struct {
 	Common    Common
 	Upstreams Upstreams
+	Visitors  Visitors
 }
 
 type Common struct {
@@ -43,6 +44,53 @@ type Common struct {
 type ServerAuthentication struct {
 	Type  ServerAuthenticationType
 	Token string
+}
+
+type VisitorType int64
+
+const (
+	STCPVisitor VisitorType = iota
+	XTCPVisitor VisitorType = iota
+)
+
+type Visitor struct {
+	Name string
+	Type VisitorType
+	STCP Visitor_STCP
+	XTCP Visitor_XTCP
+}
+
+type Visitors []Visitor
+
+func (p Visitors) Len() int {
+	return len(p)
+}
+func (p Visitors) Less(i, j int) bool {
+	return p[i].Name < p[j].Name
+}
+func (p Visitors) Swap(i, j int) {
+	p[i], p[j] = p[j], p[i]
+}
+
+type Visitor_STCP struct {
+	Host       string
+	Port       int
+	ServerName string
+	SecretKey  string
+}
+
+type Visitor_XTCP struct {
+	Host                 string
+	Port                 int
+	ServerName           string
+	SecretKey            string
+	PersistantConnection bool
+	Fallback             *Visitor_XTCP_Fallback
+}
+
+type Visitor_XTCP_Fallback struct {
+	ServerName string
+	Timeout    int
 }
 
 type UpstreamType int64
@@ -125,10 +173,14 @@ type Upstream_UDP struct {
 	ServerPort int
 }
 
-func NewConfig(k8sclient client.Client, clientObject *frpv1alpha1.Client, upstreamObjects []frpv1alpha1.Upstream) (Config, error) {
+func NewConfig(k8sclient client.Client,
+	clientObject *frpv1alpha1.Client,
+	upstreamObjects []frpv1alpha1.Upstream,
+	visitorObjects []frpv1alpha1.Visitor,
+) (Config, error) {
 	// TODO: Add validator if more than
-	// >=2 TCP upstreamObjects use the same serverPort
-	// >=2 UDP upstreamObjects use the same serverPort
+	// >=2 TCP/UDP upstreamObjects use the same serverPort
+	// >=2 STCP/XTCP visitorObjects use the same Port
 	config := Config{
 		Common: Common{
 			ServerAddress:  clientObject.Spec.Server.Host,
@@ -331,8 +383,77 @@ func NewConfig(k8sclient client.Client, clientObject *frpv1alpha1.Client, upstre
 		upstreams = append(upstreams, upstream)
 	}
 
+	visitors := []Visitor{}
+	for _, visitorObject := range visitorObjects {
+		visitor := Visitor{
+			Name: visitorObject.Name,
+		}
+
+		if visitorObject.Spec.STCP == nil && visitorObject.Spec.XTCP == nil {
+			return config, errors.NewBadRequest("STCP, XTCP visitor is required")
+		}
+
+		if visitorObject.Spec.STCP != nil && visitorObject.Spec.XTCP != nil {
+			return config, errors.NewBadRequest("Multiple protocol on the same Visitor object")
+		}
+
+		if visitorObject.Spec.STCP != nil {
+			visitor.Type = 1
+			visitor.STCP.Host = visitorObject.Spec.STCP.Host
+			visitor.STCP.Port = visitorObject.Spec.STCP.Port
+			visitor.STCP.ServerName = visitorObject.Spec.STCP.ServerName
+
+			// fetch secret key from secret
+			secret := &corev1.Secret{}
+			err := k8sclient.Get(context.TODO(), types.NamespacedName{Name: visitorObject.Spec.STCP.ServerSecretKey.Secret.Name, Namespace: clientObject.Namespace}, secret)
+			if err != nil && errors.IsNotFound(err) {
+				return config, err
+			} else if err != nil {
+				return config, err
+			}
+			secretKeyByte, ok := secret.Data[visitorObject.Spec.STCP.ServerSecretKey.Secret.Key]
+			if !ok {
+				return config, err
+			}
+			visitor.STCP.SecretKey = string(secretKeyByte)
+		}
+
+		if visitorObject.Spec.XTCP != nil {
+			visitor.Type = 2
+			visitor.XTCP.Host = visitorObject.Spec.XTCP.Host
+			visitor.XTCP.Port = visitorObject.Spec.XTCP.Port
+			visitor.XTCP.ServerName = visitorObject.Spec.XTCP.ServerName
+			visitor.XTCP.PersistantConnection = visitorObject.Spec.XTCP.PersistantConnection
+
+			// fetch secret key from secret
+			secret := &corev1.Secret{}
+			err := k8sclient.Get(context.TODO(), types.NamespacedName{Name: visitorObject.Spec.XTCP.ServerSecretKey.Secret.Name, Namespace: clientObject.Namespace}, secret)
+			if err != nil && errors.IsNotFound(err) {
+				return config, err
+			} else if err != nil {
+				return config, err
+			}
+			secretKeyByte, ok := secret.Data[visitorObject.Spec.XTCP.ServerSecretKey.Secret.Key]
+			if !ok {
+				return config, err
+			}
+			visitor.XTCP.SecretKey = string(secretKeyByte)
+
+			if visitorObject.Spec.XTCP.Fallback != nil {
+				visitor.XTCP.Fallback = &Visitor_XTCP_Fallback{
+					ServerName: visitorObject.Spec.XTCP.Fallback.ServerName,
+					Timeout:    visitorObject.Spec.XTCP.Fallback.Timeout,
+				}
+			}
+		}
+
+		visitors = append(visitors, visitor)
+	}
+
 	config.Upstreams = upstreams
+	config.Visitors = visitors
 	sort.Sort(config.Upstreams)
+	sort.Sort(config.Visitors)
 
 	return config, nil
 }

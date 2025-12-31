@@ -39,11 +39,12 @@ type VisitorSpec_STCP_ServerSecretKey struct {
 }
 
 type VisitorSpec_XTCP struct {
-	Host            string                           `json:"host"`
-	Port            int                              `json:"port"`
-	ServerName      string                           `json:"serverName"`
-	ServerSecretKey VisitorSpec_XTCP_ServerSecretKey `json:"serverSecretKey"`
-	Fallback        *VisitorSpec_Fallback            `json:"fallback,omitempty"`
+	Host                 string                           `json:"host"`
+	Port                 int                              `json:"port"`
+	ServerName           string                           `json:"serverName"`
+	ServerSecretKey      VisitorSpec_XTCP_ServerSecretKey `json:"serverSecretKey"`
+	Fallback             *VisitorSpec_Fallback            `json:"fallback,omitempty"`
+	PersistantConnection bool                             `json:"persistantConnection,omitempty"`
 }
 
 type VisitorSpec_XTCP_ServerSecretKey struct {
@@ -51,9 +52,8 @@ type VisitorSpec_XTCP_ServerSecretKey struct {
 }
 
 type VisitorSpec_Fallback struct {
-	Enable   bool   `json:"enable"`
-	SFTPName string `json:"sftpName"`
-	Timeout  int    `json:"timeout"`
+	ServerName string `json:"serverName"`
+	Timeout    int    `json:"timeout"`
 }
 
 // VisitorStatus defines the observed state of Visitor

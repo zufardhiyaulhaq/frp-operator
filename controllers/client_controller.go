@@ -71,6 +71,13 @@ func (r *ClientReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return ctrl.Result{}, err
 	}
 
+	log.Info("list visitor configuration")
+	visitors := &frpv1alpha1.VisitorList{}
+	err = r.Client.List(ctx, visitors)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+
 	var filteredUpstreams []frpv1alpha1.Upstream
 	for _, upstream := range upstreams.Items {
 		if upstream.Spec.Client == client.Name {
@@ -79,7 +86,15 @@ func (r *ClientReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	}
 	log.Info(fmt.Sprintf("find %d upstream for %s", len(filteredUpstreams), client.Name))
 
-	config, err := models.NewConfig(r.Client, client, filteredUpstreams)
+	var filteredVisitors []frpv1alpha1.Visitor
+	for _, visitor := range visitors.Items {
+		if visitor.Spec.Client == client.Name {
+			filteredVisitors = append(filteredVisitors, visitor)
+		}
+	}
+	log.Info(fmt.Sprintf("find %d visitor for %s", len(filteredVisitors), client.Name))
+
+	config, err := models.NewConfig(r.Client, client, filteredUpstreams, filteredVisitors)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
@@ -121,17 +136,27 @@ func (r *ClientReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	}
 
 	log.Info("Build service")
-	service, err := builder.NewServiceBuilder().
+	serviceBuilder := builder.NewServiceBuilder().
 		SetName(client.Name).
 		SetNamespace(client.Namespace).
-		SetAdminPort(config.Common.AdminPort).
-		Build()
+		SetAdminPort(config.Common.AdminPort)
+
+	for _, visitor := range filteredVisitors {
+		if visitor.Spec.STCP != nil {
+			serviceBuilder.AddVisitorPort(visitor.Spec.STCP.Port)
+		}
+
+		if visitor.Spec.XTCP != nil {
+			serviceBuilder.AddVisitorPort(visitor.Spec.XTCP.Port)
+		}
+	}
+	service, err := serviceBuilder.Build()
 	if err != nil {
 		return ctrl.Result{}, err
 	}
 
 	log.Info("set reference service")
-	if err := controllerutil.SetControllerReference(client, service, r.Scheme); err != nil {
+	if err = controllerutil.SetControllerReference(client, service, r.Scheme); err != nil {
 		return ctrl.Result{}, err
 	}
 
@@ -204,6 +229,19 @@ func (r *ClientReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		}
 	} else {
 		log.Info("no configmap diff found")
+	}
+
+	log.Info("compare service")
+	if !reflect.DeepEqual(createdService.Spec.Ports, service.Spec.Ports) {
+		log.Info("found service diff, update service")
+
+		createdService.Spec.Ports = service.Spec.Ports
+		err := r.Client.Update(ctx, createdService, &ctrlclient.UpdateOptions{})
+		if err != nil {
+			return ctrl.Result{}, err
+		}
+	} else {
+		log.Info("no service diff found")
 	}
 
 	return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
