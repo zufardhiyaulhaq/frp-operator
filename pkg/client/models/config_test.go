@@ -1147,6 +1147,48 @@ func TestNewConfig_XTCPVisitor(t *testing.T) {
 	if visitor.XTCP.SecretKey != "xtcp-visitor-secret-key" {
 		t.Errorf("NewConfig() visitor.XTCP.SecretKey = %v, want %v", visitor.XTCP.SecretKey, "xtcp-visitor-secret-key")
 	}
+	if visitor.XTCP.EnableAssistedAddrs {
+		t.Error("NewConfig() visitor.XTCP.EnableAssistedAddrs should be false by default")
+	}
+}
+
+func TestNewConfig_XTCPVisitorWithEnableAssistedAddrs(t *testing.T) {
+	secretKeySecret := createSecret("default", "visitor-secret", map[string][]byte{
+		"key": []byte("xtcp-visitor-secret-key"),
+	})
+	fakeClient := createFakeClient(secretKeySecret).Build()
+	clientObj := createBasicClient("default", "test-client", "frp.example.com", 7000)
+
+	visitors := []frpv1alpha1.Visitor{
+		{
+			ObjectMeta: metav1.ObjectMeta{Name: "xtcp-visitor-assisted"},
+			Spec: frpv1alpha1.VisitorSpec{
+				XTCP: &frpv1alpha1.VisitorSpec_XTCP{
+					Host:                 "0.0.0.0",
+					Port:                 3390,
+					ServerName:           "rdp-server",
+					PersistantConnection: true,
+					EnableAssistedAddrs:  true,
+					ServerSecretKey: frpv1alpha1.VisitorSpec_XTCP_ServerSecretKey{
+						Secret: frpv1alpha1.Secret{
+							Name: "visitor-secret",
+							Key:  "key",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	config, err := NewConfig(fakeClient, clientObj, []frpv1alpha1.Upstream{}, visitors)
+	if err != nil {
+		t.Fatalf("NewConfig() unexpected error = %v", err)
+	}
+
+	visitor := config.Visitors[0]
+	if !visitor.XTCP.EnableAssistedAddrs {
+		t.Error("NewConfig() visitor.XTCP.EnableAssistedAddrs should be true")
+	}
 }
 
 func TestNewConfig_XTCPVisitorWithFallback(t *testing.T) {

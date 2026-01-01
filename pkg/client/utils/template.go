@@ -152,6 +152,9 @@ secretKey = "{{ $visitor.XTCP.SecretKey }}"
 bindAddr = "{{ $visitor.XTCP.Host }}"
 bindPort = {{ $visitor.XTCP.Port }}
 keepTunnelOpen = {{ $visitor.XTCP.PersistantConnection }}
+{{ if not $visitor.XTCP.EnableAssistedAddrs }}
+natHoleStun.disableAssistedAddrs = true
+{{ end }}
 {{ if $visitor.XTCP.Fallback }}
 fallbackTo = "{{ $visitor.Name }}-fallback"
 fallbackTimeoutMs = {{ $visitor.XTCP.Fallback.Timeout }}

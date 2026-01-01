@@ -649,10 +649,40 @@ func TestConfigurationBuilder_Build(t *testing.T) {
 				`bindAddr = "0.0.0.0"`,
 				`bindPort = 3390`,
 				`keepTunnelOpen = true`,
+				`natHoleStun.disableAssistedAddrs = true`,
 			},
 			wantNotContain: []string{
 				`fallbackTo`,
 				`fallbackTimeoutMs`,
+			},
+		},
+		{
+			name: "XTCP visitor with enableAssistedAddrs",
+			config: models.Config{
+				Common: basicCommon(),
+				Visitors: []models.Visitor{
+					{
+						Name: "xtcp-visitor-assisted",
+						Type: 2,
+						XTCP: models.Visitor_XTCP{
+							Host:                 "0.0.0.0",
+							Port:                 3391,
+							ServerName:           "remote-service",
+							SecretKey:            "secret",
+							PersistantConnection: true,
+							EnableAssistedAddrs:  true,
+						},
+					},
+				},
+			},
+			wantErr: false,
+			wantContains: []string{
+				`name = "xtcp-visitor-assisted"`,
+				`type = "xtcp"`,
+				`keepTunnelOpen = true`,
+			},
+			wantNotContain: []string{
+				`natHoleStun.disableAssistedAddrs`,
 			},
 		},
 		{
@@ -684,6 +714,7 @@ func TestConfigurationBuilder_Build(t *testing.T) {
 				`type = "xtcp"`,
 				`serverName = "remote-rdp-service"`,
 				`keepTunnelOpen = false`,
+				`natHoleStun.disableAssistedAddrs = true`,
 				`fallbackTo = "my-xtcp-visitor-with-fallback-fallback"`,
 				`fallbackTimeoutMs = 5000`,
 				`name = "my-xtcp-visitor-with-fallback-fallback"`,

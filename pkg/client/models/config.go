@@ -86,6 +86,7 @@ type Visitor_XTCP struct {
 	ServerName           string
 	SecretKey            string
 	PersistantConnection bool
+	EnableAssistedAddrs  bool
 	Fallback             *Visitor_XTCP_Fallback
 }
 
@@ -520,6 +521,7 @@ func NewConfig(k8sclient client.Client,
 			visitor.XTCP.Port = visitorObject.Spec.XTCP.Port
 			visitor.XTCP.ServerName = visitorObject.Spec.XTCP.ServerName
 			visitor.XTCP.PersistantConnection = visitorObject.Spec.XTCP.PersistantConnection
+			visitor.XTCP.EnableAssistedAddrs = visitorObject.Spec.XTCP.EnableAssistedAddrs
 
 			// fetch secret key from secret
 			secret := &corev1.Secret{}

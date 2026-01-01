@@ -47,6 +47,12 @@ type VisitorSpec_XTCP struct {
 	ServerSecretKey      VisitorSpec_XTCP_ServerSecretKey `json:"serverSecretKey"`
 	Fallback             *VisitorSpec_Fallback            `json:"fallback,omitempty"`
 	PersistantConnection bool                             `json:"persistantConnection,omitempty"`
+	// +optional
+	// EnableAssistedAddrs enables using local network interface addresses for NAT traversal.
+	// By default (false), only STUN-discovered public addresses are used for NAT hole punching,
+	// which is recommended for Kubernetes where pod IPs are not externally routable.
+	// Set to true to also try local network interfaces (advanced usage).
+	EnableAssistedAddrs bool `json:"enableAssistedAddrs,omitempty"`
 }
 
 type VisitorSpec_XTCP_ServerSecretKey struct {
