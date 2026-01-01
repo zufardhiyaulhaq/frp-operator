@@ -17,6 +17,7 @@ limitations under the License.
 package controllers
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"reflect"
@@ -26,6 +27,10 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/remotecommand"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
@@ -41,7 +46,40 @@ import (
 // ClientReconciler reconciles a Client object
 type ClientReconciler struct {
 	client.Client
-	Scheme *runtime.Scheme
+	Scheme    *runtime.Scheme
+	Config    *rest.Config
+	Clientset kubernetes.Interface
+}
+
+// readPodFile reads a file from a pod container and returns its content
+func (r *ClientReconciler) readPodFile(namespace, podName, containerName, filePath string) (string, error) {
+	req := r.Clientset.CoreV1().RESTClient().Post().
+		Resource("pods").
+		Name(podName).
+		Namespace(namespace).
+		SubResource("exec").
+		VersionedParams(&corev1.PodExecOptions{
+			Container: containerName,
+			Command:   []string{"cat", filePath},
+			Stdout:    true,
+			Stderr:    true,
+		}, scheme.ParameterCodec)
+
+	exec, err := remotecommand.NewSPDYExecutor(r.Config, "POST", req.URL())
+	if err != nil {
+		return "", fmt.Errorf("failed to create executor: %w", err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	err = exec.StreamWithContext(context.TODO(), remotecommand.StreamOptions{
+		Stdout: &stdout,
+		Stderr: &stderr,
+	})
+	if err != nil {
+		return "", fmt.Errorf("exec failed: %w, stderr: %s", err, stderr.String())
+	}
+
+	return stdout.String(), nil
 }
 
 //+kubebuilder:rbac:groups=frp.zufardhiyaulhaq.com,resources=clients,verbs=get;list;watch;create;update;patch;delete
@@ -49,6 +87,7 @@ type ClientReconciler struct {
 //+kubebuilder:rbac:groups=frp.zufardhiyaulhaq.com,resources=clients/finalizers,verbs=update
 
 //+kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups="",resources=pods/exec,verbs=create
 //+kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups="",resources=services,verbs=get;list;watch;create;update;patch;delete
@@ -197,7 +236,8 @@ func (r *ClientReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		if err != nil {
 			return ctrl.Result{}, err
 		}
-		time.Sleep(10 * time.Second)
+		// Requeue to wait for pod to be created and running
+		return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
 	} else if err != nil {
 		return ctrl.Result{}, err
 	}
@@ -208,25 +248,66 @@ func (r *ClientReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	}
 
 	log.Info("compare configmap")
+	reloadPending := createdConfigMap.Annotations != nil && createdConfigMap.Annotations["frp.zufardhiyaulhaq.com/reload-pending"] == "true"
+
 	if !reflect.DeepEqual(createdConfigMap.Data, configmap.Data) {
 		log.Info("found config diff, update configmap")
 
 		createdConfigMap.Data = configmap.Data
+		if createdConfigMap.Annotations == nil {
+			createdConfigMap.Annotations = make(map[string]string)
+		}
+		createdConfigMap.Annotations["frp.zufardhiyaulhaq.com/reload-pending"] = "true"
+
 		err := r.Client.Update(ctx, createdConfigMap, &ctrlclient.UpdateOptions{})
 		if err != nil {
 			return ctrl.Result{}, err
 		}
 
-		// TODO: need to figure out how to make sure configmap is sync in the pod rather than implementing sleep
-		log.Info("wait for configmap sync in the pod")
-		time.Sleep(10 * time.Second)
+		// Requeue to allow ConfigMap to sync to the pod
+		log.Info("configmap updated, requeuing to verify sync")
+		return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
+	}
 
-		log.Info("reload config")
+	// Only verify and reload if there's a pending reload
+	if reloadPending {
+		// Read the config file from the pod to verify it matches expected config
+		log.Info("verifying configmap is synced to pod")
+		podConfigContent, err := r.readPodFile(
+			createdPod.Namespace,
+			createdPod.Name,
+			"frpc",
+			"/frp/config.toml",
+		)
+		if err != nil {
+			log.Error(err, "failed to read config from pod, requeuing")
+			return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
+		}
+
+		// Compare pod's config with expected config
+		expectedConfig := configmap.Data["config.toml"]
+		if podConfigContent != expectedConfig {
+			log.Info("configmap not yet synced to pod, requeuing")
+			return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
+		}
+
+		// Config is synced, reload frpc
+		log.Info("configmap synced to pod, reloading frpc config")
 		config.Common.AdminAddress = service.Name + "." + service.Namespace + ".svc"
 		err = handler.Reload(config)
 		if err != nil {
+			log.Error(err, "failed to reload config")
+			return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
+		}
+
+		// Clear the reload-pending annotation
+		delete(createdConfigMap.Annotations, "frp.zufardhiyaulhaq.com/reload-pending")
+		err = r.Client.Update(ctx, createdConfigMap, &ctrlclient.UpdateOptions{})
+		if err != nil {
+			log.Error(err, "failed to clear reload-pending annotation")
 			return ctrl.Result{}, err
 		}
+		log.Info("config reloaded successfully")
 	} else {
 		log.Info("no configmap diff found")
 	}
@@ -249,6 +330,14 @@ func (r *ClientReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *ClientReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	r.Config = mgr.GetConfig()
+
+	clientset, err := kubernetes.NewForConfig(r.Config)
+	if err != nil {
+		return fmt.Errorf("failed to create clientset: %w", err)
+	}
+	r.Clientset = clientset
+
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&frpv1alpha1.Client{}).
 		Complete(r)
