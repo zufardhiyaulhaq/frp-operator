@@ -2,6 +2,7 @@ package models
 
 import (
 	"context"
+	"fmt"
 	"sort"
 
 	corev1 "k8s.io/api/core/v1"
@@ -175,14 +176,79 @@ type Upstream_UDP struct {
 	ServerPort int
 }
 
+// validateUpstreamServerPorts checks that no two TCP/UDP upstreams use the same server port
+func validateUpstreamServerPorts(upstreamObjects []frpv1alpha1.Upstream) error {
+	serverPorts := make(map[int]string) // port -> upstream name
+
+	for _, upstream := range upstreamObjects {
+		var port int
+		var protocol string
+
+		if upstream.Spec.TCP != nil {
+			port = upstream.Spec.TCP.Server.Port
+			protocol = "TCP"
+		} else if upstream.Spec.UDP != nil {
+			port = upstream.Spec.UDP.Server.Port
+			protocol = "UDP"
+		} else {
+			continue // STCP/XTCP don't have server ports
+		}
+
+		if existingName, exists := serverPorts[port]; exists {
+			return errors.NewBadRequest(
+				fmt.Sprintf("duplicate server port %d: upstream %q (%s) conflicts with upstream %q",
+					port, upstream.Name, protocol, existingName))
+		}
+		serverPorts[port] = upstream.Name
+	}
+
+	return nil
+}
+
+// validateVisitorPorts checks that no two STCP/XTCP visitors use the same port
+func validateVisitorPorts(visitorObjects []frpv1alpha1.Visitor) error {
+	visitorPorts := make(map[int]string) // port -> visitor name
+
+	for _, visitor := range visitorObjects {
+		var port int
+		var protocol string
+
+		if visitor.Spec.STCP != nil {
+			port = visitor.Spec.STCP.Port
+			protocol = "STCP"
+		} else if visitor.Spec.XTCP != nil {
+			port = visitor.Spec.XTCP.Port
+			protocol = "XTCP"
+		} else {
+			continue
+		}
+
+		if existingName, exists := visitorPorts[port]; exists {
+			return errors.NewBadRequest(
+				fmt.Sprintf("duplicate visitor port %d: visitor %q (%s) conflicts with visitor %q",
+					port, visitor.Name, protocol, existingName))
+		}
+		visitorPorts[port] = visitor.Name
+	}
+
+	return nil
+}
+
 func NewConfig(k8sclient client.Client,
 	clientObject *frpv1alpha1.Client,
 	upstreamObjects []frpv1alpha1.Upstream,
 	visitorObjects []frpv1alpha1.Visitor,
 ) (Config, error) {
-	// TODO: Add validator if more than
-	// >=2 TCP/UDP upstreamObjects use the same serverPort
-	// >=2 STCP/XTCP visitorObjects use the same Port
+	// Validate that no duplicate server ports exist for TCP/UDP upstreams
+	if err := validateUpstreamServerPorts(upstreamObjects); err != nil {
+		return Config{}, err
+	}
+
+	// Validate that no duplicate ports exist for STCP/XTCP visitors
+	if err := validateVisitorPorts(visitorObjects); err != nil {
+		return Config{}, err
+	}
+
 	config := Config{
 		Common: Common{
 			ServerAddress:  clientObject.Spec.Server.Host,
