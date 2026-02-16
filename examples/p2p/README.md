@@ -6,6 +6,42 @@ Instead of exposing your service to outside world. We can utilize FRP to only al
 Clients (Kubernetes B) -> Visitor (Kubernetes B) <-- NAT Traversal/Proxy (FRP Server) --> Upstream (Kubernetes A) --> Nginx (Kubernetes A)
 ```
 
+## FRP Server Configuration
+
+For STCP/XTCP (P2P) to work, you need a basic FRP server. The server acts as a rendezvous point for NAT traversal.
+
+```toml
+# frps.toml
+bindAddr = "0.0.0.0"
+bindPort = 7000
+
+# Authentication
+auth.method = "token"
+auth.token = "your-secret-token"
+
+# STUN server for NAT traversal (optional, uses Google's STUN by default)
+# natHoleStunServer = "stun.example.com:3478"
+
+# Optional: Dashboard
+webServer.addr = "0.0.0.0"
+webServer.port = 7500
+webServer.user = "admin"
+webServer.password = "admin"
+
+# Logging
+log.to = "./frps.log"
+log.level = "info"
+```
+
+Run the FRP server:
+```bash
+./frps -c frps.toml
+```
+
+**Note**: For XTCP (NAT traversal), the FRP server helps clients discover each other's public IP and port. Once connected, traffic flows directly between clients (P2P) without going through the server. If NAT traversal fails, STCP (relay through server) is used as fallback.
+
+## Prerequisites
+
 You will need 2 secrets
 1. Secret to authenticate to FRP server
 2. Secret to authenticate between Visitor & Upstream

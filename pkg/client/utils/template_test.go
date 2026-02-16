@@ -186,12 +186,12 @@ func TestTemplateParseValid(t *testing.T) {
 func TestTemplateCommonSection(t *testing.T) {
 	config := testConfig{
 		Common: testCommon{
-			ServerAddress:  "frp.example.com",
-			ServerPort:     7000,
-			AdminAddress:   "0.0.0.0",
-			AdminPort:      7400,
-			AdminUsername:  "admin",
-			AdminPassword:  "secret",
+			ServerAddress: "frp.example.com",
+			ServerPort:    7000,
+			AdminAddress:  "0.0.0.0",
+			AdminPort:     7400,
+			AdminUsername: "admin",
+			AdminPassword: "secret",
 		},
 	}
 
