@@ -1254,8 +1254,8 @@ func TestNewConfig_UpstreamNoProtocol(t *testing.T) {
 	if err == nil {
 		t.Error("NewConfig() expected error for upstream without protocol")
 	}
-	if !contains(err.Error(), "TCP, UDP, STCP, XTCP upstream is required") {
-		t.Errorf("NewConfig() error = %v, want error containing 'TCP, UDP, STCP, XTCP upstream is required'", err)
+	if !contains(err.Error(), "TCP, UDP, STCP, XTCP, HTTP, or HTTPS upstream is required") {
+		t.Errorf("NewConfig() error = %v, want error containing 'TCP, UDP, STCP, XTCP, HTTP, or HTTPS upstream is required'", err)
 	}
 }
 

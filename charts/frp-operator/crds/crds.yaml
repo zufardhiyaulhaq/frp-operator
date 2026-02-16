@@ -173,6 +173,175 @@ spec:
             properties:
               client:
                 type: string
+              http:
+                properties:
+                  customDomains:
+                    items:
+                      type: string
+                    type: array
+                  healthCheck:
+                    properties:
+                      intervalSeconds:
+                        type: integer
+                      maxFailed:
+                        type: integer
+                      path:
+                        type: string
+                      timeoutSeconds:
+                        type: integer
+                      type:
+                        enum:
+                        - http
+                        type: string
+                    required:
+                    - intervalSeconds
+                    - maxFailed
+                    - path
+                    - timeoutSeconds
+                    - type
+                    type: object
+                  host:
+                    type: string
+                  hostHeaderRewrite:
+                    type: string
+                  httpPassword:
+                    properties:
+                      secret:
+                        properties:
+                          key:
+                            type: string
+                          name:
+                            type: string
+                        required:
+                        - key
+                        - name
+                        type: object
+                    required:
+                    - secret
+                    type: object
+                  httpUser:
+                    properties:
+                      secret:
+                        properties:
+                          key:
+                            type: string
+                          name:
+                            type: string
+                        required:
+                        - key
+                        - name
+                        type: object
+                    required:
+                    - secret
+                    type: object
+                  locations:
+                    items:
+                      type: string
+                    type: array
+                  port:
+                    type: integer
+                  requestHeaders:
+                    properties:
+                      set:
+                        additionalProperties:
+                          type: string
+                        type: object
+                    type: object
+                  responseHeaders:
+                    properties:
+                      set:
+                        additionalProperties:
+                          type: string
+                        type: object
+                    type: object
+                  subdomain:
+                    type: string
+                  transport:
+                    properties:
+                      bandwidthLimit:
+                        properties:
+                          enabled:
+                            default: false
+                            type: boolean
+                          limit:
+                            type: integer
+                          type:
+                            enum:
+                            - KB
+                            - MB
+                            type: string
+                        required:
+                        - enabled
+                        - limit
+                        - type
+                        type: object
+                      proxyURL:
+                        type: string
+                      useCompression:
+                        default: false
+                        type: boolean
+                      useEncryption:
+                        default: true
+                        type: boolean
+                    required:
+                    - useCompression
+                    - useEncryption
+                    type: object
+                required:
+                - host
+                - port
+                type: object
+              https:
+                properties:
+                  customDomains:
+                    items:
+                      type: string
+                    type: array
+                  host:
+                    type: string
+                  port:
+                    type: integer
+                  proxyProtocol:
+                    enum:
+                    - v1
+                    - v2
+                    type: string
+                  transport:
+                    properties:
+                      bandwidthLimit:
+                        properties:
+                          enabled:
+                            default: false
+                            type: boolean
+                          limit:
+                            type: integer
+                          type:
+                            enum:
+                            - KB
+                            - MB
+                            type: string
+                        required:
+                        - enabled
+                        - limit
+                        - type
+                        type: object
+                      proxyURL:
+                        type: string
+                      useCompression:
+                        default: false
+                        type: boolean
+                      useEncryption:
+                        default: true
+                        type: boolean
+                    required:
+                    - useCompression
+                    - useEncryption
+                    type: object
+                required:
+                - customDomains
+                - host
+                - port
+                type: object
               stcp:
                 properties:
                   healthCheck:

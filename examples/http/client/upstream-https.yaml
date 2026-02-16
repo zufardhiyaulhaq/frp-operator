@@ -1,0 +1,17 @@
+apiVersion: frp.zufardhiyaulhaq.com/v1alpha1
+kind: Upstream
+metadata:
+  name: nginx-https
+  namespace: default
+spec:
+  client: http-client
+  https:
+    host: nginx-service.default.svc.cluster.local
+    port: 443
+    customDomains:
+      - secure.example.com
+      - ssl.example.com
+    proxyProtocol: v2
+    transport:
+      useEncryption: true
+      useCompression: true

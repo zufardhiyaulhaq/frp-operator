@@ -1,0 +1,33 @@
+apiVersion: frp.zufardhiyaulhaq.com/v1alpha1
+kind: Upstream
+metadata:
+  name: nginx-http
+  namespace: default
+spec:
+  client: http-client
+  http:
+    host: nginx-service.default.svc.cluster.local
+    port: 80
+    subdomain: nginx
+    customDomains:
+      - nginx.example.com
+    locations:
+      - /api
+      - /web
+    hostHeaderRewrite: nginx.internal
+    requestHeaders:
+      set:
+        X-Forwarded-For: "${remote_addr}"
+        X-Real-IP: "${remote_addr}"
+    responseHeaders:
+      set:
+        X-Served-By: frp-operator
+    healthCheck:
+      type: http
+      path: /health
+      timeoutSeconds: 3
+      intervalSeconds: 10
+      maxFailed: 3
+    transport:
+      useEncryption: true
+      useCompression: true

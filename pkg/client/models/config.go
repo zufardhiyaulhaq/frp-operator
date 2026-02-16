@@ -98,19 +98,23 @@ type Visitor_XTCP_Fallback struct {
 type UpstreamType int64
 
 const (
-	TCP  UpstreamType = iota
-	UDP  UpstreamType = iota
-	STCP UpstreamType = iota
-	XTCP UpstreamType = iota
+	TCP   UpstreamType = iota
+	UDP   UpstreamType = iota
+	STCP  UpstreamType = iota
+	XTCP  UpstreamType = iota
+	HTTP  UpstreamType = iota
+	HTTPS UpstreamType = iota
 )
 
 type Upstream struct {
-	Name string
-	Type UpstreamType
-	TCP  Upstream_TCP
-	UDP  Upstream_UDP
-	STCP Upstream_STCP
-	XTCP Upstream_STCP
+	Name  string
+	Type  UpstreamType
+	TCP   Upstream_TCP
+	UDP   Upstream_UDP
+	STCP  Upstream_STCP
+	XTCP  Upstream_STCP
+	HTTP  Upstream_HTTP
+	HTTPS Upstream_HTTPS
 }
 
 type Upstreams []Upstream
@@ -175,6 +179,37 @@ type Upstream_UDP struct {
 	Host       string
 	Port       int
 	ServerPort int
+}
+
+type Upstream_HTTP struct {
+	Host              string
+	Port              int
+	Subdomain         string
+	CustomDomains     []string
+	Locations         []string
+	HostHeaderRewrite string
+	RequestHeaders    map[string]string
+	ResponseHeaders   map[string]string
+	HTTPUser          string
+	HTTPPassword      string
+	HealthCheck       *Upstream_HTTP_HealthCheck
+	Transport         *Upstream_TCP_Transport
+}
+
+type Upstream_HTTP_HealthCheck struct {
+	Type            string
+	Path            string
+	TimeoutSeconds  int
+	IntervalSeconds int
+	MaxFailed       int
+}
+
+type Upstream_HTTPS struct {
+	Host          string
+	Port          int
+	CustomDomains []string
+	ProxyProtocol *string
+	Transport     *Upstream_TCP_Transport
 }
 
 // validateUpstreamServerPorts checks that no two TCP/UDP upstreams use the same server port
@@ -322,11 +357,30 @@ func NewConfig(k8sclient client.Client,
 			Name: upstreamObject.Name,
 		}
 
-		if upstreamObject.Spec.TCP == nil && upstreamObject.Spec.UDP == nil && upstreamObject.Spec.STCP == nil && upstreamObject.Spec.XTCP == nil {
-			return config, errors.NewBadRequest("TCP, UDP, STCP, XTCP upstream is required")
+		if upstreamObject.Spec.TCP == nil && upstreamObject.Spec.UDP == nil && upstreamObject.Spec.STCP == nil && upstreamObject.Spec.XTCP == nil && upstreamObject.Spec.HTTP == nil && upstreamObject.Spec.HTTPS == nil {
+			return config, errors.NewBadRequest("TCP, UDP, STCP, XTCP, HTTP, or HTTPS upstream is required")
 		}
 
-		if upstreamObject.Spec.TCP != nil && upstreamObject.Spec.UDP != nil && upstreamObject.Spec.STCP != nil && upstreamObject.Spec.XTCP != nil {
+		protocolCount := 0
+		if upstreamObject.Spec.TCP != nil {
+			protocolCount++
+		}
+		if upstreamObject.Spec.UDP != nil {
+			protocolCount++
+		}
+		if upstreamObject.Spec.STCP != nil {
+			protocolCount++
+		}
+		if upstreamObject.Spec.XTCP != nil {
+			protocolCount++
+		}
+		if upstreamObject.Spec.HTTP != nil {
+			protocolCount++
+		}
+		if upstreamObject.Spec.HTTPS != nil {
+			protocolCount++
+		}
+		if protocolCount > 1 {
 			return config, errors.NewBadRequest("Multiple protocol on the same Upstream object")
 		}
 
@@ -472,6 +526,129 @@ func NewConfig(k8sclient client.Client,
 						Enabled: upstreamObject.Spec.XTCP.Transport.BandwdithLimit.Enabled,
 						Limit:   upstreamObject.Spec.XTCP.Transport.BandwdithLimit.Limit,
 						Type:    upstreamObject.Spec.XTCP.Transport.BandwdithLimit.Type,
+					}
+				}
+			}
+		}
+
+		if upstreamObject.Spec.HTTP != nil {
+			upstream.Type = 5
+			upstream.HTTP.Host = upstreamObject.Spec.HTTP.Host
+			upstream.HTTP.Port = upstreamObject.Spec.HTTP.Port
+
+			if upstreamObject.Spec.HTTP.Subdomain != "" {
+				upstream.HTTP.Subdomain = upstreamObject.Spec.HTTP.Subdomain
+			}
+
+			if len(upstreamObject.Spec.HTTP.CustomDomains) > 0 {
+				upstream.HTTP.CustomDomains = upstreamObject.Spec.HTTP.CustomDomains
+			}
+
+			if len(upstreamObject.Spec.HTTP.Locations) > 0 {
+				upstream.HTTP.Locations = upstreamObject.Spec.HTTP.Locations
+			}
+
+			if upstreamObject.Spec.HTTP.HostHeaderRewrite != "" {
+				upstream.HTTP.HostHeaderRewrite = upstreamObject.Spec.HTTP.HostHeaderRewrite
+			}
+
+			if upstreamObject.Spec.HTTP.RequestHeaders != nil {
+				upstream.HTTP.RequestHeaders = upstreamObject.Spec.HTTP.RequestHeaders.Set
+			}
+
+			if upstreamObject.Spec.HTTP.ResponseHeaders != nil {
+				upstream.HTTP.ResponseHeaders = upstreamObject.Spec.HTTP.ResponseHeaders.Set
+			}
+
+			// Fetch HTTP user from secret
+			if upstreamObject.Spec.HTTP.HTTPUser != nil {
+				secret := &corev1.Secret{}
+				err := k8sclient.Get(context.TODO(), types.NamespacedName{
+					Name:      upstreamObject.Spec.HTTP.HTTPUser.Secret.Name,
+					Namespace: clientObject.Namespace,
+				}, secret)
+				if err != nil {
+					return config, err
+				}
+				val, ok := secret.Data[upstreamObject.Spec.HTTP.HTTPUser.Secret.Key]
+				if !ok {
+					return config, errors.NewBadRequest(fmt.Sprintf("key %s not found in secret %s",
+						upstreamObject.Spec.HTTP.HTTPUser.Secret.Key,
+						upstreamObject.Spec.HTTP.HTTPUser.Secret.Name))
+				}
+				upstream.HTTP.HTTPUser = string(val)
+			}
+
+			// Fetch HTTP password from secret
+			if upstreamObject.Spec.HTTP.HTTPPassword != nil {
+				secret := &corev1.Secret{}
+				err := k8sclient.Get(context.TODO(), types.NamespacedName{
+					Name:      upstreamObject.Spec.HTTP.HTTPPassword.Secret.Name,
+					Namespace: clientObject.Namespace,
+				}, secret)
+				if err != nil {
+					return config, err
+				}
+				val, ok := secret.Data[upstreamObject.Spec.HTTP.HTTPPassword.Secret.Key]
+				if !ok {
+					return config, errors.NewBadRequest(fmt.Sprintf("key %s not found in secret %s",
+						upstreamObject.Spec.HTTP.HTTPPassword.Secret.Key,
+						upstreamObject.Spec.HTTP.HTTPPassword.Secret.Name))
+				}
+				upstream.HTTP.HTTPPassword = string(val)
+			}
+
+			if upstreamObject.Spec.HTTP.HealthCheck != nil {
+				upstream.HTTP.HealthCheck = &Upstream_HTTP_HealthCheck{
+					Type:            upstreamObject.Spec.HTTP.HealthCheck.Type,
+					Path:            upstreamObject.Spec.HTTP.HealthCheck.Path,
+					TimeoutSeconds:  upstreamObject.Spec.HTTP.HealthCheck.TimeoutSeconds,
+					IntervalSeconds: upstreamObject.Spec.HTTP.HealthCheck.IntervalSeconds,
+					MaxFailed:       upstreamObject.Spec.HTTP.HealthCheck.MaxFailed,
+				}
+			}
+
+			if upstreamObject.Spec.HTTP.Transport != nil {
+				upstream.HTTP.Transport = &Upstream_TCP_Transport{
+					UseCompression: upstreamObject.Spec.HTTP.Transport.UseCompression,
+					UseEncryption:  upstreamObject.Spec.HTTP.Transport.UseEncryption,
+				}
+
+				if upstreamObject.Spec.HTTP.Transport.ProxyURL != nil {
+					upstream.HTTP.Transport.ProxyURL = upstreamObject.Spec.HTTP.Transport.ProxyURL
+				}
+
+				if upstreamObject.Spec.HTTP.Transport.BandwdithLimit != nil {
+					upstream.HTTP.Transport.BandwdithLimit = &Upstream_TCP_Transport_BandwidthLimit{
+						Enabled: upstreamObject.Spec.HTTP.Transport.BandwdithLimit.Enabled,
+						Limit:   upstreamObject.Spec.HTTP.Transport.BandwdithLimit.Limit,
+						Type:    upstreamObject.Spec.HTTP.Transport.BandwdithLimit.Type,
+					}
+				}
+			}
+		}
+
+		if upstreamObject.Spec.HTTPS != nil {
+			upstream.Type = 6
+			upstream.HTTPS.Host = upstreamObject.Spec.HTTPS.Host
+			upstream.HTTPS.Port = upstreamObject.Spec.HTTPS.Port
+			upstream.HTTPS.CustomDomains = upstreamObject.Spec.HTTPS.CustomDomains
+
+			if upstreamObject.Spec.HTTPS.ProxyProtocol != nil {
+				upstream.HTTPS.ProxyProtocol = upstreamObject.Spec.HTTPS.ProxyProtocol
+			}
+
+			if upstreamObject.Spec.HTTPS.Transport != nil {
+				upstream.HTTPS.Transport = &Upstream_TCP_Transport{
+					UseCompression: upstreamObject.Spec.HTTPS.Transport.UseCompression,
+					UseEncryption:  upstreamObject.Spec.HTTPS.Transport.UseEncryption,
+				}
+
+				if upstreamObject.Spec.HTTPS.Transport.BandwdithLimit != nil {
+					upstream.HTTPS.Transport.BandwdithLimit = &Upstream_TCP_Transport_BandwidthLimit{
+						Enabled: upstreamObject.Spec.HTTPS.Transport.BandwdithLimit.Enabled,
+						Limit:   upstreamObject.Spec.HTTPS.Transport.BandwdithLimit.Limit,
+						Type:    upstreamObject.Spec.HTTPS.Transport.BandwdithLimit.Type,
 					}
 				}
 			}

@@ -879,6 +879,175 @@ func TestConfigurationBuilder_Build(t *testing.T) {
 				`serverName = "remote-server"`,
 			},
 		},
+		{
+			name: "HTTP upstream - basic with subdomain",
+			config: models.Config{
+				Common: basicCommon(),
+				Upstreams: []models.Upstream{
+					{
+						Name: "my-http-service",
+						Type: 5, // HTTP
+						HTTP: models.Upstream_HTTP{
+							Host:      "web-service.default.svc",
+							Port:      8080,
+							Subdomain: "webapp",
+						},
+					},
+				},
+			},
+			wantErr: false,
+			wantContains: []string{
+				`[[proxies]]`,
+				`name = "my-http-service"`,
+				`type = "http"`,
+				`localIP = "web-service.default.svc"`,
+				`localPort = 8080`,
+				`subdomain = "webapp"`,
+			},
+			wantNotContain: []string{
+				`customDomains`,
+				`locations`,
+				`hostHeaderRewrite`,
+			},
+		},
+		{
+			name: "HTTP upstream - with custom domains",
+			config: models.Config{
+				Common: basicCommon(),
+				Upstreams: []models.Upstream{
+					{
+						Name: "http-custom-domains",
+						Type: 5,
+						HTTP: models.Upstream_HTTP{
+							Host:          "api-service.default.svc",
+							Port:          8080,
+							CustomDomains: []string{"api.example.com", "api2.example.com"},
+						},
+					},
+				},
+			},
+			wantErr: false,
+			wantContains: []string{
+				`name = "http-custom-domains"`,
+				`type = "http"`,
+				`customDomains = ["api.example.com", "api2.example.com"]`,
+			},
+		},
+		{
+			name: "HTTP upstream - with locations and headers",
+			config: models.Config{
+				Common: basicCommon(),
+				Upstreams: []models.Upstream{
+					{
+						Name: "http-full",
+						Type: 5,
+						HTTP: models.Upstream_HTTP{
+							Host:              "api-service.default.svc",
+							Port:              8080,
+							Subdomain:         "api",
+							Locations:         []string{"/v1", "/v2"},
+							HostHeaderRewrite: "internal-api.local",
+							RequestHeaders:    map[string]string{"X-Forwarded-By": "frp-operator"},
+							ResponseHeaders:   map[string]string{"X-Frame-Options": "DENY"},
+						},
+					},
+				},
+			},
+			wantErr: false,
+			wantContains: []string{
+				`name = "http-full"`,
+				`subdomain = "api"`,
+				`locations = ["/v1", "/v2"]`,
+				`hostHeaderRewrite = "internal-api.local"`,
+				`requestHeaders.set.X-Forwarded-By = "frp-operator"`,
+				`responseHeaders.set.X-Frame-Options = "DENY"`,
+			},
+		},
+		{
+			name: "HTTP upstream - with auth and health check",
+			config: models.Config{
+				Common: basicCommon(),
+				Upstreams: []models.Upstream{
+					{
+						Name: "http-auth",
+						Type: 5,
+						HTTP: models.Upstream_HTTP{
+							Host:         "protected.default.svc",
+							Port:         8080,
+							Subdomain:    "admin",
+							HTTPUser:     "admin",
+							HTTPPassword: "secret123",
+							HealthCheck: &models.Upstream_HTTP_HealthCheck{
+								Type:            "http",
+								Path:            "/health",
+								TimeoutSeconds:  5,
+								IntervalSeconds: 10,
+								MaxFailed:       3,
+							},
+						},
+					},
+				},
+			},
+			wantErr: false,
+			wantContains: []string{
+				`name = "http-auth"`,
+				`httpUser = "admin"`,
+				`httpPassword = "secret123"`,
+				`healthCheck.type = "http"`,
+				`healthCheck.path = "/health"`,
+				`healthCheck.timeoutSeconds = 5`,
+			},
+		},
+		{
+			name: "HTTPS upstream - basic",
+			config: models.Config{
+				Common: basicCommon(),
+				Upstreams: []models.Upstream{
+					{
+						Name: "my-https-service",
+						Type: 6, // HTTPS
+						HTTPS: models.Upstream_HTTPS{
+							Host:          "secure-app.default.svc",
+							Port:          443,
+							CustomDomains: []string{"secure.example.com"},
+						},
+					},
+				},
+			},
+			wantErr: false,
+			wantContains: []string{
+				`[[proxies]]`,
+				`name = "my-https-service"`,
+				`type = "https"`,
+				`localIP = "secure-app.default.svc"`,
+				`localPort = 443`,
+				`customDomains = ["secure.example.com"]`,
+			},
+		},
+		{
+			name: "HTTPS upstream - with proxy protocol",
+			config: models.Config{
+				Common: basicCommon(),
+				Upstreams: []models.Upstream{
+					{
+						Name: "https-proxy-protocol",
+						Type: 6,
+						HTTPS: models.Upstream_HTTPS{
+							Host:          "app.default.svc",
+							Port:          443,
+							CustomDomains: []string{"app.example.com"},
+							ProxyProtocol: stringPtr("v2"),
+						},
+					},
+				},
+			},
+			wantErr: false,
+			wantContains: []string{
+				`name = "https-proxy-protocol"`,
+				`type = "https"`,
+				`transport.proxyProtocolVersion = "v2"`,
+			},
+		},
 	}
 
 	for _, tt := range tests {

@@ -130,6 +130,99 @@ transport.proxyURL = "{{ $upstream.XTCP.Transport.ProxyURL }}"
 {{ end }}
 {{ end }}
 
+{{ if eq $upstream.Type 5 }}
+name = "{{ $upstream.Name }}"
+type = "http"
+localIP = "{{ $upstream.HTTP.Host }}"
+localPort = {{ $upstream.HTTP.Port }}
+
+{{ if $upstream.HTTP.Subdomain }}
+subdomain = "{{ $upstream.HTTP.Subdomain }}"
+{{ end }}
+
+{{ if $upstream.HTTP.CustomDomains }}
+customDomains = [{{ range $i, $d := $upstream.HTTP.CustomDomains }}{{ if $i }}, {{ end }}"{{ $d }}"{{ end }}]
+{{ end }}
+
+{{ if $upstream.HTTP.Locations }}
+locations = [{{ range $i, $l := $upstream.HTTP.Locations }}{{ if $i }}, {{ end }}"{{ $l }}"{{ end }}]
+{{ end }}
+
+{{ if $upstream.HTTP.HostHeaderRewrite }}
+hostHeaderRewrite = "{{ $upstream.HTTP.HostHeaderRewrite }}"
+{{ end }}
+
+{{ if $upstream.HTTP.RequestHeaders }}
+{{ range $k, $v := $upstream.HTTP.RequestHeaders }}
+requestHeaders.set.{{ $k }} = "{{ $v }}"
+{{ end }}
+{{ end }}
+
+{{ if $upstream.HTTP.ResponseHeaders }}
+{{ range $k, $v := $upstream.HTTP.ResponseHeaders }}
+responseHeaders.set.{{ $k }} = "{{ $v }}"
+{{ end }}
+{{ end }}
+
+{{ if $upstream.HTTP.HTTPUser }}
+httpUser = "{{ $upstream.HTTP.HTTPUser }}"
+{{ end }}
+{{ if $upstream.HTTP.HTTPPassword }}
+httpPassword = "{{ $upstream.HTTP.HTTPPassword }}"
+{{ end }}
+
+{{ if $upstream.HTTP.HealthCheck }}
+healthCheck.type = "{{ $upstream.HTTP.HealthCheck.Type }}"
+healthCheck.path = "{{ $upstream.HTTP.HealthCheck.Path }}"
+healthCheck.timeoutSeconds = {{ $upstream.HTTP.HealthCheck.TimeoutSeconds }}
+healthCheck.maxFailed = {{ $upstream.HTTP.HealthCheck.MaxFailed }}
+healthCheck.intervalSeconds = {{ $upstream.HTTP.HealthCheck.IntervalSeconds }}
+{{ end }}
+
+{{ if $upstream.HTTP.Transport }}
+transport.useEncryption = {{ $upstream.HTTP.Transport.UseEncryption }}
+transport.useCompression = {{ $upstream.HTTP.Transport.UseCompression }}
+{{ if $upstream.HTTP.Transport.BandwdithLimit }}
+{{ if $upstream.HTTP.Transport.BandwdithLimit.Enabled }}
+transport.bandwidthLimit = "{{ $upstream.HTTP.Transport.BandwdithLimit.Limit }}{{ $upstream.HTTP.Transport.BandwdithLimit.Type }}"
+transport.bandwidthLimitMode = "client"
+{{ end }}
+{{ end }}
+{{ if $upstream.HTTP.Transport.ProxyURL }}
+transport.proxyURL = "{{ $upstream.HTTP.Transport.ProxyURL }}"
+{{ end }}
+{{ end }}
+{{ end }}
+
+{{ if eq $upstream.Type 6 }}
+name = "{{ $upstream.Name }}"
+type = "https"
+localIP = "{{ $upstream.HTTPS.Host }}"
+localPort = {{ $upstream.HTTPS.Port }}
+
+{{ if $upstream.HTTPS.CustomDomains }}
+customDomains = [{{ range $i, $d := $upstream.HTTPS.CustomDomains }}{{ if $i }}, {{ end }}"{{ $d }}"{{ end }}]
+{{ end }}
+
+{{ if $upstream.HTTPS.ProxyProtocol }}
+transport.proxyProtocolVersion = "{{ $upstream.HTTPS.ProxyProtocol }}"
+{{ end }}
+
+{{ if $upstream.HTTPS.Transport }}
+transport.useEncryption = {{ $upstream.HTTPS.Transport.UseEncryption }}
+transport.useCompression = {{ $upstream.HTTPS.Transport.UseCompression }}
+{{ if $upstream.HTTPS.Transport.BandwdithLimit }}
+{{ if $upstream.HTTPS.Transport.BandwdithLimit.Enabled }}
+transport.bandwidthLimit = "{{ $upstream.HTTPS.Transport.BandwdithLimit.Limit }}{{ $upstream.HTTPS.Transport.BandwdithLimit.Type }}"
+transport.bandwidthLimitMode = "client"
+{{ end }}
+{{ end }}
+{{ if $upstream.HTTPS.Transport.ProxyURL }}
+transport.proxyURL = "{{ $upstream.HTTPS.Transport.ProxyURL }}"
+{{ end }}
+{{ end }}
+{{ end }}
+
 {{ end }}
 
 {{ range $visitor := .Visitors }}

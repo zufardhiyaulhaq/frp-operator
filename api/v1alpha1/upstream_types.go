@@ -31,6 +31,10 @@ type UpstreamSpec struct {
 	STCP *UpstreamSpec_STCP `json:"stcp"`
 	// +optional
 	XTCP *UpstreamSpec_XTCP `json:"xtcp"`
+	// +optional
+	HTTP *UpstreamSpec_HTTP `json:"http"`
+	// +optional
+	HTTPS *UpstreamSpec_HTTPS `json:"https"`
 }
 
 type UpstreamSpec_STCP struct {
@@ -65,6 +69,55 @@ type UpstreamSpec_XTCP struct {
 
 type UpstreamSpec_XTCP_SecretKey struct {
 	Secret Secret `json:"secret"`
+}
+
+type UpstreamSpec_HTTP struct {
+	Host string `json:"host"`
+	Port int    `json:"port"`
+	// +optional
+	Subdomain string `json:"subdomain,omitempty"`
+	// +optional
+	CustomDomains []string `json:"customDomains,omitempty"`
+	// +optional
+	Locations []string `json:"locations,omitempty"`
+	// +optional
+	HostHeaderRewrite string `json:"hostHeaderRewrite,omitempty"`
+	// +optional
+	RequestHeaders *HTTPHeaders `json:"requestHeaders,omitempty"`
+	// +optional
+	ResponseHeaders *HTTPHeaders `json:"responseHeaders,omitempty"`
+	// +optional
+	HTTPUser *SecretRef `json:"httpUser,omitempty"`
+	// +optional
+	HTTPPassword *SecretRef `json:"httpPassword,omitempty"`
+	// +optional
+	HealthCheck *UpstreamSpec_HTTP_HealthCheck `json:"healthCheck,omitempty"`
+	// +optional
+	Transport *UpstreamSpec_TCP_Transport `json:"transport,omitempty"`
+}
+
+type HTTPHeaders struct {
+	Set map[string]string `json:"set,omitempty"`
+}
+
+type UpstreamSpec_HTTP_HealthCheck struct {
+	// +kubebuilder:validation:Enum=http
+	Type            string `json:"type"`
+	Path            string `json:"path"`
+	TimeoutSeconds  int    `json:"timeoutSeconds"`
+	IntervalSeconds int    `json:"intervalSeconds"`
+	MaxFailed       int    `json:"maxFailed"`
+}
+
+type UpstreamSpec_HTTPS struct {
+	Host          string   `json:"host"`
+	Port          int      `json:"port"`
+	CustomDomains []string `json:"customDomains"`
+	// +kubebuilder:validation:Enum=v1;v2
+	// +optional
+	ProxyProtocol *string `json:"proxyProtocol,omitempty"`
+	// +optional
+	Transport *UpstreamSpec_TCP_Transport `json:"transport,omitempty"`
 }
 
 type UpstreamSpec_TCP struct {
