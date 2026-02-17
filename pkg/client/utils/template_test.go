@@ -24,6 +24,7 @@ type testCommon struct {
 	AdminUsername        string
 	AdminPassword        string
 	STUNServer           *string
+	PprofEnable          bool
 }
 
 type testServerAuthentication struct {
@@ -1368,4 +1369,49 @@ func TestTemplateBandwidthLimitDisabled(t *testing.T) {
 	assertContains(t, output, `transport.useEncryption = true`)
 	assertNotContains(t, output, `transport.bandwidthLimit`)
 	assertNotContains(t, output, `transport.bandwidthLimitMode`)
+}
+
+func TestTemplatePprofEnabled(t *testing.T) {
+	config := testConfig{
+		Common: testCommon{
+			ServerAddress: "frp.example.com",
+			ServerPort:    7000,
+			ServerAuthentication: testServerAuthentication{
+				Type:  1,
+				Token: "test-token",
+			},
+			AdminAddress:  "0.0.0.0",
+			AdminPort:     7400,
+			AdminUsername: "admin",
+			AdminPassword: "secret",
+			PprofEnable:   true,
+		},
+	}
+
+	output := renderTemplate(t, config)
+
+	assertContains(t, output, `webServer.pprofEnable = true`)
+}
+
+func TestTemplatePprofDisabled(t *testing.T) {
+	config := testConfig{
+		Common: testCommon{
+			ServerAddress: "frp.example.com",
+			ServerPort:    7000,
+			ServerAuthentication: testServerAuthentication{
+				Type:  1,
+				Token: "test-token",
+			},
+			AdminAddress:  "0.0.0.0",
+			AdminPort:     7400,
+			AdminUsername: "admin",
+			AdminPassword: "secret",
+			PprofEnable:   false,
+		},
+	}
+
+	output := renderTemplate(t, config)
+
+	// Should NOT contain pprofEnable when disabled
+	assertNotContains(t, output, `pprofEnable`)
 }

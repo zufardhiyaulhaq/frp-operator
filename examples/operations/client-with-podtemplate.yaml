@@ -1,0 +1,53 @@
+# Example: Client with PodTemplate customization
+# This example demonstrates how to customize the FRP client pod
+# with resource limits, node scheduling, and security settings.
+#
+# Required secrets:
+# - kubectl create secret generic frp-token --from-literal=token=your-token
+# - kubectl create secret generic admin-creds --from-literal=username=admin --from-literal=password=admin-password
+---
+apiVersion: frp.zufardhiyaulhaq.com/v1alpha1
+kind: Client
+metadata:
+  name: production-client
+spec:
+  server:
+    host: frp.example.com
+    port: 7000
+    authentication:
+      token:
+        secret:
+          name: frp-token
+          key: token
+    adminServer:
+      port: 7400
+      pprofEnable: true
+      username:
+        secret:
+          name: admin-creds
+          key: username
+      password:
+        secret:
+          name: admin-creds
+          key: password
+  podTemplate:
+    resources:
+      requests:
+        cpu: "100m"
+        memory: "64Mi"
+      limits:
+        cpu: "500m"
+        memory: "256Mi"
+    nodeSelector:
+      kubernetes.io/os: linux
+    tolerations:
+      - key: "dedicated"
+        operator: "Equal"
+        value: "frp"
+        effect: "NoSchedule"
+    labels:
+      app.kubernetes.io/part-of: my-application
+    annotations:
+      prometheus.io/scrape: "true"
+    serviceAccountName: frp-client-sa
+    priorityClassName: high-priority

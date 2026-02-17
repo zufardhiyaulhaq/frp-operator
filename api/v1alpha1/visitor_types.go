@@ -66,10 +66,22 @@ type VisitorSpec_Fallback struct {
 
 // VisitorStatus defines the observed state of Visitor
 type VisitorStatus struct {
+	// +optional
+	// Phase indicates the current state: Pending, Active, Failed
+	Phase string `json:"phase,omitempty"`
+	// +optional
+	// Message provides human-readable status information
+	Message string `json:"message,omitempty"`
+	// +optional
+	// ConnectedAt is when the visitor established connection
+	ConnectedAt *metav1.Time `json:"connectedAt,omitempty"`
 }
 
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
+//+kubebuilder:printcolumn:name="Client",type=string,JSONPath=`.spec.client`
+//+kubebuilder:printcolumn:name="Phase",type=string,JSONPath=`.status.phase`
+//+kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp"
 
 // Visitor is the Schema for the visitors API
 type Visitor struct {

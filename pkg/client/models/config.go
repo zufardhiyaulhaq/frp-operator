@@ -40,6 +40,7 @@ type Common struct {
 	AdminUsername        string
 	AdminPassword        string
 	STUNServer           *string
+	PprofEnable          bool
 }
 
 type ServerAuthentication struct {
@@ -304,6 +305,7 @@ func NewConfig(k8sclient client.Client,
 
 	if clientObject.Spec.Server.AdminServer != nil {
 		config.Common.AdminPort = clientObject.Spec.Server.AdminServer.Port
+		config.Common.PprofEnable = clientObject.Spec.Server.AdminServer.PprofEnable
 
 		// fetch admin username from secret
 		if clientObject.Spec.Server.AdminServer.Username != nil {

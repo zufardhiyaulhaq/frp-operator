@@ -174,10 +174,22 @@ type UpstreamSpec_UDP_Server struct {
 
 // UpstreamStatus defines the observed state of Upstream
 type UpstreamStatus struct {
+	// +optional
+	// Phase indicates the current state: Pending, Active, Failed
+	Phase string `json:"phase,omitempty"`
+	// +optional
+	// Message provides human-readable status information
+	Message string `json:"message,omitempty"`
+	// +optional
+	// RegisteredAt is when the proxy was registered with the server
+	RegisteredAt *metav1.Time `json:"registeredAt,omitempty"`
 }
 
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
+//+kubebuilder:printcolumn:name="Client",type=string,JSONPath=`.spec.client`
+//+kubebuilder:printcolumn:name="Phase",type=string,JSONPath=`.status.phase`
+//+kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp"
 
 // Upstream is the Schema for the upstreams API
 type Upstream struct {

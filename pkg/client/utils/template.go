@@ -14,6 +14,9 @@ webServer.addr = "{{ .Common.AdminAddress }}"
 webServer.port = {{ .Common.AdminPort }}
 webServer.user = "{{ .Common.AdminUsername }}"
 webServer.password = "{{ .Common.AdminPassword }}"
+{{ if .Common.PprofEnable }}
+webServer.pprofEnable = true
+{{ end }}
 
 {{ if .Common.STUNServer }}
 natHoleStunServer = "{{ .Common.STUNServer }}"
