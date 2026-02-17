@@ -10,6 +10,19 @@ auth.method = "token"
 auth.token = "{{ .Common.ServerAuthentication.Token }}"
 {{ end }}
 
+{{ if eq .Common.ServerAuthentication.Type 2 }}
+auth.method = "oidc"
+auth.oidc.clientID = "{{ .Common.ServerAuthentication.OIDCClientID }}"
+auth.oidc.clientSecret = "{{ .Common.ServerAuthentication.OIDCClientSecret }}"
+auth.oidc.tokenEndpointURL = "{{ .Common.ServerAuthentication.OIDCTokenURL }}"
+{{ if .Common.ServerAuthentication.OIDCAudience }}
+auth.oidc.audience = "{{ .Common.ServerAuthentication.OIDCAudience }}"
+{{ end }}
+{{ if .Common.ServerAuthentication.OIDCScope }}
+auth.oidc.scope = "{{ .Common.ServerAuthentication.OIDCScope }}"
+{{ end }}
+{{ end }}
+
 webServer.addr = "{{ .Common.AdminAddress }}"
 webServer.port = {{ .Common.AdminPort }}
 webServer.user = "{{ .Common.AdminUsername }}"
@@ -20,6 +33,19 @@ webServer.pprofEnable = true
 
 {{ if .Common.STUNServer }}
 natHoleStunServer = "{{ .Common.STUNServer }}"
+{{ end }}
+
+{{ if .Common.TLS }}
+transport.tls.enable = {{ .Common.TLS.Enable }}
+{{ if .Common.TLS.CertFile }}
+transport.tls.certFile = "{{ .Common.TLS.CertFile }}"
+{{ end }}
+{{ if .Common.TLS.KeyFile }}
+transport.tls.keyFile = "{{ .Common.TLS.KeyFile }}"
+{{ end }}
+{{ if .Common.TLS.TrustedCAFile }}
+transport.tls.trustedCaFile = "{{ .Common.TLS.TrustedCAFile }}"
+{{ end }}
 {{ end }}
 
 {{ range $upstream := .Upstreams }}
@@ -98,6 +124,10 @@ transport.bandwidthLimitMode = "client"
 transport.proxyURL = "{{ $upstream.STCP.Transport.ProxyURL }}"
 {{ end }}
 {{ end }}
+
+{{ if $upstream.STCP.AllowUsers }}
+allowUsers = [{{ range $i, $u := $upstream.STCP.AllowUsers }}{{ if $i }}, {{ end }}"{{ $u }}"{{ end }}]
+{{ end }}
 {{ end }}
 
 {{ if eq $upstream.Type 4 }}
@@ -130,6 +160,10 @@ transport.bandwidthLimitMode = "client"
 {{ if $upstream.XTCP.Transport.ProxyURL }}
 transport.proxyURL = "{{ $upstream.XTCP.Transport.ProxyURL }}"
 {{ end }}
+{{ end }}
+
+{{ if $upstream.XTCP.AllowUsers }}
+allowUsers = [{{ range $i, $u := $upstream.XTCP.AllowUsers }}{{ if $i }}, {{ end }}"{{ $u }}"{{ end }}]
 {{ end }}
 {{ end }}
 

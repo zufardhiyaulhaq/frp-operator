@@ -1,0 +1,30 @@
+apiVersion: frp.zufardhiyaulhaq.com/v1alpha1
+kind: Client
+metadata:
+  name: oidc-client
+spec:
+  server:
+    host: frp.example.com
+    port: 7000
+    authentication:
+      oidc:
+        clientId:
+          secret:
+            name: oidc-creds
+            key: clientId
+        clientSecret:
+          secret:
+            name: oidc-creds
+            key: clientSecret
+        tokenEndpointUrl: "https://auth.example.com/oauth/token"
+        audience: "frp-server"
+        scope: "openid profile"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: oidc-creds
+type: Opaque
+stringData:
+  clientId: "my-oidc-client-id"
+  clientSecret: "my-oidc-client-secret"

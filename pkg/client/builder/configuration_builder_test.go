@@ -84,6 +84,120 @@ func TestConfigurationBuilder_Build(t *testing.T) {
 			},
 		},
 		{
+			name: "common config with TLS enabled",
+			config: models.Config{
+				Common: models.Common{
+					ServerAddress: "frp.example.com",
+					ServerPort:    7000,
+					AdminAddress:  "0.0.0.0",
+					AdminPort:     7400,
+					AdminUsername: "admin",
+					AdminPassword: "secret",
+					TLS: &models.TLSConfig{
+						Enable: true,
+					},
+				},
+			},
+			wantErr: false,
+			wantContains: []string{
+				`transport.tls.enable = true`,
+			},
+			wantNotContain: []string{
+				`transport.tls.certFile`,
+				`transport.tls.keyFile`,
+				`transport.tls.trustedCaFile`,
+			},
+		},
+		{
+			name: "common config with TLS and certificates",
+			config: models.Config{
+				Common: models.Common{
+					ServerAddress: "frp.example.com",
+					ServerPort:    7000,
+					AdminAddress:  "0.0.0.0",
+					AdminPort:     7400,
+					AdminUsername: "admin",
+					AdminPassword: "secret",
+					TLS: &models.TLSConfig{
+						Enable:        true,
+						CertFile:      "/etc/frp/tls/tls.crt",
+						KeyFile:       "/etc/frp/tls/tls.key",
+						TrustedCAFile: "/etc/frp/tls/ca.crt",
+					},
+				},
+			},
+			wantErr: false,
+			wantContains: []string{
+				`transport.tls.enable = true`,
+				`transport.tls.certFile = "/etc/frp/tls/tls.crt"`,
+				`transport.tls.keyFile = "/etc/frp/tls/tls.key"`,
+				`transport.tls.trustedCaFile = "/etc/frp/tls/ca.crt"`,
+			},
+		},
+		{
+			name: "common config with OIDC authentication",
+			config: models.Config{
+				Common: models.Common{
+					ServerAddress: "frp.example.com",
+					ServerPort:    7000,
+					ServerAuthentication: models.ServerAuthentication{
+						Type:             2, // OIDC
+						OIDCClientID:     "my-client-id",
+						OIDCClientSecret: "my-client-secret",
+						OIDCTokenURL:     "https://auth.example.com/oauth/token",
+						OIDCAudience:     "frp-server",
+						OIDCScope:        "openid profile",
+					},
+					AdminAddress:  "0.0.0.0",
+					AdminPort:     7400,
+					AdminUsername: "admin",
+					AdminPassword: "secret",
+				},
+			},
+			wantErr: false,
+			wantContains: []string{
+				`auth.method = "oidc"`,
+				`auth.oidc.clientID = "my-client-id"`,
+				`auth.oidc.clientSecret = "my-client-secret"`,
+				`auth.oidc.tokenEndpointURL = "https://auth.example.com/oauth/token"`,
+				`auth.oidc.audience = "frp-server"`,
+				`auth.oidc.scope = "openid profile"`,
+			},
+			wantNotContain: []string{
+				`auth.token`,
+			},
+		},
+		{
+			name: "common config with OIDC without optional fields",
+			config: models.Config{
+				Common: models.Common{
+					ServerAddress: "frp.example.com",
+					ServerPort:    7000,
+					ServerAuthentication: models.ServerAuthentication{
+						Type:             2, // OIDC
+						OIDCClientID:     "my-client-id",
+						OIDCClientSecret: "my-client-secret",
+						OIDCTokenURL:     "https://auth.example.com/oauth/token",
+					},
+					AdminAddress:  "0.0.0.0",
+					AdminPort:     7400,
+					AdminUsername: "admin",
+					AdminPassword: "secret",
+				},
+			},
+			wantErr: false,
+			wantContains: []string{
+				`auth.method = "oidc"`,
+				`auth.oidc.clientID = "my-client-id"`,
+				`auth.oidc.clientSecret = "my-client-secret"`,
+				`auth.oidc.tokenEndpointURL = "https://auth.example.com/oauth/token"`,
+			},
+			wantNotContain: []string{
+				`auth.oidc.audience`,
+				`auth.oidc.scope`,
+			},
+		},
+		{
 			name: "TCP upstream - basic",
 			config: models.Config{
 				Common: basicCommon(),
@@ -478,6 +592,53 @@ func TestConfigurationBuilder_Build(t *testing.T) {
 			},
 		},
 		{
+			name: "STCP upstream with allowUsers",
+			config: models.Config{
+				Common: basicCommon(),
+				Upstreams: []models.Upstream{
+					{
+						Name: "stcp-with-allowusers",
+						Type: 3,
+						STCP: models.Upstream_STCP{
+							Host:       "127.0.0.1",
+							Port:       22,
+							SecretKey:  "secret",
+							AllowUsers: []string{"user1", "user2"},
+						},
+					},
+				},
+			},
+			wantErr: false,
+			wantContains: []string{
+				`name = "stcp-with-allowusers"`,
+				`type = "stcp"`,
+				`allowUsers = ["user1", "user2"]`,
+			},
+		},
+		{
+			name: "STCP upstream with allowUsers wildcard",
+			config: models.Config{
+				Common: basicCommon(),
+				Upstreams: []models.Upstream{
+					{
+						Name: "stcp-allow-all",
+						Type: 3,
+						STCP: models.Upstream_STCP{
+							Host:       "127.0.0.1",
+							Port:       22,
+							SecretKey:  "secret",
+							AllowUsers: []string{"*"},
+						},
+					},
+				},
+			},
+			wantErr: false,
+			wantContains: []string{
+				`name = "stcp-allow-all"`,
+				`allowUsers = ["*"]`,
+			},
+		},
+		{
 			name: "XTCP upstream - basic",
 			config: models.Config{
 				Common: basicCommon(),
@@ -591,6 +752,53 @@ func TestConfigurationBuilder_Build(t *testing.T) {
 				`transport.bandwidthLimit = "500MB"`,
 				`transport.bandwidthLimitMode = "client"`,
 				`transport.proxyURL = "socks5://proxy:1080"`,
+			},
+		},
+		{
+			name: "XTCP upstream with allowUsers",
+			config: models.Config{
+				Common: basicCommon(),
+				Upstreams: []models.Upstream{
+					{
+						Name: "xtcp-with-allowusers",
+						Type: 4,
+						XTCP: models.Upstream_STCP{
+							Host:       "127.0.0.1",
+							Port:       3389,
+							SecretKey:  "secret",
+							AllowUsers: []string{"admin", "operator"},
+						},
+					},
+				},
+			},
+			wantErr: false,
+			wantContains: []string{
+				`name = "xtcp-with-allowusers"`,
+				`type = "xtcp"`,
+				`allowUsers = ["admin", "operator"]`,
+			},
+		},
+		{
+			name: "XTCP upstream with allowUsers wildcard",
+			config: models.Config{
+				Common: basicCommon(),
+				Upstreams: []models.Upstream{
+					{
+						Name: "xtcp-allow-all",
+						Type: 4,
+						XTCP: models.Upstream_STCP{
+							Host:       "127.0.0.1",
+							Port:       3389,
+							SecretKey:  "secret",
+							AllowUsers: []string{"*"},
+						},
+					},
+				},
+			},
+			wantErr: false,
+			wantContains: []string{
+				`name = "xtcp-allow-all"`,
+				`allowUsers = ["*"]`,
 			},
 		},
 		{

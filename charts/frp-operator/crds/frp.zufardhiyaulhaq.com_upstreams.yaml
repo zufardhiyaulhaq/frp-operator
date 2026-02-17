@@ -222,6 +222,13 @@ spec:
                 type: object
               stcp:
                 properties:
+                  allowUsers:
+                    description: |-
+                      AllowUsers specifies which FRP users can connect to this tunnel.
+                      Use "*" to allow any user. Empty means only the same user.
+                    items:
+                      type: string
+                    type: array
                   healthCheck:
                     properties:
                       intervalSeconds:
@@ -382,6 +389,13 @@ spec:
                 type: object
               xtcp:
                 properties:
+                  allowUsers:
+                    description: |-
+                      AllowUsers specifies which FRP users can connect to this tunnel.
+                      Use "*" to allow any user. Empty means only the same user.
+                    items:
+                      type: string
+                    type: array
                   healthCheck:
                     properties:
                       intervalSeconds:

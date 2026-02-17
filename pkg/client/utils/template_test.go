@@ -25,11 +25,24 @@ type testCommon struct {
 	AdminPassword        string
 	STUNServer           *string
 	PprofEnable          bool
+	TLS                  *testTLSConfig
+}
+
+type testTLSConfig struct {
+	Enable        bool
+	CertFile      string
+	KeyFile       string
+	TrustedCAFile string
 }
 
 type testServerAuthentication struct {
-	Type  int
-	Token string
+	Type             int
+	Token            string
+	OIDCClientID     string
+	OIDCClientSecret string
+	OIDCTokenURL     string
+	OIDCAudience     string
+	OIDCScope        string
 }
 
 type testUpstream struct {
@@ -65,6 +78,7 @@ type testUpstreamSTCP struct {
 	ProxyProtocol *string
 	HealthCheck   *testHealthCheck
 	Transport     *testTransport
+	AllowUsers    []string
 }
 
 type testUpstreamHTTP struct {
@@ -1414,4 +1428,245 @@ func TestTemplatePprofDisabled(t *testing.T) {
 
 	// Should NOT contain pprofEnable when disabled
 	assertNotContains(t, output, `pprofEnable`)
+}
+
+func TestTemplateSTCPUpstreamWithAllowUsers(t *testing.T) {
+	config := testConfig{
+		Common: testCommon{
+			ServerAddress: "frp.example.com",
+			ServerPort:    7000,
+			AdminAddress:  "0.0.0.0",
+			AdminPort:     7400,
+			AdminUsername: "admin",
+			AdminPassword: "secret",
+		},
+		Upstreams: []testUpstream{
+			{
+				Name: "stcp-service",
+				Type: 3,
+				STCP: testUpstreamSTCP{
+					Host:       "localhost",
+					Port:       22,
+					SecretKey:  "my-stcp-secret",
+					AllowUsers: []string{"user1", "user2"},
+				},
+			},
+		},
+	}
+
+	output := renderTemplate(t, config)
+
+	assertContains(t, output, `type = "stcp"`)
+	assertContains(t, output, `allowUsers = ["user1", "user2"]`)
+}
+
+func TestTemplateSTCPUpstreamWithAllowUsersWildcard(t *testing.T) {
+	config := testConfig{
+		Common: testCommon{
+			ServerAddress: "frp.example.com",
+			ServerPort:    7000,
+			AdminAddress:  "0.0.0.0",
+			AdminPort:     7400,
+			AdminUsername: "admin",
+			AdminPassword: "secret",
+		},
+		Upstreams: []testUpstream{
+			{
+				Name: "stcp-service",
+				Type: 3,
+				STCP: testUpstreamSTCP{
+					Host:       "localhost",
+					Port:       22,
+					SecretKey:  "my-stcp-secret",
+					AllowUsers: []string{"*"},
+				},
+			},
+		},
+	}
+
+	output := renderTemplate(t, config)
+
+	assertContains(t, output, `allowUsers = ["*"]`)
+}
+
+func TestTemplateXTCPUpstreamWithAllowUsers(t *testing.T) {
+	config := testConfig{
+		Common: testCommon{
+			ServerAddress: "frp.example.com",
+			ServerPort:    7000,
+			AdminAddress:  "0.0.0.0",
+			AdminPort:     7400,
+			AdminUsername: "admin",
+			AdminPassword: "secret",
+		},
+		Upstreams: []testUpstream{
+			{
+				Name: "xtcp-service",
+				Type: 4,
+				XTCP: testUpstreamSTCP{
+					Host:       "localhost",
+					Port:       3389,
+					SecretKey:  "my-xtcp-secret",
+					AllowUsers: []string{"admin", "operator"},
+				},
+			},
+		},
+	}
+
+	output := renderTemplate(t, config)
+
+	assertContains(t, output, `type = "xtcp"`)
+	assertContains(t, output, `allowUsers = ["admin", "operator"]`)
+}
+
+func TestTemplateSTCPUpstreamWithoutAllowUsers(t *testing.T) {
+	config := testConfig{
+		Common: testCommon{
+			ServerAddress: "frp.example.com",
+			ServerPort:    7000,
+			AdminAddress:  "0.0.0.0",
+			AdminPort:     7400,
+			AdminUsername: "admin",
+			AdminPassword: "secret",
+		},
+		Upstreams: []testUpstream{
+			{
+				Name: "stcp-service",
+				Type: 3,
+				STCP: testUpstreamSTCP{
+					Host:      "localhost",
+					Port:      22,
+					SecretKey: "my-stcp-secret",
+				},
+			},
+		},
+	}
+
+	output := renderTemplate(t, config)
+
+	assertContains(t, output, `type = "stcp"`)
+	assertNotContains(t, output, `allowUsers`)
+}
+
+func TestTemplateTLSEnabled(t *testing.T) {
+	config := testConfig{
+		Common: testCommon{
+			ServerAddress: "frp.example.com",
+			ServerPort:    7000,
+			AdminAddress:  "0.0.0.0",
+			AdminPort:     7400,
+			AdminUsername: "admin",
+			AdminPassword: "secret",
+			TLS: &testTLSConfig{
+				Enable: true,
+			},
+		},
+	}
+
+	output := renderTemplate(t, config)
+
+	assertContains(t, output, `transport.tls.enable = true`)
+	assertNotContains(t, output, `transport.tls.certFile`)
+	assertNotContains(t, output, `transport.tls.keyFile`)
+	assertNotContains(t, output, `transport.tls.trustedCaFile`)
+}
+
+func TestTemplateTLSWithCertificates(t *testing.T) {
+	config := testConfig{
+		Common: testCommon{
+			ServerAddress: "frp.example.com",
+			ServerPort:    7000,
+			AdminAddress:  "0.0.0.0",
+			AdminPort:     7400,
+			AdminUsername: "admin",
+			AdminPassword: "secret",
+			TLS: &testTLSConfig{
+				Enable:        true,
+				CertFile:      "/etc/frp/tls/tls.crt",
+				KeyFile:       "/etc/frp/tls/tls.key",
+				TrustedCAFile: "/etc/frp/tls/ca.crt",
+			},
+		},
+	}
+
+	output := renderTemplate(t, config)
+
+	assertContains(t, output, `transport.tls.enable = true`)
+	assertContains(t, output, `transport.tls.certFile = "/etc/frp/tls/tls.crt"`)
+	assertContains(t, output, `transport.tls.keyFile = "/etc/frp/tls/tls.key"`)
+	assertContains(t, output, `transport.tls.trustedCaFile = "/etc/frp/tls/ca.crt"`)
+}
+
+func TestTemplateWithoutTLS(t *testing.T) {
+	config := testConfig{
+		Common: testCommon{
+			ServerAddress: "frp.example.com",
+			ServerPort:    7000,
+			AdminAddress:  "0.0.0.0",
+			AdminPort:     7400,
+			AdminUsername: "admin",
+			AdminPassword: "secret",
+		},
+	}
+
+	output := renderTemplate(t, config)
+
+	assertNotContains(t, output, `transport.tls`)
+}
+
+func TestTemplateOIDCAuth(t *testing.T) {
+	config := testConfig{
+		Common: testCommon{
+			ServerAddress: "frp.example.com",
+			ServerPort:    7000,
+			ServerAuthentication: testServerAuthentication{
+				Type:             2, // OIDC
+				OIDCClientID:     "my-client-id",
+				OIDCClientSecret: "my-client-secret",
+				OIDCTokenURL:     "https://auth.example.com/oauth/token",
+				OIDCAudience:     "frp-server",
+				OIDCScope:        "openid profile",
+			},
+			AdminAddress:  "0.0.0.0",
+			AdminPort:     7400,
+			AdminUsername: "admin",
+			AdminPassword: "secret",
+		},
+	}
+
+	output := renderTemplate(t, config)
+
+	assertContains(t, output, `auth.method = "oidc"`)
+	assertContains(t, output, `auth.oidc.clientID = "my-client-id"`)
+	assertContains(t, output, `auth.oidc.clientSecret = "my-client-secret"`)
+	assertContains(t, output, `auth.oidc.tokenEndpointURL = "https://auth.example.com/oauth/token"`)
+	assertContains(t, output, `auth.oidc.audience = "frp-server"`)
+	assertContains(t, output, `auth.oidc.scope = "openid profile"`)
+	assertNotContains(t, output, `auth.token`)
+}
+
+func TestTemplateOIDCAuthWithoutOptionalFields(t *testing.T) {
+	config := testConfig{
+		Common: testCommon{
+			ServerAddress: "frp.example.com",
+			ServerPort:    7000,
+			ServerAuthentication: testServerAuthentication{
+				Type:             2, // OIDC
+				OIDCClientID:     "my-client-id",
+				OIDCClientSecret: "my-client-secret",
+				OIDCTokenURL:     "https://auth.example.com/oauth/token",
+			},
+			AdminAddress:  "0.0.0.0",
+			AdminPort:     7400,
+			AdminUsername: "admin",
+			AdminPassword: "secret",
+		},
+	}
+
+	output := renderTemplate(t, config)
+
+	assertContains(t, output, `auth.method = "oidc"`)
+	assertContains(t, output, `auth.oidc.clientID = "my-client-id"`)
+	assertNotContains(t, output, `auth.oidc.audience`)
+	assertNotContains(t, output, `auth.oidc.scope`)
 }

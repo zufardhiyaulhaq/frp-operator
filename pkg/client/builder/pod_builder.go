@@ -8,10 +8,12 @@ import (
 )
 
 type PodBuilder struct {
-	Name        string
-	Namespace   string
-	Image       string
-	PodTemplate *frpv1alpha1.ClientSpec_PodTemplate
+	Name           string
+	Namespace      string
+	Image          string
+	PodTemplate    *frpv1alpha1.ClientSpec_PodTemplate
+	TLSSecret      string
+	TLSCAConfigMap string
 }
 
 func NewPodBuilder() *PodBuilder {
@@ -35,6 +37,16 @@ func (n *PodBuilder) SetImage(image string) *PodBuilder {
 
 func (n *PodBuilder) SetPodTemplate(podTemplate *frpv1alpha1.ClientSpec_PodTemplate) *PodBuilder {
 	n.PodTemplate = podTemplate
+	return n
+}
+
+func (n *PodBuilder) SetTLSSecret(tlsSecret string) *PodBuilder {
+	n.TLSSecret = tlsSecret
+	return n
+}
+
+func (n *PodBuilder) SetTLSCAConfigMap(tlsCAConfigMap string) *PodBuilder {
+	n.TLSCAConfigMap = tlsCAConfigMap
 	return n
 }
 
@@ -102,6 +114,48 @@ func (n *PodBuilder) Build() (*corev1.Pod, error) {
 				},
 			},
 		},
+	}
+
+	// Add TLS volumes and mounts if configured
+	if n.TLSSecret != "" {
+		pod.Spec.Volumes = append(pod.Spec.Volumes, corev1.Volume{
+			Name: "tls-certs",
+			VolumeSource: corev1.VolumeSource{
+				Secret: &corev1.SecretVolumeSource{
+					SecretName: n.TLSSecret,
+				},
+			},
+		})
+		pod.Spec.Containers[0].VolumeMounts = append(
+			pod.Spec.Containers[0].VolumeMounts,
+			corev1.VolumeMount{
+				Name:      "tls-certs",
+				MountPath: "/etc/frp/tls",
+				ReadOnly:  true,
+			},
+		)
+	}
+
+	// Add TLS CA ConfigMap volume if configured separately
+	if n.TLSCAConfigMap != "" && n.TLSSecret == "" {
+		pod.Spec.Volumes = append(pod.Spec.Volumes, corev1.Volume{
+			Name: "tls-ca",
+			VolumeSource: corev1.VolumeSource{
+				ConfigMap: &corev1.ConfigMapVolumeSource{
+					LocalObjectReference: corev1.LocalObjectReference{
+						Name: n.TLSCAConfigMap,
+					},
+				},
+			},
+		})
+		pod.Spec.Containers[0].VolumeMounts = append(
+			pod.Spec.Containers[0].VolumeMounts,
+			corev1.VolumeMount{
+				Name:      "tls-ca",
+				MountPath: "/etc/frp/tls",
+				ReadOnly:  true,
+			},
+		)
 	}
 
 	// Apply PodTemplate fields to pod spec

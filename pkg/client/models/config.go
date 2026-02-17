@@ -41,11 +41,24 @@ type Common struct {
 	AdminPassword        string
 	STUNServer           *string
 	PprofEnable          bool
+	TLS                  *TLSConfig
+}
+
+type TLSConfig struct {
+	Enable        bool
+	CertFile      string
+	KeyFile       string
+	TrustedCAFile string
 }
 
 type ServerAuthentication struct {
-	Type  ServerAuthenticationType
-	Token string
+	Type             ServerAuthenticationType
+	Token            string
+	OIDCClientID     string
+	OIDCClientSecret string
+	OIDCTokenURL     string
+	OIDCAudience     string
+	OIDCScope        string
 }
 
 type VisitorType int64
@@ -137,6 +150,7 @@ type Upstream_STCP struct {
 	ProxyProtocol *string
 	HealthCheck   *Upstream_TCP_HealthCheck
 	Transport     *Upstream_TCP_Transport
+	AllowUsers    []string
 }
 
 type Upstream_XTCP struct {
@@ -146,6 +160,7 @@ type Upstream_XTCP struct {
 	ProxyProtocol *string
 	HealthCheck   *Upstream_TCP_HealthCheck
 	Transport     *Upstream_TCP_Transport
+	AllowUsers    []string
 }
 
 type Upstream_TCP struct {
@@ -353,6 +368,70 @@ func NewConfig(k8sclient client.Client,
 		config.Common.ServerAuthentication.Token = string(tokenByte)
 	}
 
+	// Handle OIDC authentication
+	if clientObject.Spec.Server.Authentication.OIDC != nil {
+		config.Common.ServerAuthentication.Type = 2
+
+		// Fetch client ID from secret
+		secret := &corev1.Secret{}
+		err := k8sclient.Get(context.TODO(), types.NamespacedName{
+			Name:      clientObject.Spec.Server.Authentication.OIDC.ClientID.Secret.Name,
+			Namespace: clientObject.Namespace,
+		}, secret)
+		if err != nil {
+			return config, err
+		}
+		clientIDByte, ok := secret.Data[clientObject.Spec.Server.Authentication.OIDC.ClientID.Secret.Key]
+		if !ok {
+			return config, errors.NewBadRequest(fmt.Sprintf("clientId key %s not found in secret %s",
+				clientObject.Spec.Server.Authentication.OIDC.ClientID.Secret.Key,
+				clientObject.Spec.Server.Authentication.OIDC.ClientID.Secret.Name))
+		}
+		config.Common.ServerAuthentication.OIDCClientID = string(clientIDByte)
+
+		// Fetch client secret from secret
+		err = k8sclient.Get(context.TODO(), types.NamespacedName{
+			Name:      clientObject.Spec.Server.Authentication.OIDC.ClientSecret.Secret.Name,
+			Namespace: clientObject.Namespace,
+		}, secret)
+		if err != nil {
+			return config, err
+		}
+		clientSecretByte, ok := secret.Data[clientObject.Spec.Server.Authentication.OIDC.ClientSecret.Secret.Key]
+		if !ok {
+			return config, errors.NewBadRequest(fmt.Sprintf("clientSecret key %s not found in secret %s",
+				clientObject.Spec.Server.Authentication.OIDC.ClientSecret.Secret.Key,
+				clientObject.Spec.Server.Authentication.OIDC.ClientSecret.Secret.Name))
+		}
+		config.Common.ServerAuthentication.OIDCClientSecret = string(clientSecretByte)
+
+		config.Common.ServerAuthentication.OIDCTokenURL = clientObject.Spec.Server.Authentication.OIDC.TokenEndpointURL
+		config.Common.ServerAuthentication.OIDCAudience = clientObject.Spec.Server.Authentication.OIDC.Audience
+		config.Common.ServerAuthentication.OIDCScope = clientObject.Spec.Server.Authentication.OIDC.Scope
+	}
+
+	// Handle TLS configuration
+	if clientObject.Spec.Server.TLS != nil {
+		config.Common.TLS = &TLSConfig{
+			Enable: clientObject.Spec.Server.TLS.Enable,
+		}
+
+		// Set cert file path if configured
+		if clientObject.Spec.Server.TLS.CertFile != nil {
+			config.Common.TLS.CertFile = "/etc/frp/tls/tls.crt"
+		}
+
+		// Set key file path if configured
+		if clientObject.Spec.Server.TLS.KeyFile != nil {
+			config.Common.TLS.KeyFile = "/etc/frp/tls/tls.key"
+		}
+
+		// Set CA file path if configured
+		if clientObject.Spec.Server.TLS.TrustedCAFile != nil {
+			config.Common.TLS.TrustedCAFile = "/etc/frp/tls/ca.crt"
+		}
+	}
+
 	upstreams := []Upstream{}
 	for _, upstreamObject := range upstreamObjects {
 		upstream := Upstream{
@@ -480,6 +559,10 @@ func NewConfig(k8sclient client.Client,
 					}
 				}
 			}
+
+			if len(upstreamObject.Spec.STCP.AllowUsers) > 0 {
+				upstream.STCP.AllowUsers = upstreamObject.Spec.STCP.AllowUsers
+			}
 		}
 
 		if upstreamObject.Spec.XTCP != nil {
@@ -530,6 +613,10 @@ func NewConfig(k8sclient client.Client,
 						Type:    upstreamObject.Spec.XTCP.Transport.BandwdithLimit.Type,
 					}
 				}
+			}
+
+			if len(upstreamObject.Spec.XTCP.AllowUsers) > 0 {
+				upstream.XTCP.AllowUsers = upstreamObject.Spec.XTCP.AllowUsers
 			}
 		}
 

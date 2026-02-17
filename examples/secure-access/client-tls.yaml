@@ -1,0 +1,46 @@
+apiVersion: frp.zufardhiyaulhaq.com/v1alpha1
+kind: Client
+metadata:
+  name: tls-client
+spec:
+  server:
+    host: frp.example.com
+    port: 7000
+    authentication:
+      token:
+        secret:
+          name: frp-token
+          key: token
+    tls:
+      enable: true
+      certFile:
+        secret:
+          name: tls-certs
+          key: tls.crt
+      keyFile:
+        secret:
+          name: tls-certs
+          key: tls.key
+      trustedCaFile:
+        secret:
+          name: tls-certs
+          key: ca.crt
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: frp-token
+type: Opaque
+stringData:
+  token: "my-frp-token"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: tls-certs
+type: kubernetes.io/tls
+data:
+  # Replace with base64-encoded certificates
+  tls.crt: ""
+  tls.key: ""
+  ca.crt: ""

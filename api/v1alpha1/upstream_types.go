@@ -48,6 +48,10 @@ type UpstreamSpec_STCP struct {
 	HealthCheck *UpstreamSpec_TCP_HealthCheck `json:"healthCheck"`
 	// +optional
 	Transport *UpstreamSpec_TCP_Transport `json:"transport"`
+	// +optional
+	// AllowUsers specifies which FRP users can connect to this tunnel.
+	// Use "*" to allow any user. Empty means only the same user.
+	AllowUsers []string `json:"allowUsers,omitempty"`
 }
 
 type UpstreamSpec_STCP_SecretKey struct {
@@ -65,6 +69,10 @@ type UpstreamSpec_XTCP struct {
 	HealthCheck *UpstreamSpec_TCP_HealthCheck `json:"healthCheck"`
 	// +optional
 	Transport *UpstreamSpec_TCP_Transport `json:"transport"`
+	// +optional
+	// AllowUsers specifies which FRP users can connect to this tunnel.
+	// Use "*" to allow any user. Empty means only the same user.
+	AllowUsers []string `json:"allowUsers,omitempty"`
 }
 
 type UpstreamSpec_XTCP_SecretKey struct {

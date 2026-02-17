@@ -1365,7 +1365,59 @@ spec:
                     type: object
                   authentication:
                     properties:
+                      oidc:
+                        description: OIDC authentication for enterprise SSO
+                        properties:
+                          audience:
+                            description: Audience is the intended audience of the
+                              token
+                            type: string
+                          clientId:
+                            description: ClientID is the OIDC client identifier
+                            properties:
+                              secret:
+                                properties:
+                                  key:
+                                    type: string
+                                  name:
+                                    type: string
+                                required:
+                                - key
+                                - name
+                                type: object
+                            required:
+                            - secret
+                            type: object
+                          clientSecret:
+                            description: ClientSecret is the OIDC client secret
+                            properties:
+                              secret:
+                                properties:
+                                  key:
+                                    type: string
+                                  name:
+                                    type: string
+                                required:
+                                - key
+                                - name
+                                type: object
+                            required:
+                            - secret
+                            type: object
+                          scope:
+                            description: Scope specifies the requested scopes
+                            type: string
+                          tokenEndpointUrl:
+                            description: TokenEndpointURL is the URL to obtain the
+                              access token
+                            type: string
+                        required:
+                        - clientId
+                        - clientSecret
+                        - tokenEndpointUrl
+                        type: object
                       token:
+                        description: Token authentication using a shared secret
                         properties:
                           secret:
                             properties:
@@ -1380,8 +1432,6 @@ spec:
                         required:
                         - secret
                         type: object
-                    required:
-                    - token
                     type: object
                   host:
                     type: string
@@ -1397,6 +1447,75 @@ spec:
                     type: string
                   stunServer:
                     type: string
+                  tls:
+                    description: TLS configures TLS client certificate authentication
+                    properties:
+                      certFile:
+                        description: CertFile is a reference to the client certificate
+                        properties:
+                          secret:
+                            properties:
+                              key:
+                                type: string
+                              name:
+                                type: string
+                            required:
+                            - key
+                            - name
+                            type: object
+                        required:
+                        - secret
+                        type: object
+                      enable:
+                        default: true
+                        description: Enable enables TLS for the connection to the
+                          FRP server
+                        type: boolean
+                      keyFile:
+                        description: KeyFile is a reference to the client private
+                          key
+                        properties:
+                          secret:
+                            properties:
+                              key:
+                                type: string
+                              name:
+                                type: string
+                            required:
+                            - key
+                            - name
+                            type: object
+                        required:
+                        - secret
+                        type: object
+                      trustedCaFile:
+                        description: TrustedCAFile is a reference to the CA certificate
+                          for server verification
+                        properties:
+                          configMap:
+                            properties:
+                              key:
+                                type: string
+                              name:
+                                type: string
+                            required:
+                            - key
+                            - name
+                            type: object
+                          secret:
+                            properties:
+                              key:
+                                type: string
+                              name:
+                                type: string
+                            required:
+                            - key
+                            - name
+                            type: object
+                        type: object
+                    required:
+                    - enable
+                    type: object
                 required:
                 - authentication
                 - host

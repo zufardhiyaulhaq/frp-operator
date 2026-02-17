@@ -39,14 +39,52 @@ type ClientSpec_Server struct {
 	AdminServer    *ClientSpec_Server_AdminServer   `json:"adminServer,omitempty"`
 	// +optional
 	STUNServer *string `json:"stunServer"`
+	// +optional
+	// TLS configures TLS client certificate authentication
+	TLS *ClientSpec_Server_TLS `json:"tls,omitempty"`
+}
+
+type ClientSpec_Server_TLS struct {
+	// +kubebuilder:default=true
+	// Enable enables TLS for the connection to the FRP server
+	Enable bool `json:"enable"`
+	// +optional
+	// CertFile is a reference to the client certificate
+	CertFile *SecretRef `json:"certFile,omitempty"`
+	// +optional
+	// KeyFile is a reference to the client private key
+	KeyFile *SecretRef `json:"keyFile,omitempty"`
+	// +optional
+	// TrustedCAFile is a reference to the CA certificate for server verification
+	TrustedCAFile *ConfigMapOrSecretRef `json:"trustedCaFile,omitempty"`
 }
 
 type ClientSpec_Server_Authentication struct {
-	Token *ClientSpec_Server_Authentication_Token `json:"token"`
+	// +optional
+	// Token authentication using a shared secret
+	Token *ClientSpec_Server_Authentication_Token `json:"token,omitempty"`
+	// +optional
+	// OIDC authentication for enterprise SSO
+	OIDC *ClientSpec_Server_Authentication_OIDC `json:"oidc,omitempty"`
 }
 
 type ClientSpec_Server_Authentication_Token struct {
 	Secret Secret `json:"secret"`
+}
+
+type ClientSpec_Server_Authentication_OIDC struct {
+	// ClientID is the OIDC client identifier
+	ClientID SecretRef `json:"clientId"`
+	// ClientSecret is the OIDC client secret
+	ClientSecret SecretRef `json:"clientSecret"`
+	// TokenEndpointURL is the URL to obtain the access token
+	TokenEndpointURL string `json:"tokenEndpointUrl"`
+	// +optional
+	// Audience is the intended audience of the token
+	Audience string `json:"audience,omitempty"`
+	// +optional
+	// Scope specifies the requested scopes
+	Scope string `json:"scope,omitempty"`
 }
 
 type ClientSpec_Server_AdminServer struct {

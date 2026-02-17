@@ -1,0 +1,24 @@
+apiVersion: frp.zufardhiyaulhaq.com/v1alpha1
+kind: Upstream
+metadata:
+  name: private-api
+spec:
+  client: secure-client
+  stcp:
+    host: api-service.default.svc
+    port: 8080
+    secretKey:
+      secret:
+        name: stcp-secret
+        key: secretKey
+    allowUsers:
+      - "alice"
+      - "bob"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: stcp-secret
+type: Opaque
+stringData:
+  secretKey: "my-stcp-secret-key"
