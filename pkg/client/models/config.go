@@ -21,7 +21,9 @@ const DEFAULT_ADMIN_USERNAME = "frpc-user"
 const DEFAULT_ADMIN_PASSWORD = "frpc-password"
 
 const (
-	Token ServerAuthenticationType = iota
+	NoAuth    ServerAuthenticationType = iota // 0 - no authentication
+	TokenAuth ServerAuthenticationType = iota // 1 - token authentication
+	OIDCAuth  ServerAuthenticationType = iota // 2 - OIDC authentication
 )
 
 type Config struct {
@@ -347,6 +349,14 @@ func NewConfig(k8sclient client.Client,
 				}
 			}
 		}
+	}
+
+	// Validate authentication - exactly one method must be specified
+	if clientObject.Spec.Server.Authentication.Token == nil && clientObject.Spec.Server.Authentication.OIDC == nil {
+		return config, errors.NewBadRequest("either token or oidc authentication is required")
+	}
+	if clientObject.Spec.Server.Authentication.Token != nil && clientObject.Spec.Server.Authentication.OIDC != nil {
+		return config, errors.NewBadRequest("only one authentication method (token or oidc) can be specified")
 	}
 
 	if clientObject.Spec.Server.Authentication.Token != nil {

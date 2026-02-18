@@ -498,11 +498,23 @@ func createBasicClient(namespace, name, host string, port int) *frpv1alpha1.Clie
 				Host: host,
 				Port: port,
 				Authentication: frpv1alpha1.ClientSpec_Server_Authentication{
-					Token: nil,
+					Token: &frpv1alpha1.ClientSpec_Server_Authentication_Token{
+						Secret: frpv1alpha1.Secret{
+							Name: "token-secret",
+							Key:  "token",
+						},
+					},
 				},
 			},
 		},
 	}
+}
+
+// Default token secret for tests
+func createDefaultTokenSecret(namespace string) *corev1.Secret {
+	return createSecret(namespace, "token-secret", map[string][]byte{
+		"token": []byte("test-token"),
+	})
 }
 
 func stringPtr(s string) *string {
@@ -510,7 +522,7 @@ func stringPtr(s string) *string {
 }
 
 func TestNewConfig_BasicClient(t *testing.T) {
-	fakeClient := createFakeClient().Build()
+	fakeClient := createFakeClient(createDefaultTokenSecret("default")).Build()
 
 	clientObj := createBasicClient("default", "test-client", "frp.example.com", 7000)
 
@@ -543,7 +555,7 @@ func TestNewConfig_BasicClient(t *testing.T) {
 }
 
 func TestNewConfig_WithProtocol(t *testing.T) {
-	fakeClient := createFakeClient().Build()
+	fakeClient := createFakeClient(createDefaultTokenSecret("default")).Build()
 
 	clientObj := createBasicClient("default", "test-client", "frp.example.com", 7000)
 	clientObj.Spec.Server.Protocol = stringPtr("kcp")
@@ -559,7 +571,7 @@ func TestNewConfig_WithProtocol(t *testing.T) {
 }
 
 func TestNewConfig_WithSTUNServer(t *testing.T) {
-	fakeClient := createFakeClient().Build()
+	fakeClient := createFakeClient(createDefaultTokenSecret("default")).Build()
 
 	clientObj := createBasicClient("default", "test-client", "frp.example.com", 7000)
 	clientObj.Spec.Server.STUNServer = stringPtr("stun.example.com:3478")
@@ -605,7 +617,7 @@ func TestNewConfig_WithTokenAuthentication(t *testing.T) {
 }
 
 func TestNewConfig_TokenSecretNotFound(t *testing.T) {
-	fakeClient := createFakeClient().Build()
+	fakeClient := createFakeClient(createDefaultTokenSecret("default")).Build()
 
 	clientObj := createBasicClient("default", "test-client", "frp.example.com", 7000)
 	clientObj.Spec.Server.Authentication.Token = &frpv1alpha1.ClientSpec_Server_Authentication_Token{
@@ -626,7 +638,7 @@ func TestNewConfig_WithAdminServer(t *testing.T) {
 		"username": []byte("custom-admin"),
 		"password": []byte("custom-password"),
 	})
-	fakeClient := createFakeClient(usernameSecret).Build()
+	fakeClient := createFakeClient(createDefaultTokenSecret("default"), usernameSecret).Build()
 
 	clientObj := createBasicClient("default", "test-client", "frp.example.com", 7000)
 	clientObj.Spec.Server.AdminServer = &frpv1alpha1.ClientSpec_Server_AdminServer{
@@ -662,7 +674,7 @@ func TestNewConfig_WithAdminServer(t *testing.T) {
 }
 
 func TestNewConfig_TCPUpstream(t *testing.T) {
-	fakeClient := createFakeClient().Build()
+	fakeClient := createFakeClient(createDefaultTokenSecret("default")).Build()
 	clientObj := createBasicClient("default", "test-client", "frp.example.com", 7000)
 
 	upstreams := []frpv1alpha1.Upstream{
@@ -706,7 +718,7 @@ func TestNewConfig_TCPUpstream(t *testing.T) {
 }
 
 func TestNewConfig_TCPUpstreamWithAllOptions(t *testing.T) {
-	fakeClient := createFakeClient().Build()
+	fakeClient := createFakeClient(createDefaultTokenSecret("default")).Build()
 	clientObj := createBasicClient("default", "test-client", "frp.example.com", 7000)
 
 	upstreams := []frpv1alpha1.Upstream{
@@ -777,7 +789,7 @@ func TestNewConfig_TCPUpstreamWithAllOptions(t *testing.T) {
 }
 
 func TestNewConfig_UDPUpstream(t *testing.T) {
-	fakeClient := createFakeClient().Build()
+	fakeClient := createFakeClient(createDefaultTokenSecret("default")).Build()
 	clientObj := createBasicClient("default", "test-client", "frp.example.com", 7000)
 
 	upstreams := []frpv1alpha1.Upstream{
@@ -821,7 +833,7 @@ func TestNewConfig_STCPUpstream(t *testing.T) {
 	secretKeySecret := createSecret("default", "stcp-secret", map[string][]byte{
 		"key": []byte("stcp-secret-key"),
 	})
-	fakeClient := createFakeClient(secretKeySecret).Build()
+	fakeClient := createFakeClient(createDefaultTokenSecret("default"), secretKeySecret).Build()
 	clientObj := createBasicClient("default", "test-client", "frp.example.com", 7000)
 
 	upstreams := []frpv1alpha1.Upstream{
@@ -870,7 +882,7 @@ func TestNewConfig_STCPUpstreamWithOptions(t *testing.T) {
 	secretKeySecret := createSecret("default", "stcp-secret", map[string][]byte{
 		"key": []byte("stcp-secret-key"),
 	})
-	fakeClient := createFakeClient(secretKeySecret).Build()
+	fakeClient := createFakeClient(createDefaultTokenSecret("default"), secretKeySecret).Build()
 	clientObj := createBasicClient("default", "test-client", "frp.example.com", 7000)
 
 	upstreams := []frpv1alpha1.Upstream{
@@ -928,7 +940,7 @@ func TestNewConfig_XTCPUpstream(t *testing.T) {
 	secretKeySecret := createSecret("default", "xtcp-secret", map[string][]byte{
 		"key": []byte("xtcp-secret-key"),
 	})
-	fakeClient := createFakeClient(secretKeySecret).Build()
+	fakeClient := createFakeClient(createDefaultTokenSecret("default"), secretKeySecret).Build()
 	clientObj := createBasicClient("default", "test-client", "frp.example.com", 7000)
 
 	upstreams := []frpv1alpha1.Upstream{
@@ -977,7 +989,7 @@ func TestNewConfig_XTCPUpstreamWithOptions(t *testing.T) {
 	secretKeySecret := createSecret("default", "xtcp-secret", map[string][]byte{
 		"key": []byte("xtcp-secret-key"),
 	})
-	fakeClient := createFakeClient(secretKeySecret).Build()
+	fakeClient := createFakeClient(createDefaultTokenSecret("default"), secretKeySecret).Build()
 	clientObj := createBasicClient("default", "test-client", "frp.example.com", 7000)
 
 	upstreams := []frpv1alpha1.Upstream{
@@ -1040,7 +1052,7 @@ func TestNewConfig_STCPVisitor(t *testing.T) {
 	secretKeySecret := createSecret("default", "visitor-secret", map[string][]byte{
 		"key": []byte("visitor-secret-key"),
 	})
-	fakeClient := createFakeClient(secretKeySecret).Build()
+	fakeClient := createFakeClient(createDefaultTokenSecret("default"), secretKeySecret).Build()
 	clientObj := createBasicClient("default", "test-client", "frp.example.com", 7000)
 
 	visitors := []frpv1alpha1.Visitor{
@@ -1096,7 +1108,7 @@ func TestNewConfig_XTCPVisitor(t *testing.T) {
 	secretKeySecret := createSecret("default", "visitor-secret", map[string][]byte{
 		"key": []byte("xtcp-visitor-secret-key"),
 	})
-	fakeClient := createFakeClient(secretKeySecret).Build()
+	fakeClient := createFakeClient(createDefaultTokenSecret("default"), secretKeySecret).Build()
 	clientObj := createBasicClient("default", "test-client", "frp.example.com", 7000)
 
 	visitors := []frpv1alpha1.Visitor{
@@ -1156,7 +1168,7 @@ func TestNewConfig_XTCPVisitorWithEnableAssistedAddrs(t *testing.T) {
 	secretKeySecret := createSecret("default", "visitor-secret", map[string][]byte{
 		"key": []byte("xtcp-visitor-secret-key"),
 	})
-	fakeClient := createFakeClient(secretKeySecret).Build()
+	fakeClient := createFakeClient(createDefaultTokenSecret("default"), secretKeySecret).Build()
 	clientObj := createBasicClient("default", "test-client", "frp.example.com", 7000)
 
 	visitors := []frpv1alpha1.Visitor{
@@ -1195,7 +1207,7 @@ func TestNewConfig_XTCPVisitorWithFallback(t *testing.T) {
 	secretKeySecret := createSecret("default", "visitor-secret", map[string][]byte{
 		"key": []byte("xtcp-visitor-secret-key"),
 	})
-	fakeClient := createFakeClient(secretKeySecret).Build()
+	fakeClient := createFakeClient(createDefaultTokenSecret("default"), secretKeySecret).Build()
 	clientObj := createBasicClient("default", "test-client", "frp.example.com", 7000)
 
 	visitors := []frpv1alpha1.Visitor{
@@ -1240,7 +1252,7 @@ func TestNewConfig_XTCPVisitorWithFallback(t *testing.T) {
 }
 
 func TestNewConfig_UpstreamNoProtocol(t *testing.T) {
-	fakeClient := createFakeClient().Build()
+	fakeClient := createFakeClient(createDefaultTokenSecret("default")).Build()
 	clientObj := createBasicClient("default", "test-client", "frp.example.com", 7000)
 
 	upstreams := []frpv1alpha1.Upstream{
@@ -1260,7 +1272,7 @@ func TestNewConfig_UpstreamNoProtocol(t *testing.T) {
 }
 
 func TestNewConfig_VisitorNoProtocol(t *testing.T) {
-	fakeClient := createFakeClient().Build()
+	fakeClient := createFakeClient(createDefaultTokenSecret("default")).Build()
 	clientObj := createBasicClient("default", "test-client", "frp.example.com", 7000)
 
 	visitors := []frpv1alpha1.Visitor{
@@ -1280,7 +1292,7 @@ func TestNewConfig_VisitorNoProtocol(t *testing.T) {
 }
 
 func TestNewConfig_STCPUpstreamSecretNotFound(t *testing.T) {
-	fakeClient := createFakeClient().Build()
+	fakeClient := createFakeClient(createDefaultTokenSecret("default")).Build()
 	clientObj := createBasicClient("default", "test-client", "frp.example.com", 7000)
 
 	upstreams := []frpv1alpha1.Upstream{
@@ -1308,7 +1320,7 @@ func TestNewConfig_STCPUpstreamSecretNotFound(t *testing.T) {
 }
 
 func TestNewConfig_XTCPUpstreamSecretNotFound(t *testing.T) {
-	fakeClient := createFakeClient().Build()
+	fakeClient := createFakeClient(createDefaultTokenSecret("default")).Build()
 	clientObj := createBasicClient("default", "test-client", "frp.example.com", 7000)
 
 	upstreams := []frpv1alpha1.Upstream{
@@ -1336,7 +1348,7 @@ func TestNewConfig_XTCPUpstreamSecretNotFound(t *testing.T) {
 }
 
 func TestNewConfig_STCPVisitorSecretNotFound(t *testing.T) {
-	fakeClient := createFakeClient().Build()
+	fakeClient := createFakeClient(createDefaultTokenSecret("default")).Build()
 	clientObj := createBasicClient("default", "test-client", "frp.example.com", 7000)
 
 	visitors := []frpv1alpha1.Visitor{
@@ -1365,7 +1377,7 @@ func TestNewConfig_STCPVisitorSecretNotFound(t *testing.T) {
 }
 
 func TestNewConfig_XTCPVisitorSecretNotFound(t *testing.T) {
-	fakeClient := createFakeClient().Build()
+	fakeClient := createFakeClient(createDefaultTokenSecret("default")).Build()
 	clientObj := createBasicClient("default", "test-client", "frp.example.com", 7000)
 
 	visitors := []frpv1alpha1.Visitor{
@@ -1394,7 +1406,7 @@ func TestNewConfig_XTCPVisitorSecretNotFound(t *testing.T) {
 }
 
 func TestNewConfig_MultipleUpstreams_Sorted(t *testing.T) {
-	fakeClient := createFakeClient().Build()
+	fakeClient := createFakeClient(createDefaultTokenSecret("default")).Build()
 	clientObj := createBasicClient("default", "test-client", "frp.example.com", 7000)
 
 	upstreams := []frpv1alpha1.Upstream{
@@ -1451,7 +1463,7 @@ func TestNewConfig_MultipleVisitors_Sorted(t *testing.T) {
 	secretKeySecret := createSecret("default", "visitor-secret", map[string][]byte{
 		"key": []byte("secret-key"),
 	})
-	fakeClient := createFakeClient(secretKeySecret).Build()
+	fakeClient := createFakeClient(createDefaultTokenSecret("default"), secretKeySecret).Build()
 	clientObj := createBasicClient("default", "test-client", "frp.example.com", 7000)
 
 	visitors := []frpv1alpha1.Visitor{
@@ -1501,7 +1513,7 @@ func TestNewConfig_MultipleVisitors_Sorted(t *testing.T) {
 }
 
 func TestNewConfig_DuplicateUpstreamServerPorts(t *testing.T) {
-	fakeClient := createFakeClient().Build()
+	fakeClient := createFakeClient(createDefaultTokenSecret("default")).Build()
 	clientObj := createBasicClient("default", "test-client", "frp.example.com", 7000)
 
 	upstreams := []frpv1alpha1.Upstream{
@@ -1540,7 +1552,7 @@ func TestNewConfig_DuplicateVisitorPorts(t *testing.T) {
 	secretKeySecret := createSecret("default", "visitor-secret", map[string][]byte{
 		"key": []byte("secret-key"),
 	})
-	fakeClient := createFakeClient(secretKeySecret).Build()
+	fakeClient := createFakeClient(createDefaultTokenSecret("default"), secretKeySecret).Build()
 	clientObj := createBasicClient("default", "test-client", "frp.example.com", 7000)
 
 	visitors := []frpv1alpha1.Visitor{
