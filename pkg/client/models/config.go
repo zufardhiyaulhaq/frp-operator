@@ -32,6 +32,14 @@ type Config struct {
 	Visitors  Visitors
 }
 
+type TransportConfig struct {
+	PoolCount            int
+	TCPMux               bool
+	DialServerTimeout    string
+	DialServerKeepalive  string
+	ConnectServerLocalIP string
+}
+
 type Common struct {
 	ServerAddress        string
 	ServerPort           int
@@ -44,6 +52,7 @@ type Common struct {
 	STUNServer           *string
 	PprofEnable          bool
 	TLS                  *TLSConfig
+	Transport            *TransportConfig
 }
 
 type TLSConfig struct {
@@ -114,23 +123,33 @@ type Visitor_XTCP_Fallback struct {
 type UpstreamType int64
 
 const (
-	TCP   UpstreamType = iota
-	UDP   UpstreamType = iota
-	STCP  UpstreamType = iota
-	XTCP  UpstreamType = iota
-	HTTP  UpstreamType = iota
-	HTTPS UpstreamType = iota
+	TCP    UpstreamType = iota
+	UDP    UpstreamType = iota
+	STCP   UpstreamType = iota
+	XTCP   UpstreamType = iota
+	HTTP   UpstreamType = iota
+	HTTPS  UpstreamType = iota
+	TCPMUX UpstreamType = iota
 )
 
+type Upstream_TCPMUX struct {
+	Host          string
+	Port          int
+	Multiplexer   string
+	CustomDomains []string
+	Transport     *Upstream_TCP_Transport
+}
+
 type Upstream struct {
-	Name  string
-	Type  UpstreamType
-	TCP   Upstream_TCP
-	UDP   Upstream_UDP
-	STCP  Upstream_STCP
-	XTCP  Upstream_STCP
-	HTTP  Upstream_HTTP
-	HTTPS Upstream_HTTPS
+	Name   string
+	Type   UpstreamType
+	TCP    Upstream_TCP
+	UDP    Upstream_UDP
+	STCP   Upstream_STCP
+	XTCP   Upstream_STCP
+	HTTP   Upstream_HTTP
+	HTTPS  Upstream_HTTPS
+	TCPMUX Upstream_TCPMUX
 }
 
 type Upstreams []Upstream
@@ -165,6 +184,23 @@ type Upstream_XTCP struct {
 	AllowUsers    []string
 }
 
+type LoadBalancerConfig struct {
+	Group    string
+	GroupKey string
+}
+
+type PluginConfig struct {
+	Type         string
+	Username     string
+	Password     string
+	LocalPath    string
+	StripPrefix  string
+	HTTPUser     string
+	HTTPPassword string
+	LocalAddr    string
+	UnixPath     string
+}
+
 type Upstream_TCP struct {
 	Host          string
 	Port          int
@@ -172,6 +208,8 @@ type Upstream_TCP struct {
 	ProxyProtocol *string
 	HealthCheck   *Upstream_TCP_HealthCheck
 	Transport     *Upstream_TCP_Transport
+	LoadBalancer  *LoadBalancerConfig
+	Plugin        *PluginConfig
 }
 
 type Upstream_TCP_HealthCheck struct {
@@ -231,29 +269,43 @@ type Upstream_HTTPS struct {
 }
 
 // validateUpstreamServerPorts checks that no two TCP/UDP upstreams use the same server port
+// unless they are in the same load balancer group (which is intentional for load balancing)
 func validateUpstreamServerPorts(upstreamObjects []frpv1alpha1.Upstream) error {
-	serverPorts := make(map[int]string) // port -> upstream name
+	// Track port -> {upstreamName, lbGroup} for conflict detection
+	type portInfo struct {
+		upstreamName string
+		lbGroup      string
+	}
+	serverPorts := make(map[int]portInfo) // port -> first upstream info
 
 	for _, upstream := range upstreamObjects {
 		var port int
 		var protocol string
+		var lbGroup string
 
 		if upstream.Spec.TCP != nil {
 			port = upstream.Spec.TCP.Server.Port
 			protocol = "TCP"
+			if upstream.Spec.TCP.LoadBalancer != nil {
+				lbGroup = upstream.Spec.TCP.LoadBalancer.Group
+			}
 		} else if upstream.Spec.UDP != nil {
 			port = upstream.Spec.UDP.Server.Port
 			protocol = "UDP"
 		} else {
-			continue // STCP/XTCP don't have server ports
+			continue // STCP/XTCP/HTTP/HTTPS/TCPMUX don't have server ports
 		}
 
-		if existingName, exists := serverPorts[port]; exists {
+		if existing, exists := serverPorts[port]; exists {
+			// Allow same port if both are in the same load balancer group
+			if lbGroup != "" && existing.lbGroup == lbGroup {
+				continue // Same LB group, allowed
+			}
 			return errors.NewBadRequest(
 				fmt.Sprintf("duplicate server port %d: upstream %q (%s) conflicts with upstream %q",
-					port, upstream.Name, protocol, existingName))
+					port, upstream.Name, protocol, existing.upstreamName))
 		}
-		serverPorts[port] = upstream.Name
+		serverPorts[port] = portInfo{upstreamName: upstream.Name, lbGroup: lbGroup}
 	}
 
 	return nil
@@ -442,14 +494,30 @@ func NewConfig(k8sclient client.Client,
 		}
 	}
 
+	// Handle Transport configuration
+	if clientObject.Spec.Server.Transport != nil {
+		config.Common.Transport = &TransportConfig{
+			PoolCount:            clientObject.Spec.Server.Transport.PoolCount,
+			DialServerTimeout:    clientObject.Spec.Server.Transport.DialServerTimeout,
+			DialServerKeepalive:  clientObject.Spec.Server.Transport.DialServerKeepalive,
+			ConnectServerLocalIP: clientObject.Spec.Server.Transport.ConnectServerLocalIP,
+		}
+
+		if clientObject.Spec.Server.Transport.TCPMux != nil {
+			config.Common.Transport.TCPMux = *clientObject.Spec.Server.Transport.TCPMux
+		} else {
+			config.Common.Transport.TCPMux = true // default
+		}
+	}
+
 	upstreams := []Upstream{}
 	for _, upstreamObject := range upstreamObjects {
 		upstream := Upstream{
 			Name: upstreamObject.Name,
 		}
 
-		if upstreamObject.Spec.TCP == nil && upstreamObject.Spec.UDP == nil && upstreamObject.Spec.STCP == nil && upstreamObject.Spec.XTCP == nil && upstreamObject.Spec.HTTP == nil && upstreamObject.Spec.HTTPS == nil {
-			return config, errors.NewBadRequest("TCP, UDP, STCP, XTCP, HTTP, or HTTPS upstream is required")
+		if upstreamObject.Spec.TCP == nil && upstreamObject.Spec.UDP == nil && upstreamObject.Spec.STCP == nil && upstreamObject.Spec.XTCP == nil && upstreamObject.Spec.HTTP == nil && upstreamObject.Spec.HTTPS == nil && upstreamObject.Spec.TCPMUX == nil {
+			return config, errors.NewBadRequest("TCP, UDP, STCP, XTCP, HTTP, HTTPS, or TCPMUX upstream is required")
 		}
 
 		protocolCount := 0
@@ -469,6 +537,9 @@ func NewConfig(k8sclient client.Client,
 			protocolCount++
 		}
 		if upstreamObject.Spec.HTTPS != nil {
+			protocolCount++
+		}
+		if upstreamObject.Spec.TCPMUX != nil {
 			protocolCount++
 		}
 		if protocolCount > 1 {
@@ -508,6 +579,93 @@ func NewConfig(k8sclient client.Client,
 						Enabled: upstreamObject.Spec.TCP.Transport.BandwdithLimit.Enabled,
 						Limit:   upstreamObject.Spec.TCP.Transport.BandwdithLimit.Limit,
 						Type:    upstreamObject.Spec.TCP.Transport.BandwdithLimit.Type,
+					}
+				}
+			}
+
+			// Handle LoadBalancer
+			if upstreamObject.Spec.TCP.LoadBalancer != nil {
+				upstream.TCP.LoadBalancer = &LoadBalancerConfig{
+					Group: upstreamObject.Spec.TCP.LoadBalancer.Group,
+				}
+
+				if upstreamObject.Spec.TCP.LoadBalancer.GroupKey != nil {
+					secret := &corev1.Secret{}
+					err := k8sclient.Get(context.TODO(), types.NamespacedName{
+						Name:      upstreamObject.Spec.TCP.LoadBalancer.GroupKey.Secret.Name,
+						Namespace: clientObject.Namespace,
+					}, secret)
+					if err == nil {
+						if val, ok := secret.Data[upstreamObject.Spec.TCP.LoadBalancer.GroupKey.Secret.Key]; ok {
+							upstream.TCP.LoadBalancer.GroupKey = string(val)
+						}
+					}
+				}
+			}
+
+			// Handle Plugin
+			if upstreamObject.Spec.TCP.Plugin != nil {
+				upstream.TCP.Plugin = &PluginConfig{
+					Type:        upstreamObject.Spec.TCP.Plugin.Type,
+					LocalPath:   upstreamObject.Spec.TCP.Plugin.LocalPath,
+					StripPrefix: upstreamObject.Spec.TCP.Plugin.StripPrefix,
+					LocalAddr:   upstreamObject.Spec.TCP.Plugin.LocalAddr,
+					UnixPath:    upstreamObject.Spec.TCP.Plugin.UnixPath,
+				}
+
+				// Fetch username from secret
+				if upstreamObject.Spec.TCP.Plugin.Username != nil {
+					secret := &corev1.Secret{}
+					err := k8sclient.Get(context.TODO(), types.NamespacedName{
+						Name:      upstreamObject.Spec.TCP.Plugin.Username.Secret.Name,
+						Namespace: clientObject.Namespace,
+					}, secret)
+					if err == nil {
+						if val, ok := secret.Data[upstreamObject.Spec.TCP.Plugin.Username.Secret.Key]; ok {
+							upstream.TCP.Plugin.Username = string(val)
+						}
+					}
+				}
+
+				// Fetch password from secret
+				if upstreamObject.Spec.TCP.Plugin.Password != nil {
+					secret := &corev1.Secret{}
+					err := k8sclient.Get(context.TODO(), types.NamespacedName{
+						Name:      upstreamObject.Spec.TCP.Plugin.Password.Secret.Name,
+						Namespace: clientObject.Namespace,
+					}, secret)
+					if err == nil {
+						if val, ok := secret.Data[upstreamObject.Spec.TCP.Plugin.Password.Secret.Key]; ok {
+							upstream.TCP.Plugin.Password = string(val)
+						}
+					}
+				}
+
+				// Fetch HTTPUser from secret
+				if upstreamObject.Spec.TCP.Plugin.HTTPUser != nil {
+					secret := &corev1.Secret{}
+					err := k8sclient.Get(context.TODO(), types.NamespacedName{
+						Name:      upstreamObject.Spec.TCP.Plugin.HTTPUser.Secret.Name,
+						Namespace: clientObject.Namespace,
+					}, secret)
+					if err == nil {
+						if val, ok := secret.Data[upstreamObject.Spec.TCP.Plugin.HTTPUser.Secret.Key]; ok {
+							upstream.TCP.Plugin.HTTPUser = string(val)
+						}
+					}
+				}
+
+				// Fetch HTTPPassword from secret
+				if upstreamObject.Spec.TCP.Plugin.HTTPPassword != nil {
+					secret := &corev1.Secret{}
+					err := k8sclient.Get(context.TODO(), types.NamespacedName{
+						Name:      upstreamObject.Spec.TCP.Plugin.HTTPPassword.Secret.Name,
+						Namespace: clientObject.Namespace,
+					}, secret)
+					if err == nil {
+						if val, ok := secret.Data[upstreamObject.Spec.TCP.Plugin.HTTPPassword.Secret.Key]; ok {
+							upstream.TCP.Plugin.HTTPPassword = string(val)
+						}
 					}
 				}
 			}
@@ -749,6 +907,21 @@ func NewConfig(k8sclient client.Client,
 						Limit:   upstreamObject.Spec.HTTPS.Transport.BandwdithLimit.Limit,
 						Type:    upstreamObject.Spec.HTTPS.Transport.BandwdithLimit.Type,
 					}
+				}
+			}
+		}
+
+		if upstreamObject.Spec.TCPMUX != nil {
+			upstream.Type = 7
+			upstream.TCPMUX.Host = upstreamObject.Spec.TCPMUX.Host
+			upstream.TCPMUX.Port = upstreamObject.Spec.TCPMUX.Port
+			upstream.TCPMUX.Multiplexer = upstreamObject.Spec.TCPMUX.Multiplexer
+			upstream.TCPMUX.CustomDomains = upstreamObject.Spec.TCPMUX.CustomDomains
+
+			if upstreamObject.Spec.TCPMUX.Transport != nil {
+				upstream.TCPMUX.Transport = &Upstream_TCP_Transport{
+					UseCompression: upstreamObject.Spec.TCPMUX.Transport.UseCompression,
+					UseEncryption:  upstreamObject.Spec.TCPMUX.Transport.UseEncryption,
 				}
 			}
 		}

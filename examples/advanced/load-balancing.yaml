@@ -1,0 +1,46 @@
+# Load Balancing Example
+# Multiple upstreams in the same group share traffic on the same remote port
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: lb-secret
+type: Opaque
+stringData:
+  groupKey: "my-lb-group-secret"
+---
+apiVersion: frp.zufardhiyaulhaq.com/v1alpha1
+kind: Upstream
+metadata:
+  name: api-node-1
+spec:
+  client: advanced-client
+  tcp:
+    host: api-1.default.svc
+    port: 8080
+    server:
+      port: 9000
+    loadBalancer:
+      group: "api-cluster"
+      groupKey:
+        secret:
+          name: lb-secret
+          key: groupKey
+---
+apiVersion: frp.zufardhiyaulhaq.com/v1alpha1
+kind: Upstream
+metadata:
+  name: api-node-2
+spec:
+  client: advanced-client
+  tcp:
+    host: api-2.default.svc
+    port: 8080
+    server:
+      port: 9000
+    loadBalancer:
+      group: "api-cluster"
+      groupKey:
+        secret:
+          name: lb-secret
+          key: groupKey

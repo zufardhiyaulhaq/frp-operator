@@ -1,0 +1,119 @@
+# FRP Plugins Examples
+# Plugins allow special proxy types without requiring a local service
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: socks-auth
+type: Opaque
+stringData:
+  username: "proxyuser"
+  password: "proxypass"
+---
+# SOCKS5 Proxy Plugin
+# Creates a SOCKS5 proxy server exposed through FRP
+apiVersion: frp.zufardhiyaulhaq.com/v1alpha1
+kind: Upstream
+metadata:
+  name: socks5-proxy
+spec:
+  client: advanced-client
+  tcp:
+    server:
+      port: 1080
+    plugin:
+      type: socks5
+      username:
+        secret:
+          name: socks-auth
+          key: username
+      password:
+        secret:
+          name: socks-auth
+          key: password
+---
+# HTTP Proxy Plugin
+# Creates an HTTP proxy server exposed through FRP
+apiVersion: frp.zufardhiyaulhaq.com/v1alpha1
+kind: Upstream
+metadata:
+  name: http-proxy
+spec:
+  client: advanced-client
+  tcp:
+    server:
+      port: 8118
+    plugin:
+      type: http_proxy
+      username:
+        secret:
+          name: socks-auth
+          key: username
+      password:
+        secret:
+          name: socks-auth
+          key: password
+---
+# Unix Domain Socket Plugin
+# Exposes a Unix socket (e.g., Docker daemon) through FRP
+#
+# IMPORTANT: This plugin requires the socket path to be mounted into the FRP client pod.
+# Configure volumes using the Client's podTemplate field:
+#
+#   podTemplate:
+#     spec:
+#       containers:
+#       - name: frpc
+#         volumeMounts:
+#         - name: docker-socket
+#           mountPath: /var/run/docker.sock
+#       volumes:
+#       - name: docker-socket
+#         hostPath:
+#           path: /var/run/docker.sock
+#           type: Socket
+#
+apiVersion: frp.zufardhiyaulhaq.com/v1alpha1
+kind: Upstream
+metadata:
+  name: docker-api
+spec:
+  client: advanced-client
+  tcp:
+    server:
+      port: 2375
+    plugin:
+      type: unix_domain_socket
+      unixPath: "/var/run/docker.sock"
+---
+# Static File Server Plugin
+# Serves static files from a directory
+#
+# IMPORTANT: This plugin requires the localPath directory to be mounted into the FRP client pod.
+# Configure volumes using the Client's podTemplate field:
+#
+#   podTemplate:
+#     spec:
+#       containers:
+#       - name: frpc
+#         volumeMounts:
+#         - name: static-files
+#           mountPath: /data/public
+#       volumes:
+#       - name: static-files
+#         persistentVolumeClaim:
+#           claimName: static-files-pvc
+#
+apiVersion: frp.zufardhiyaulhaq.com/v1alpha1
+kind: Upstream
+metadata:
+  name: file-server
+spec:
+  client: advanced-client
+  tcp:
+    server:
+      port: 8080
+    plugin:
+      type: static_file
+      localPath: "/data/public"
+      stripPrefix: "/download"

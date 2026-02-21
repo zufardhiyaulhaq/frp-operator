@@ -48,6 +48,20 @@ transport.tls.trustedCaFile = "{{ .Common.TLS.TrustedCAFile }}"
 {{ end }}
 {{ end }}
 
+{{ if .Common.Transport }}
+transport.poolCount = {{ .Common.Transport.PoolCount }}
+transport.tcpMux = {{ .Common.Transport.TCPMux }}
+{{ if .Common.Transport.DialServerTimeout }}
+transport.dialServerTimeout = "{{ .Common.Transport.DialServerTimeout }}"
+{{ end }}
+{{ if .Common.Transport.DialServerKeepalive }}
+transport.dialServerKeepalive = "{{ .Common.Transport.DialServerKeepalive }}"
+{{ end }}
+{{ if .Common.Transport.ConnectServerLocalIP }}
+transport.connectServerLocalIP = "{{ .Common.Transport.ConnectServerLocalIP }}"
+{{ end }}
+{{ end }}
+
 {{ range $upstream := .Upstreams }}
 
 [[proxies]]
@@ -55,9 +69,68 @@ transport.tls.trustedCaFile = "{{ .Common.TLS.TrustedCAFile }}"
 {{ if eq $upstream.Type 1 }}
 name = "{{ $upstream.Name }}"
 type = "tcp"
+{{ if $upstream.TCP.Host }}
 localIP = "{{ $upstream.TCP.Host }}"
+{{ end }}
+{{ if $upstream.TCP.Port }}
 localPort = {{ $upstream.TCP.Port }}
+{{ end }}
 remotePort = {{ $upstream.TCP.ServerPort }}
+
+{{ if $upstream.TCP.Plugin }}
+plugin = "{{ $upstream.TCP.Plugin.Type }}"
+
+{{ if eq $upstream.TCP.Plugin.Type "socks5" }}
+{{ if $upstream.TCP.Plugin.Username }}
+plugin.username = "{{ $upstream.TCP.Plugin.Username }}"
+{{ end }}
+{{ if $upstream.TCP.Plugin.Password }}
+plugin.password = "{{ $upstream.TCP.Plugin.Password }}"
+{{ end }}
+{{ end }}
+
+{{ if eq $upstream.TCP.Plugin.Type "http_proxy" }}
+{{ if $upstream.TCP.Plugin.Username }}
+plugin.httpUser = "{{ $upstream.TCP.Plugin.Username }}"
+{{ end }}
+{{ if $upstream.TCP.Plugin.Password }}
+plugin.httpPassword = "{{ $upstream.TCP.Plugin.Password }}"
+{{ end }}
+{{ end }}
+
+{{ if eq $upstream.TCP.Plugin.Type "static_file" }}
+plugin.localPath = "{{ $upstream.TCP.Plugin.LocalPath }}"
+{{ if $upstream.TCP.Plugin.StripPrefix }}
+plugin.stripPrefix = "{{ $upstream.TCP.Plugin.StripPrefix }}"
+{{ end }}
+{{ if $upstream.TCP.Plugin.HTTPUser }}
+plugin.httpUser = "{{ $upstream.TCP.Plugin.HTTPUser }}"
+{{ end }}
+{{ if $upstream.TCP.Plugin.HTTPPassword }}
+plugin.httpPassword = "{{ $upstream.TCP.Plugin.HTTPPassword }}"
+{{ end }}
+{{ end }}
+
+{{ if eq $upstream.TCP.Plugin.Type "unix_domain_socket" }}
+plugin.unixPath = "{{ $upstream.TCP.Plugin.UnixPath }}"
+{{ end }}
+
+{{ if eq $upstream.TCP.Plugin.Type "https2http" }}
+plugin.localAddr = "{{ $upstream.TCP.Plugin.LocalAddr }}"
+{{ end }}
+
+{{ if eq $upstream.TCP.Plugin.Type "https2https" }}
+plugin.localAddr = "{{ $upstream.TCP.Plugin.LocalAddr }}"
+{{ end }}
+
+{{ if eq $upstream.TCP.Plugin.Type "http2https" }}
+plugin.localAddr = "{{ $upstream.TCP.Plugin.LocalAddr }}"
+{{ end }}
+
+{{ if eq $upstream.TCP.Plugin.Type "http2http" }}
+plugin.localAddr = "{{ $upstream.TCP.Plugin.LocalAddr }}"
+{{ end }}
+{{ end }}
 
 {{ if $upstream.TCP.ProxyProtocol }}
 transport.proxyProtocolVersion = "{{ $upstream.TCP.ProxyProtocol }}"
@@ -81,6 +154,13 @@ transport.bandwidthLimitMode = "client"
 {{ end }}
 {{ if $upstream.TCP.Transport.ProxyURL }}
 transport.proxyURL = "{{ $upstream.TCP.Transport.ProxyURL }}"
+{{ end }}
+{{ end }}
+
+{{ if $upstream.TCP.LoadBalancer }}
+loadBalancer.group = "{{ $upstream.TCP.LoadBalancer.Group }}"
+{{ if $upstream.TCP.LoadBalancer.GroupKey }}
+loadBalancer.groupKey = "{{ $upstream.TCP.LoadBalancer.GroupKey }}"
 {{ end }}
 {{ end }}
 {{ end }}
@@ -257,6 +337,23 @@ transport.bandwidthLimitMode = "client"
 {{ if $upstream.HTTPS.Transport.ProxyURL }}
 transport.proxyURL = "{{ $upstream.HTTPS.Transport.ProxyURL }}"
 {{ end }}
+{{ end }}
+{{ end }}
+
+{{ if eq $upstream.Type 7 }}
+name = "{{ $upstream.Name }}"
+type = "tcpmux"
+multiplexer = "{{ $upstream.TCPMUX.Multiplexer }}"
+localIP = "{{ $upstream.TCPMUX.Host }}"
+localPort = {{ $upstream.TCPMUX.Port }}
+
+{{ if $upstream.TCPMUX.CustomDomains }}
+customDomains = [{{ range $i, $d := $upstream.TCPMUX.CustomDomains }}{{ if $i }}, {{ end }}"{{ $d }}"{{ end }}]
+{{ end }}
+
+{{ if $upstream.TCPMUX.Transport }}
+transport.useEncryption = {{ $upstream.TCPMUX.Transport.UseEncryption }}
+transport.useCompression = {{ $upstream.TCPMUX.Transport.UseCompression }}
 {{ end }}
 {{ end }}
 

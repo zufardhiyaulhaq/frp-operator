@@ -108,6 +108,63 @@ func TestValidateUpstreamServerPorts(t *testing.T) {
 			errMsg:  "duplicate server port 8080",
 		},
 		{
+			name: "two TCP upstreams with same server port same LB group - allowed",
+			upstreams: []frpv1alpha1.Upstream{
+				{
+					ObjectMeta: metav1.ObjectMeta{Name: "upstream1"},
+					Spec: frpv1alpha1.UpstreamSpec{
+						TCP: &frpv1alpha1.UpstreamSpec_TCP{
+							Host:         "localhost",
+							Port:         80,
+							Server:       frpv1alpha1.UpstreamSpec_TCP_Server{Port: 9000},
+							LoadBalancer: &frpv1alpha1.LoadBalancer{Group: "web-group"},
+						},
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{Name: "upstream2"},
+					Spec: frpv1alpha1.UpstreamSpec{
+						TCP: &frpv1alpha1.UpstreamSpec_TCP{
+							Host:         "localhost",
+							Port:         81,
+							Server:       frpv1alpha1.UpstreamSpec_TCP_Server{Port: 9000},
+							LoadBalancer: &frpv1alpha1.LoadBalancer{Group: "web-group"},
+						},
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "two TCP upstreams with same server port different LB groups - error",
+			upstreams: []frpv1alpha1.Upstream{
+				{
+					ObjectMeta: metav1.ObjectMeta{Name: "upstream1"},
+					Spec: frpv1alpha1.UpstreamSpec{
+						TCP: &frpv1alpha1.UpstreamSpec_TCP{
+							Host:         "localhost",
+							Port:         80,
+							Server:       frpv1alpha1.UpstreamSpec_TCP_Server{Port: 9000},
+							LoadBalancer: &frpv1alpha1.LoadBalancer{Group: "group-a"},
+						},
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{Name: "upstream2"},
+					Spec: frpv1alpha1.UpstreamSpec{
+						TCP: &frpv1alpha1.UpstreamSpec_TCP{
+							Host:         "localhost",
+							Port:         81,
+							Server:       frpv1alpha1.UpstreamSpec_TCP_Server{Port: 9000},
+							LoadBalancer: &frpv1alpha1.LoadBalancer{Group: "group-b"},
+						},
+					},
+				},
+			},
+			wantErr: true,
+			errMsg:  "duplicate server port 9000",
+		},
+		{
 			name: "TCP and UDP upstreams with same server port - error",
 			upstreams: []frpv1alpha1.Upstream{
 				{
@@ -1266,8 +1323,8 @@ func TestNewConfig_UpstreamNoProtocol(t *testing.T) {
 	if err == nil {
 		t.Error("NewConfig() expected error for upstream without protocol")
 	}
-	if !contains(err.Error(), "TCP, UDP, STCP, XTCP, HTTP, or HTTPS upstream is required") {
-		t.Errorf("NewConfig() error = %v, want error containing 'TCP, UDP, STCP, XTCP, HTTP, or HTTPS upstream is required'", err)
+	if !contains(err.Error(), "TCP, UDP, STCP, XTCP, HTTP, HTTPS, or TCPMUX upstream is required") {
+		t.Errorf("NewConfig() error = %v, want error containing 'TCP, UDP, STCP, XTCP, HTTP, HTTPS, or TCPMUX upstream is required'", err)
 	}
 }
 

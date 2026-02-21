@@ -34,14 +34,36 @@ type ClientSpec_Server struct {
 	Port int    `json:"port"`
 	// +kubebuilder:validation:Enum=tcp;kcp;quic;websocket;wss
 	// +optional
-	Protocol       *string                          `json:"protocol"`
+	Protocol       *string                          `json:"protocol,omitempty"`
 	Authentication ClientSpec_Server_Authentication `json:"authentication"`
 	AdminServer    *ClientSpec_Server_AdminServer   `json:"adminServer,omitempty"`
 	// +optional
-	STUNServer *string `json:"stunServer"`
+	STUNServer *string `json:"stunServer,omitempty"`
 	// +optional
 	// TLS configures TLS client certificate authentication
 	TLS *ClientSpec_Server_TLS `json:"tls,omitempty"`
+	// +optional
+	// Transport configures connection behavior
+	Transport *ClientSpec_Server_Transport `json:"transport,omitempty"`
+}
+
+// ClientSpec_Server_Transport configures connection behavior for performance tuning
+type ClientSpec_Server_Transport struct {
+	// +optional
+	// PoolCount is the number of pre-established connections to the server
+	PoolCount int `json:"poolCount,omitempty"`
+	// +optional
+	// TCPMux enables TCP stream multiplexing to reduce connection overhead
+	TCPMux *bool `json:"tcpMux,omitempty"`
+	// +optional
+	// DialServerTimeout is the connection timeout to the FRP server
+	DialServerTimeout string `json:"dialServerTimeout,omitempty"`
+	// +optional
+	// DialServerKeepalive is the keepalive interval (-1s to disable)
+	DialServerKeepalive string `json:"dialServerKeepalive,omitempty"`
+	// +optional
+	// ConnectServerLocalIP binds the outbound connection to a specific local IP
+	ConnectServerLocalIP string `json:"connectServerLocalIP,omitempty"`
 }
 
 type ClientSpec_Server_TLS struct {

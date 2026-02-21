@@ -1,0 +1,55 @@
+# Client Transport Configuration Example
+# Fine-tune connection behavior for performance optimization
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: frp-token
+type: Opaque
+stringData:
+  token: "my-frp-token"
+---
+apiVersion: frp.zufardhiyaulhaq.com/v1alpha1
+kind: Client
+metadata:
+  name: optimized-client
+spec:
+  server:
+    host: frp.example.com
+    port: 7000
+    authentication:
+      token:
+        secret:
+          name: frp-token
+          key: token
+    transport:
+      # Number of pre-established connections to the server
+      poolCount: 5
+      # Enable TCP stream multiplexing to reduce connection overhead
+      tcpMux: true
+      # Connection timeout to the FRP server
+      dialServerTimeout: "15s"
+      # Keepalive interval for the connection
+      dialServerKeepalive: "30s"
+---
+# Client with transport and TLS
+apiVersion: frp.zufardhiyaulhaq.com/v1alpha1
+kind: Client
+metadata:
+  name: secure-optimized-client
+spec:
+  server:
+    host: frp.example.com
+    port: 7000
+    authentication:
+      token:
+        secret:
+          name: frp-token
+          key: token
+    tls:
+      enable: true
+    transport:
+      poolCount: 10
+      tcpMux: true
+      dialServerTimeout: "10s"
+      dialServerKeepalive: "60s"

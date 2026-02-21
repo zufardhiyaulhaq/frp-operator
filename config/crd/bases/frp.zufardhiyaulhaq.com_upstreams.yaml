@@ -319,6 +319,122 @@ spec:
                     type: object
                   host:
                     type: string
+                  loadBalancer:
+                    description: LoadBalancer configures load balancing across multiple
+                      upstreams
+                    properties:
+                      group:
+                        description: Group is the load balancer group name
+                        type: string
+                      groupKey:
+                        description: GroupKey is the shared secret for the group
+                        properties:
+                          secret:
+                            properties:
+                              key:
+                                type: string
+                              name:
+                                type: string
+                            required:
+                            - key
+                            - name
+                            type: object
+                        required:
+                        - secret
+                        type: object
+                    required:
+                    - group
+                    type: object
+                  plugin:
+                    description: UpstreamPlugin configures an FRP plugin instead of
+                      direct forwarding
+                    properties:
+                      httpPassword:
+                        properties:
+                          secret:
+                            properties:
+                              key:
+                                type: string
+                              name:
+                                type: string
+                            required:
+                            - key
+                            - name
+                            type: object
+                        required:
+                        - secret
+                        type: object
+                      httpUser:
+                        properties:
+                          secret:
+                            properties:
+                              key:
+                                type: string
+                              name:
+                                type: string
+                            required:
+                            - key
+                            - name
+                            type: object
+                        required:
+                        - secret
+                        type: object
+                      localAddr:
+                        description: For https2http, https2https, http2https
+                        type: string
+                      localPath:
+                        description: For static_file
+                        type: string
+                      password:
+                        properties:
+                          secret:
+                            properties:
+                              key:
+                                type: string
+                              name:
+                                type: string
+                            required:
+                            - key
+                            - name
+                            type: object
+                        required:
+                        - secret
+                        type: object
+                      stripPrefix:
+                        type: string
+                      type:
+                        enum:
+                        - socks5
+                        - http_proxy
+                        - static_file
+                        - https2http
+                        - https2https
+                        - http2http
+                        - http2https
+                        - unix_domain_socket
+                        type: string
+                      unixPath:
+                        description: For unix_domain_socket
+                        type: string
+                      username:
+                        description: For socks5, http_proxy
+                        properties:
+                          secret:
+                            properties:
+                              key:
+                                type: string
+                              name:
+                                type: string
+                            required:
+                            - key
+                            - name
+                            type: object
+                        required:
+                        - secret
+                        type: object
+                    required:
+                    - type
+                    type: object
                   port:
                     type: integer
                   proxyProtocol:
@@ -365,9 +481,60 @@ spec:
                     - useEncryption
                     type: object
                 required:
-                - host
-                - port
                 - server
+                type: object
+              tcpmux:
+                description: UpstreamSpec_TCPMUX exposes a service using TCP multiplexing
+                  over HTTP CONNECT
+                properties:
+                  customDomains:
+                    items:
+                      type: string
+                    type: array
+                  host:
+                    type: string
+                  multiplexer:
+                    enum:
+                    - httpconnect
+                    type: string
+                  port:
+                    type: integer
+                  transport:
+                    properties:
+                      bandwidthLimit:
+                        properties:
+                          enabled:
+                            default: false
+                            type: boolean
+                          limit:
+                            type: integer
+                          type:
+                            enum:
+                            - KB
+                            - MB
+                            type: string
+                        required:
+                        - enabled
+                        - limit
+                        - type
+                        type: object
+                      proxyURL:
+                        type: string
+                      useCompression:
+                        default: false
+                        type: boolean
+                      useEncryption:
+                        default: true
+                        type: boolean
+                    required:
+                    - useCompression
+                    - useEncryption
+                    type: object
+                required:
+                - customDomains
+                - host
+                - multiplexer
+                - port
                 type: object
               udp:
                 properties:

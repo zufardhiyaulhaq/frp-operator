@@ -1516,6 +1516,30 @@ spec:
                     required:
                     - enable
                     type: object
+                  transport:
+                    description: Transport configures connection behavior
+                    properties:
+                      connectServerLocalIP:
+                        description: ConnectServerLocalIP binds the outbound connection
+                          to a specific local IP
+                        type: string
+                      dialServerKeepalive:
+                        description: DialServerKeepalive is the keepalive interval
+                          (-1s to disable)
+                        type: string
+                      dialServerTimeout:
+                        description: DialServerTimeout is the connection timeout to
+                          the FRP server
+                        type: string
+                      poolCount:
+                        description: PoolCount is the number of pre-established connections
+                          to the server
+                        type: integer
+                      tcpMux:
+                        description: TCPMux enables TCP stream multiplexing to reduce
+                          connection overhead
+                        type: boolean
+                    type: object
                 required:
                 - authentication
                 - host

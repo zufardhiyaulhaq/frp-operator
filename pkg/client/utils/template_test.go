@@ -14,6 +14,14 @@ type testConfig struct {
 	Visitors  []testVisitor
 }
 
+type testTransportConfig struct {
+	PoolCount            int
+	TCPMux               bool
+	DialServerTimeout    string
+	DialServerKeepalive  string
+	ConnectServerLocalIP string
+}
+
 type testCommon struct {
 	ServerAddress        string
 	ServerPort           int
@@ -26,6 +34,7 @@ type testCommon struct {
 	STUNServer           *string
 	PprofEnable          bool
 	TLS                  *testTLSConfig
+	Transport            *testTransportConfig
 }
 
 type testTLSConfig struct {
@@ -46,14 +55,40 @@ type testServerAuthentication struct {
 }
 
 type testUpstream struct {
-	Name  string
-	Type  int
-	TCP   testUpstreamTCP
-	UDP   testUpstreamUDP
-	STCP  testUpstreamSTCP
-	XTCP  testUpstreamSTCP
-	HTTP  testUpstreamHTTP
-	HTTPS testUpstreamHTTPS
+	Name   string
+	Type   int
+	TCP    testUpstreamTCP
+	UDP    testUpstreamUDP
+	STCP   testUpstreamSTCP
+	XTCP   testUpstreamSTCP
+	HTTP   testUpstreamHTTP
+	HTTPS  testUpstreamHTTPS
+	TCPMUX testUpstreamTCPMUX
+}
+
+type testUpstreamTCPMUX struct {
+	Host          string
+	Port          int
+	Multiplexer   string
+	CustomDomains []string
+	Transport     *testTransport
+}
+
+type testLoadBalancerConfig struct {
+	Group    string
+	GroupKey string
+}
+
+type testPluginConfig struct {
+	Type         string
+	Username     string
+	Password     string
+	LocalPath    string
+	StripPrefix  string
+	HTTPUser     string
+	HTTPPassword string
+	LocalAddr    string
+	UnixPath     string
 }
 
 type testUpstreamTCP struct {
@@ -63,6 +98,8 @@ type testUpstreamTCP struct {
 	ProxyProtocol *string
 	HealthCheck   *testHealthCheck
 	Transport     *testTransport
+	LoadBalancer  *testLoadBalancerConfig
+	Plugin        *testPluginConfig
 }
 
 type testUpstreamUDP struct {

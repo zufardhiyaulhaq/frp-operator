@@ -24,17 +24,30 @@ import (
 type UpstreamSpec struct {
 	Client string `json:"client"`
 	// +optional
-	TCP *UpstreamSpec_TCP `json:"tcp"`
+	TCP *UpstreamSpec_TCP `json:"tcp,omitempty"`
 	// +optional
-	UDP *UpstreamSpec_UDP `json:"udp"`
+	UDP *UpstreamSpec_UDP `json:"udp,omitempty"`
 	// +optional
-	STCP *UpstreamSpec_STCP `json:"stcp"`
+	STCP *UpstreamSpec_STCP `json:"stcp,omitempty"`
 	// +optional
-	XTCP *UpstreamSpec_XTCP `json:"xtcp"`
+	XTCP *UpstreamSpec_XTCP `json:"xtcp,omitempty"`
 	// +optional
-	HTTP *UpstreamSpec_HTTP `json:"http"`
+	HTTP *UpstreamSpec_HTTP `json:"http,omitempty"`
 	// +optional
-	HTTPS *UpstreamSpec_HTTPS `json:"https"`
+	HTTPS *UpstreamSpec_HTTPS `json:"https,omitempty"`
+	// +optional
+	TCPMUX *UpstreamSpec_TCPMUX `json:"tcpmux,omitempty"`
+}
+
+// UpstreamSpec_TCPMUX exposes a service using TCP multiplexing over HTTP CONNECT
+type UpstreamSpec_TCPMUX struct {
+	Host string `json:"host"`
+	Port int    `json:"port"`
+	// +kubebuilder:validation:Enum=httpconnect
+	Multiplexer   string   `json:"multiplexer"`
+	CustomDomains []string `json:"customDomains"`
+	// +optional
+	Transport *UpstreamSpec_TCP_Transport `json:"transport,omitempty"`
 }
 
 type UpstreamSpec_STCP struct {
@@ -128,17 +141,62 @@ type UpstreamSpec_HTTPS struct {
 	Transport *UpstreamSpec_TCP_Transport `json:"transport,omitempty"`
 }
 
+// LoadBalancer configures load balancing across multiple upstreams
+type LoadBalancer struct {
+	// Group is the load balancer group name
+	Group string `json:"group"`
+	// +optional
+	// GroupKey is the shared secret for the group
+	GroupKey *SecretRef `json:"groupKey,omitempty"`
+}
+
+// UpstreamPlugin configures an FRP plugin instead of direct forwarding
+type UpstreamPlugin struct {
+	// +kubebuilder:validation:Enum=socks5;http_proxy;static_file;https2http;https2https;http2http;http2https;unix_domain_socket
+	Type string `json:"type"`
+
+	// For socks5, http_proxy
+	// +optional
+	Username *SecretRef `json:"username,omitempty"`
+	// +optional
+	Password *SecretRef `json:"password,omitempty"`
+
+	// For static_file
+	// +optional
+	LocalPath string `json:"localPath,omitempty"`
+	// +optional
+	StripPrefix string `json:"stripPrefix,omitempty"`
+	// +optional
+	HTTPUser *SecretRef `json:"httpUser,omitempty"`
+	// +optional
+	HTTPPassword *SecretRef `json:"httpPassword,omitempty"`
+
+	// For https2http, https2https, http2https
+	// +optional
+	LocalAddr string `json:"localAddr,omitempty"`
+
+	// For unix_domain_socket
+	// +optional
+	UnixPath string `json:"unixPath,omitempty"`
+}
+
 type UpstreamSpec_TCP struct {
-	Host   string                  `json:"host"`
-	Port   int                     `json:"port"`
+	// +optional
+	Host string `json:"host,omitempty"`
+	// +optional
+	Port   int                     `json:"port,omitempty"`
 	Server UpstreamSpec_TCP_Server `json:"server"`
 	// +kubebuilder:validation:Enum=v1;v2
 	// +optional
-	ProxyProtocol *string `json:"proxyProtocol"`
+	ProxyProtocol *string `json:"proxyProtocol,omitempty"`
 	// +optional
-	HealthCheck *UpstreamSpec_TCP_HealthCheck `json:"healthCheck"`
+	HealthCheck *UpstreamSpec_TCP_HealthCheck `json:"healthCheck,omitempty"`
 	// +optional
-	Transport *UpstreamSpec_TCP_Transport `json:"transport"`
+	Transport *UpstreamSpec_TCP_Transport `json:"transport,omitempty"`
+	// +optional
+	LoadBalancer *LoadBalancer `json:"loadBalancer,omitempty"`
+	// +optional
+	Plugin *UpstreamPlugin `json:"plugin,omitempty"`
 }
 
 type UpstreamSpec_TCP_Server struct {

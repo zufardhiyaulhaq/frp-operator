@@ -1,0 +1,33 @@
+# TCPMUX Example
+# TCP multiplexing over HTTP CONNECT protocol
+# Allows routing based on custom domains
+---
+apiVersion: frp.zufardhiyaulhaq.com/v1alpha1
+kind: Upstream
+metadata:
+  name: mux-service
+spec:
+  client: advanced-client
+  tcpmux:
+    host: internal-service.default.svc
+    port: 8080
+    multiplexer: httpconnect
+    customDomains:
+      - "mux.example.com"
+---
+# TCPMUX with Transport options
+apiVersion: frp.zufardhiyaulhaq.com/v1alpha1
+kind: Upstream
+metadata:
+  name: mux-encrypted
+spec:
+  client: advanced-client
+  tcpmux:
+    host: secure-service.default.svc
+    port: 8443
+    multiplexer: httpconnect
+    customDomains:
+      - "secure-mux.example.com"
+    transport:
+      useEncryption: true
+      useCompression: true

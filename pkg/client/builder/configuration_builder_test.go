@@ -1256,6 +1256,233 @@ func TestConfigurationBuilder_Build(t *testing.T) {
 				`transport.proxyProtocolVersion = "v2"`,
 			},
 		},
+		{
+			name: "TCP upstream - with load balancer",
+			config: models.Config{
+				Common: basicCommon(),
+				Upstreams: []models.Upstream{
+					{
+						Name: "tcp-lb-node1",
+						Type: 1,
+						TCP: models.Upstream_TCP{
+							Host:       "api-1.default.svc",
+							Port:       8080,
+							ServerPort: 9000,
+							LoadBalancer: &models.LoadBalancerConfig{
+								Group:    "api-cluster",
+								GroupKey: "secret-key",
+							},
+						},
+					},
+				},
+			},
+			wantErr: false,
+			wantContains: []string{
+				`name = "tcp-lb-node1"`,
+				`type = "tcp"`,
+				`loadBalancer.group = "api-cluster"`,
+				`loadBalancer.groupKey = "secret-key"`,
+			},
+		},
+		{
+			name: "TCP upstream - socks5 plugin",
+			config: models.Config{
+				Common: basicCommon(),
+				Upstreams: []models.Upstream{
+					{
+						Name: "socks5-proxy",
+						Type: 1,
+						TCP: models.Upstream_TCP{
+							ServerPort: 1080,
+							Plugin: &models.PluginConfig{
+								Type:     "socks5",
+								Username: "proxyuser",
+								Password: "proxypass",
+							},
+						},
+					},
+				},
+			},
+			wantErr: false,
+			wantContains: []string{
+				`name = "socks5-proxy"`,
+				`type = "tcp"`,
+				`remotePort = 1080`,
+				`plugin = "socks5"`,
+				`plugin.username = "proxyuser"`,
+				`plugin.password = "proxypass"`,
+			},
+			wantNotContain: []string{
+				`localIP`,
+				`localPort`,
+			},
+		},
+		{
+			name: "TCP upstream - http_proxy plugin",
+			config: models.Config{
+				Common: basicCommon(),
+				Upstreams: []models.Upstream{
+					{
+						Name: "http-proxy",
+						Type: 1,
+						TCP: models.Upstream_TCP{
+							ServerPort: 8118,
+							Plugin: &models.PluginConfig{
+								Type:     "http_proxy",
+								Username: "proxyuser",
+								Password: "proxypass",
+							},
+						},
+					},
+				},
+			},
+			wantErr: false,
+			wantContains: []string{
+				`name = "http-proxy"`,
+				`plugin = "http_proxy"`,
+				`plugin.httpUser = "proxyuser"`,
+				`plugin.httpPassword = "proxypass"`,
+			},
+		},
+		{
+			name: "TCP upstream - static_file plugin",
+			config: models.Config{
+				Common: basicCommon(),
+				Upstreams: []models.Upstream{
+					{
+						Name: "file-server",
+						Type: 1,
+						TCP: models.Upstream_TCP{
+							ServerPort: 8080,
+							Plugin: &models.PluginConfig{
+								Type:         "static_file",
+								LocalPath:    "/data/public",
+								StripPrefix:  "/download",
+								HTTPUser:     "admin",
+								HTTPPassword: "secret",
+							},
+						},
+					},
+				},
+			},
+			wantErr: false,
+			wantContains: []string{
+				`plugin = "static_file"`,
+				`plugin.localPath = "/data/public"`,
+				`plugin.stripPrefix = "/download"`,
+				`plugin.httpUser = "admin"`,
+				`plugin.httpPassword = "secret"`,
+			},
+		},
+		{
+			name: "TCP upstream - unix_domain_socket plugin",
+			config: models.Config{
+				Common: basicCommon(),
+				Upstreams: []models.Upstream{
+					{
+						Name: "docker-api",
+						Type: 1,
+						TCP: models.Upstream_TCP{
+							ServerPort: 2375,
+							Plugin: &models.PluginConfig{
+								Type:     "unix_domain_socket",
+								UnixPath: "/var/run/docker.sock",
+							},
+						},
+					},
+				},
+			},
+			wantErr: false,
+			wantContains: []string{
+				`plugin = "unix_domain_socket"`,
+				`plugin.unixPath = "/var/run/docker.sock"`,
+			},
+		},
+		{
+			name: "TCPMUX upstream",
+			config: models.Config{
+				Common: basicCommon(),
+				Upstreams: []models.Upstream{
+					{
+						Name: "mux-service",
+						Type: 7,
+						TCPMUX: models.Upstream_TCPMUX{
+							Host:          "internal-service.default.svc",
+							Port:          8080,
+							Multiplexer:   "httpconnect",
+							CustomDomains: []string{"mux.example.com"},
+						},
+					},
+				},
+			},
+			wantErr: false,
+			wantContains: []string{
+				`[[proxies]]`,
+				`name = "mux-service"`,
+				`type = "tcpmux"`,
+				`multiplexer = "httpconnect"`,
+				`localIP = "internal-service.default.svc"`,
+				`localPort = 8080`,
+				`customDomains = ["mux.example.com"]`,
+			},
+		},
+		{
+			name: "TCPMUX upstream with transport",
+			config: models.Config{
+				Common: basicCommon(),
+				Upstreams: []models.Upstream{
+					{
+						Name: "mux-encrypted",
+						Type: 7,
+						TCPMUX: models.Upstream_TCPMUX{
+							Host:          "service.default.svc",
+							Port:          8080,
+							Multiplexer:   "httpconnect",
+							CustomDomains: []string{"mux.example.com"},
+							Transport: &models.Upstream_TCP_Transport{
+								UseEncryption:  true,
+								UseCompression: true,
+							},
+						},
+					},
+				},
+			},
+			wantErr: false,
+			wantContains: []string{
+				`name = "mux-encrypted"`,
+				`type = "tcpmux"`,
+				`transport.useEncryption = true`,
+				`transport.useCompression = true`,
+			},
+		},
+		{
+			name: "common config with transport tuning",
+			config: models.Config{
+				Common: models.Common{
+					ServerAddress: "frp.example.com",
+					ServerPort:    7000,
+					AdminAddress:  "0.0.0.0",
+					AdminPort:     7400,
+					AdminUsername: "admin",
+					AdminPassword: "secret",
+					Transport: &models.TransportConfig{
+						PoolCount:            5,
+						TCPMux:               true,
+						DialServerTimeout:    "15s",
+						DialServerKeepalive:  "30s",
+						ConnectServerLocalIP: "10.0.0.5",
+					},
+				},
+			},
+			wantErr: false,
+			wantContains: []string{
+				`transport.poolCount = 5`,
+				`transport.tcpMux = true`,
+				`transport.dialServerTimeout = "15s"`,
+				`transport.dialServerKeepalive = "30s"`,
+				`transport.connectServerLocalIP = "10.0.0.5"`,
+			},
+		},
 	}
 
 	for _, tt := range tests {
