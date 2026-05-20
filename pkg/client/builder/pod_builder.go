@@ -51,6 +51,23 @@ func (n *PodBuilder) SetTLSCAConfigMap(tlsCAConfigMap string) *PodBuilder {
 }
 
 func (n *PodBuilder) Build() (*corev1.Pod, error) {
+	tmpl := n.BuildPodTemplateSpec()
+	return &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        n.Name + "-frpc",
+			Namespace:   n.Namespace,
+			Labels:      tmpl.ObjectMeta.Labels,
+			Annotations: tmpl.ObjectMeta.Annotations,
+		},
+		Spec: tmpl.Spec,
+	}, nil
+}
+
+// BuildPodTemplateSpec assembles the pod-level metadata and spec shared by
+// every workload kind (bare Pod, DaemonSet, future Deployment). Returning
+// PodTemplateSpec keeps the assembly logic in one place so DaemonSet stays
+// in lock-step with the Pod path without code duplication.
+func (n *PodBuilder) BuildPodTemplateSpec() corev1.PodTemplateSpec {
 	// Build base labels and annotations
 	labels := n.BuildLabels()
 	annotations := map[string]string{
@@ -71,11 +88,22 @@ func (n *PodBuilder) Build() (*corev1.Pod, error) {
 		}
 	}
 
-	// Build container
+	// Build container. POD_NAME is exposed via the Downward API so the frpc
+	// config template can substitute {{ .Envs.POD_NAME }} at runtime — this
+	// gives each replica a unique proxy name in DaemonSet HA without breaking
+	// the bare-Pod case (which simply doesn't reference the variable).
 	container := corev1.Container{
 		Name:    "frpc",
 		Image:   n.Image,
 		Command: []string{"frpc", "-c", "/frp/config.toml"},
+		Env: []corev1.EnvVar{
+			{
+				Name: "POD_NAME",
+				ValueFrom: &corev1.EnvVarSource{
+					FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.name"},
+				},
+			},
+		},
 		Ports: []corev1.ContainerPort{
 			{ContainerPort: int32(4040)},
 		},
@@ -92,23 +120,15 @@ func (n *PodBuilder) Build() (*corev1.Pod, error) {
 		container.Resources = *n.PodTemplate.Resources
 	}
 
-	pod := &corev1.Pod{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:        n.Name + "-frpc",
-			Namespace:   n.Namespace,
-			Labels:      labels,
-			Annotations: annotations,
-		},
-		Spec: corev1.PodSpec{
-			Containers: []corev1.Container{container},
-			Volumes: []corev1.Volume{
-				{
-					Name: n.Name + "-frpc-config",
-					VolumeSource: corev1.VolumeSource{
-						ConfigMap: &corev1.ConfigMapVolumeSource{
-							LocalObjectReference: corev1.LocalObjectReference{
-								Name: n.Name + "-frpc-config",
-							},
+	spec := corev1.PodSpec{
+		Containers: []corev1.Container{container},
+		Volumes: []corev1.Volume{
+			{
+				Name: n.Name + "-frpc-config",
+				VolumeSource: corev1.VolumeSource{
+					ConfigMap: &corev1.ConfigMapVolumeSource{
+						LocalObjectReference: corev1.LocalObjectReference{
+							Name: n.Name + "-frpc-config",
 						},
 					},
 				},
@@ -118,7 +138,7 @@ func (n *PodBuilder) Build() (*corev1.Pod, error) {
 
 	// Add TLS volumes and mounts if configured
 	if n.TLSSecret != "" {
-		pod.Spec.Volumes = append(pod.Spec.Volumes, corev1.Volume{
+		spec.Volumes = append(spec.Volumes, corev1.Volume{
 			Name: "tls-certs",
 			VolumeSource: corev1.VolumeSource{
 				Secret: &corev1.SecretVolumeSource{
@@ -126,8 +146,8 @@ func (n *PodBuilder) Build() (*corev1.Pod, error) {
 				},
 			},
 		})
-		pod.Spec.Containers[0].VolumeMounts = append(
-			pod.Spec.Containers[0].VolumeMounts,
+		spec.Containers[0].VolumeMounts = append(
+			spec.Containers[0].VolumeMounts,
 			corev1.VolumeMount{
 				Name:      "tls-certs",
 				MountPath: "/etc/frp/tls",
@@ -138,7 +158,7 @@ func (n *PodBuilder) Build() (*corev1.Pod, error) {
 
 	// Add TLS CA ConfigMap volume if configured separately
 	if n.TLSCAConfigMap != "" && n.TLSSecret == "" {
-		pod.Spec.Volumes = append(pod.Spec.Volumes, corev1.Volume{
+		spec.Volumes = append(spec.Volumes, corev1.Volume{
 			Name: "tls-ca",
 			VolumeSource: corev1.VolumeSource{
 				ConfigMap: &corev1.ConfigMapVolumeSource{
@@ -148,8 +168,8 @@ func (n *PodBuilder) Build() (*corev1.Pod, error) {
 				},
 			},
 		})
-		pod.Spec.Containers[0].VolumeMounts = append(
-			pod.Spec.Containers[0].VolumeMounts,
+		spec.Containers[0].VolumeMounts = append(
+			spec.Containers[0].VolumeMounts,
 			corev1.VolumeMount{
 				Name:      "tls-ca",
 				MountPath: "/etc/frp/tls",
@@ -161,29 +181,35 @@ func (n *PodBuilder) Build() (*corev1.Pod, error) {
 	// Apply PodTemplate fields to pod spec
 	if n.PodTemplate != nil {
 		if n.PodTemplate.NodeSelector != nil {
-			pod.Spec.NodeSelector = n.PodTemplate.NodeSelector
+			spec.NodeSelector = n.PodTemplate.NodeSelector
 		}
 		if n.PodTemplate.Tolerations != nil {
-			pod.Spec.Tolerations = n.PodTemplate.Tolerations
+			spec.Tolerations = n.PodTemplate.Tolerations
 		}
 		if n.PodTemplate.Affinity != nil {
-			pod.Spec.Affinity = n.PodTemplate.Affinity
+			spec.Affinity = n.PodTemplate.Affinity
 		}
 		if n.PodTemplate.ServiceAccountName != "" {
-			pod.Spec.ServiceAccountName = n.PodTemplate.ServiceAccountName
+			spec.ServiceAccountName = n.PodTemplate.ServiceAccountName
 		}
 		if n.PodTemplate.ImagePullSecrets != nil {
-			pod.Spec.ImagePullSecrets = n.PodTemplate.ImagePullSecrets
+			spec.ImagePullSecrets = n.PodTemplate.ImagePullSecrets
 		}
 		if n.PodTemplate.PriorityClassName != "" {
-			pod.Spec.PriorityClassName = n.PodTemplate.PriorityClassName
+			spec.PriorityClassName = n.PodTemplate.PriorityClassName
 		}
 		if n.PodTemplate.SecurityContext != nil {
-			pod.Spec.SecurityContext = n.PodTemplate.SecurityContext
+			spec.SecurityContext = n.PodTemplate.SecurityContext
 		}
 	}
 
-	return pod, nil
+	return corev1.PodTemplateSpec{
+		ObjectMeta: metav1.ObjectMeta{
+			Labels:      labels,
+			Annotations: annotations,
+		},
+		Spec: spec,
+	}
 }
 
 func (n *PodBuilder) BuildLabels() map[string]string {

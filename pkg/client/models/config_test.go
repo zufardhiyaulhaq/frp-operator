@@ -1649,3 +1649,216 @@ func TestNewConfig_DuplicateVisitorPorts(t *testing.T) {
 		t.Errorf("NewConfig() error = %v, want error containing 'duplicate visitor port'", err)
 	}
 }
+
+func TestValidateDaemonSetWorkloadCompatibility(t *testing.T) {
+	daemonsetClient := func() *frpv1alpha1.Client {
+		return &frpv1alpha1.Client{
+			Spec: frpv1alpha1.ClientSpec{
+				Workload: &frpv1alpha1.ClientSpec_Workload{Kind: frpv1alpha1.WorkloadKindDaemonSet},
+			},
+		}
+	}
+	podClient := func() *frpv1alpha1.Client {
+		return &frpv1alpha1.Client{
+			Spec: frpv1alpha1.ClientSpec{
+				Workload: &frpv1alpha1.ClientSpec_Workload{Kind: frpv1alpha1.WorkloadKindPod},
+			},
+		}
+	}
+	nilWorkloadClient := func() *frpv1alpha1.Client { return &frpv1alpha1.Client{} }
+
+	upstream := func(name string, spec frpv1alpha1.UpstreamSpec) frpv1alpha1.Upstream {
+		return frpv1alpha1.Upstream{ObjectMeta: metav1.ObjectMeta{Name: name}, Spec: spec}
+	}
+
+	tests := []struct {
+		name      string
+		client    *frpv1alpha1.Client
+		upstreams []frpv1alpha1.Upstream
+		wantErr   bool
+		errMsg    string
+	}{
+		{
+			name:   "nil workload skips validation",
+			client: nilWorkloadClient(),
+			upstreams: []frpv1alpha1.Upstream{
+				upstream("u-udp", frpv1alpha1.UpstreamSpec{
+					UDP: &frpv1alpha1.UpstreamSpec_UDP{Host: "h", Port: 53, Server: frpv1alpha1.UpstreamSpec_UDP_Server{Port: 5353}},
+				}),
+			},
+			wantErr: false,
+		},
+		{
+			name:   "Pod workload skips validation",
+			client: podClient(),
+			upstreams: []frpv1alpha1.Upstream{
+				upstream("u-udp", frpv1alpha1.UpstreamSpec{
+					UDP: &frpv1alpha1.UpstreamSpec_UDP{Host: "h", Port: 53, Server: frpv1alpha1.UpstreamSpec_UDP_Server{Port: 5353}},
+				}),
+			},
+			wantErr: false,
+		},
+		{
+			name:   "DaemonSet + UDP rejected",
+			client: daemonsetClient(),
+			upstreams: []frpv1alpha1.Upstream{
+				upstream("u-udp", frpv1alpha1.UpstreamSpec{
+					UDP: &frpv1alpha1.UpstreamSpec_UDP{Host: "h", Port: 53, Server: frpv1alpha1.UpstreamSpec_UDP_Server{Port: 5353}},
+				}),
+			},
+			wantErr: true,
+			errMsg:  `upstream "u-udp" uses UDP`,
+		},
+		{
+			name:   "DaemonSet + STCP rejected",
+			client: daemonsetClient(),
+			upstreams: []frpv1alpha1.Upstream{
+				upstream("u-stcp", frpv1alpha1.UpstreamSpec{
+					STCP: &frpv1alpha1.UpstreamSpec_STCP{Host: "h", Port: 1},
+				}),
+			},
+			wantErr: true,
+			errMsg:  `upstream "u-stcp" uses STCP`,
+		},
+		{
+			name:   "DaemonSet + XTCP rejected",
+			client: daemonsetClient(),
+			upstreams: []frpv1alpha1.Upstream{
+				upstream("u-xtcp", frpv1alpha1.UpstreamSpec{
+					XTCP: &frpv1alpha1.UpstreamSpec_XTCP{Host: "h", Port: 1},
+				}),
+			},
+			wantErr: true,
+			errMsg:  `upstream "u-xtcp" uses XTCP`,
+		},
+		{
+			name:   "DaemonSet + TCP without LB rejected",
+			client: daemonsetClient(),
+			upstreams: []frpv1alpha1.Upstream{
+				upstream("u-tcp", frpv1alpha1.UpstreamSpec{
+					TCP: &frpv1alpha1.UpstreamSpec_TCP{Host: "h", Port: 80, Server: frpv1alpha1.UpstreamSpec_TCP_Server{Port: 8080}},
+				}),
+			},
+			wantErr: true,
+			errMsg:  `requires spec.tcp.loadBalancer.group`,
+		},
+		{
+			name:   "DaemonSet + TCP with empty LB.Group rejected",
+			client: daemonsetClient(),
+			upstreams: []frpv1alpha1.Upstream{
+				upstream("u-tcp", frpv1alpha1.UpstreamSpec{
+					TCP: &frpv1alpha1.UpstreamSpec_TCP{
+						Host: "h", Port: 80,
+						Server:       frpv1alpha1.UpstreamSpec_TCP_Server{Port: 8080},
+						LoadBalancer: &frpv1alpha1.LoadBalancer{Group: ""},
+					},
+				}),
+			},
+			wantErr: true,
+			errMsg:  `requires spec.tcp.loadBalancer.group`,
+		},
+		{
+			name:   "DaemonSet + TCP with LB.Group accepted",
+			client: daemonsetClient(),
+			upstreams: []frpv1alpha1.Upstream{
+				upstream("u-tcp", frpv1alpha1.UpstreamSpec{
+					TCP: &frpv1alpha1.UpstreamSpec_TCP{
+						Host: "h", Port: 80,
+						Server:       frpv1alpha1.UpstreamSpec_TCP_Server{Port: 8080},
+						LoadBalancer: &frpv1alpha1.LoadBalancer{Group: "g"},
+					},
+				}),
+			},
+			wantErr: false,
+		},
+		{
+			name:   "DaemonSet + HTTP without LB rejected",
+			client: daemonsetClient(),
+			upstreams: []frpv1alpha1.Upstream{
+				upstream("u-http", frpv1alpha1.UpstreamSpec{
+					HTTP: &frpv1alpha1.UpstreamSpec_HTTP{Host: "h", Port: 80},
+				}),
+			},
+			wantErr: true,
+			errMsg:  `requires spec.http.loadBalancer.group`,
+		},
+		{
+			name:   "DaemonSet + HTTP with LB.Group accepted",
+			client: daemonsetClient(),
+			upstreams: []frpv1alpha1.Upstream{
+				upstream("u-http", frpv1alpha1.UpstreamSpec{
+					HTTP: &frpv1alpha1.UpstreamSpec_HTTP{
+						Host: "h", Port: 80,
+						LoadBalancer: &frpv1alpha1.LoadBalancer{Group: "g"},
+					},
+				}),
+			},
+			wantErr: false,
+		},
+		{
+			name:   "DaemonSet + HTTPS without LB rejected",
+			client: daemonsetClient(),
+			upstreams: []frpv1alpha1.Upstream{
+				upstream("u-https", frpv1alpha1.UpstreamSpec{
+					HTTPS: &frpv1alpha1.UpstreamSpec_HTTPS{Host: "h", Port: 443},
+				}),
+			},
+			wantErr: true,
+			errMsg:  `requires spec.https.loadBalancer.group`,
+		},
+		{
+			name:   "DaemonSet + HTTPS with LB.Group accepted",
+			client: daemonsetClient(),
+			upstreams: []frpv1alpha1.Upstream{
+				upstream("u-https", frpv1alpha1.UpstreamSpec{
+					HTTPS: &frpv1alpha1.UpstreamSpec_HTTPS{
+						Host: "h", Port: 443,
+						LoadBalancer: &frpv1alpha1.LoadBalancer{Group: "g"},
+					},
+				}),
+			},
+			wantErr: false,
+		},
+		{
+			name:   "DaemonSet + TCPMUX without LB rejected",
+			client: daemonsetClient(),
+			upstreams: []frpv1alpha1.Upstream{
+				upstream("u-mux", frpv1alpha1.UpstreamSpec{
+					TCPMUX: &frpv1alpha1.UpstreamSpec_TCPMUX{Host: "h", Port: 1, Multiplexer: "httpconnect"},
+				}),
+			},
+			wantErr: true,
+			errMsg:  `requires spec.tcpmux.loadBalancer.group`,
+		},
+		{
+			name:   "DaemonSet + TCPMUX with LB.Group accepted",
+			client: daemonsetClient(),
+			upstreams: []frpv1alpha1.Upstream{
+				upstream("u-mux", frpv1alpha1.UpstreamSpec{
+					TCPMUX: &frpv1alpha1.UpstreamSpec_TCPMUX{
+						Host: "h", Port: 1, Multiplexer: "httpconnect",
+						LoadBalancer: &frpv1alpha1.LoadBalancer{Group: "g"},
+					},
+				}),
+			},
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateDaemonSetWorkloadCompatibility(tt.client, tt.upstreams)
+			if tt.wantErr {
+				if err == nil {
+					t.Errorf("validateDaemonSetWorkloadCompatibility() expected error but got nil")
+					return
+				}
+				if tt.errMsg != "" && !contains(err.Error(), tt.errMsg) {
+					t.Errorf("error = %v, want containing %q", err, tt.errMsg)
+				}
+			} else if err != nil {
+				t.Errorf("unexpected error = %v", err)
+			}
+		})
+	}
+}

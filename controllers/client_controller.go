@@ -23,6 +23,7 @@ import (
 	"reflect"
 	"time"
 
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -103,6 +104,7 @@ func (r *ClientReconciler) readPodFile(namespace, podName, containerName, filePa
 //+kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups="",resources=services,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups="",resources=events,verbs=create;patch
+//+kubebuilder:rbac:groups=apps,resources=daemonsets,verbs=get;list;watch;create;update;patch;delete
 
 func (r *ClientReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := log.FromContext(ctx)
@@ -147,7 +149,22 @@ func (r *ClientReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 	config, err := models.NewConfig(r.Client, client, filteredUpstreams, filteredVisitors)
 	if err != nil {
+		r.setCondition(client, status.ConditionTypeReady, metav1.ConditionFalse, status.ReasonInvalidConfig, err.Error())
+		if statusErr := r.updateClientStatus(ctx, client, status.ClientPhaseFailed, err.Error(), len(filteredUpstreams), len(filteredVisitors)); statusErr != nil {
+			log.Error(statusErr, "failed to update client status")
+		}
 		return ctrl.Result{}, err
+	}
+
+	// When the workload is a DaemonSet, every replica must register its
+	// upstream proxies under a unique `name` while still sharing the same
+	// loadBalancer.group — otherwise frps's pxyMgr.Add rejects replicas 2..N
+	// with "proxy [<name>] already exists" because the name collision is
+	// evaluated before group membership. Pass a runtime template expression
+	// that frpc itself substitutes at startup using the POD_NAME env injected
+	// via the Downward API on the DaemonSet pod template.
+	if client.Spec.Workload != nil && client.Spec.Workload.Kind == frpv1alpha1.WorkloadKindDaemonSet {
+		config.ProxyNameSuffix = "-{{ .Envs.POD_NAME }}"
 	}
 
 	log.Info("Build configuration")
@@ -222,6 +239,15 @@ func (r *ClientReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		}
 	} else if err != nil {
 		return ctrl.Result{}, err
+	}
+
+	// Branch on workload kind. Default (nil or "Pod") preserves the legacy
+	// single-bare-Pod flow below. "DaemonSet" delegates to a dedicated
+	// reconcile path (controllers/client_daemonset.go) that emits an
+	// appsv1.DaemonSet and drives config rollouts via a template
+	// annotation hash instead of admin-API reload.
+	if client.Spec.Workload != nil && client.Spec.Workload.Kind == frpv1alpha1.WorkloadKindDaemonSet {
+		return r.reconcileDaemonSet(ctx, client, configmap, createdConfigMap, len(filteredUpstreams), len(filteredVisitors))
 	}
 
 	log.Info("Build pod")
@@ -301,7 +327,7 @@ func (r *ClientReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	}
 
 	log.Info("compare configmap")
-	reloadPending := createdConfigMap.Annotations != nil && createdConfigMap.Annotations["frp.zufardhiyaulhaq.com/reload-pending"] == "true"
+	reloadPending := createdConfigMap.Annotations != nil && createdConfigMap.Annotations[reloadPendingAnnotation] == "true"
 
 	if !reflect.DeepEqual(createdConfigMap.Data, configmap.Data) {
 		log.Info("found config diff, update configmap")
@@ -310,7 +336,7 @@ func (r *ClientReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		if createdConfigMap.Annotations == nil {
 			createdConfigMap.Annotations = make(map[string]string)
 		}
-		createdConfigMap.Annotations["frp.zufardhiyaulhaq.com/reload-pending"] = "true"
+		createdConfigMap.Annotations[reloadPendingAnnotation] = "true"
 
 		err := r.Client.Update(ctx, createdConfigMap, &ctrlclient.UpdateOptions{})
 		if err != nil {
@@ -359,8 +385,7 @@ func (r *ClientReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 			return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
 		}
 
-		// Clear the reload-pending annotation
-		delete(createdConfigMap.Annotations, "frp.zufardhiyaulhaq.com/reload-pending")
+		delete(createdConfigMap.Annotations, reloadPendingAnnotation)
 		err = r.Client.Update(ctx, createdConfigMap, &ctrlclient.UpdateOptions{})
 		if err != nil {
 			log.Error(err, "failed to clear reload-pending annotation")
@@ -405,6 +430,7 @@ func (r *ClientReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Owns(&corev1.Pod{}).
 		Owns(&corev1.ConfigMap{}).
 		Owns(&corev1.Service{}).
+		Owns(&appsv1.DaemonSet{}).
 		Complete(r)
 }
 

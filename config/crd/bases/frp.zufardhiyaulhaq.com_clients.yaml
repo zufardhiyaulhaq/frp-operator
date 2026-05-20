@@ -1545,6 +1545,28 @@ spec:
                 - host
                 - port
                 type: object
+              workload:
+                description: |-
+                  Workload selects how the FRP client is scheduled.
+                  Defaults to a single Pod for backwards compatibility. Set kind: DaemonSet
+                  to run one frpc per matching node — useful for HA when paired with
+                  Upstream.spec.tcp.loadBalancer.group, so frps round-robins traffic across
+                  the registered members.
+                properties:
+                  kind:
+                    default: Pod
+                    description: |-
+                      Kind is the workload object created for the FRP client. "Pod" creates a
+                      single bare Pod (default, preserves legacy behavior). "DaemonSet" creates
+                      a DaemonSet that runs one frpc per node matching podTemplate.nodeSelector
+                      / affinity / tolerations.
+                    enum:
+                    - Pod
+                    - DaemonSet
+                    type: string
+                required:
+                - kind
+                type: object
             required:
             - server
             type: object

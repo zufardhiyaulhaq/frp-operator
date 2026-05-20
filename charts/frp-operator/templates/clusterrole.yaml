@@ -9,6 +9,18 @@ metadata:
     app.kubernetes.io/managed-by: {{ .Release.Service }}
 rules:
 - apiGroups:
+  - apps
+  resources:
+  - daemonsets
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
   - authentication.k8s.io
   resources:
   - tokenreviews

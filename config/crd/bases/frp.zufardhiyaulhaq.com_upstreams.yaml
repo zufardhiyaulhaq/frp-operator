@@ -112,6 +112,32 @@ spec:
                     required:
                     - secret
                     type: object
+                  loadBalancer:
+                    description: LoadBalancer configures load balancing across multiple
+                      upstreams
+                    properties:
+                      group:
+                        description: Group is the load balancer group name
+                        type: string
+                      groupKey:
+                        description: GroupKey is the shared secret for the group
+                        properties:
+                          secret:
+                            properties:
+                              key:
+                                type: string
+                              name:
+                                type: string
+                            required:
+                            - key
+                            - name
+                            type: object
+                        required:
+                        - secret
+                        type: object
+                    required:
+                    - group
+                    type: object
                   locations:
                     items:
                       type: string
@@ -177,6 +203,32 @@ spec:
                     type: array
                   host:
                     type: string
+                  loadBalancer:
+                    description: LoadBalancer configures load balancing across multiple
+                      upstreams
+                    properties:
+                      group:
+                        description: Group is the load balancer group name
+                        type: string
+                      groupKey:
+                        description: GroupKey is the shared secret for the group
+                        properties:
+                          secret:
+                            properties:
+                              key:
+                                type: string
+                              name:
+                                type: string
+                            required:
+                            - key
+                            - name
+                            type: object
+                        required:
+                        - secret
+                        type: object
+                    required:
+                    - group
+                    type: object
                   port:
                     type: integer
                   proxyProtocol:
@@ -493,6 +545,32 @@ spec:
                     type: array
                   host:
                     type: string
+                  loadBalancer:
+                    description: LoadBalancer configures load balancing across multiple
+                      upstreams
+                    properties:
+                      group:
+                        description: Group is the load balancer group name
+                        type: string
+                      groupKey:
+                        description: GroupKey is the shared secret for the group
+                        properties:
+                          secret:
+                            properties:
+                              key:
+                                type: string
+                              name:
+                                type: string
+                            required:
+                            - key
+                            - name
+                            type: object
+                        required:
+                        - secret
+                        type: object
+                    required:
+                    - group
+                    type: object
                   multiplexer:
                     enum:
                     - httpconnect

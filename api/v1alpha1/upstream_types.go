@@ -48,6 +48,8 @@ type UpstreamSpec_TCPMUX struct {
 	CustomDomains []string `json:"customDomains"`
 	// +optional
 	Transport *UpstreamSpec_TCP_Transport `json:"transport,omitempty"`
+	// +optional
+	LoadBalancer *LoadBalancer `json:"loadBalancer,omitempty"`
 }
 
 type UpstreamSpec_STCP struct {
@@ -115,6 +117,8 @@ type UpstreamSpec_HTTP struct {
 	HealthCheck *UpstreamSpec_HTTP_HealthCheck `json:"healthCheck,omitempty"`
 	// +optional
 	Transport *UpstreamSpec_TCP_Transport `json:"transport,omitempty"`
+	// +optional
+	LoadBalancer *LoadBalancer `json:"loadBalancer,omitempty"`
 }
 
 type HTTPHeaders struct {
@@ -139,6 +143,8 @@ type UpstreamSpec_HTTPS struct {
 	ProxyProtocol *string `json:"proxyProtocol,omitempty"`
 	// +optional
 	Transport *UpstreamSpec_TCP_Transport `json:"transport,omitempty"`
+	// +optional
+	LoadBalancer *LoadBalancer `json:"loadBalancer,omitempty"`
 }
 
 // LoadBalancer configures load balancing across multiple upstreams

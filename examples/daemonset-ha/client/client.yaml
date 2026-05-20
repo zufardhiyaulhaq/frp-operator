@@ -1,0 +1,31 @@
+apiVersion: frp.zufardhiyaulhaq.com/v1alpha1
+kind: Client
+metadata:
+  name: edge
+  namespace: default
+spec:
+  # Run one frpc per worker node. Each replica registers itself with the
+  # same FRP server and joins the loadBalancer.group declared on the
+  # Upstream below, so frps round-robins incoming connections across the
+  # DaemonSet pods.
+  workload:
+    kind: DaemonSet
+  podTemplate:
+    nodeSelector:
+      kubernetes.io/os: linux
+    # Skip control planes — they rarely make sense as tunnel egress nodes.
+    affinity:
+      nodeAffinity:
+        requiredDuringSchedulingIgnoredDuringExecution:
+          nodeSelectorTerms:
+            - matchExpressions:
+                - key: node-role.kubernetes.io/control-plane
+                  operator: DoesNotExist
+  server:
+    host: <your-frps-server-ip>
+    port: 7000
+    authentication:
+      token:
+        secret:
+          name: edge-secret
+          key: token

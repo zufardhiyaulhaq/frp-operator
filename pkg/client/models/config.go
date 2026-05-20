@@ -30,6 +30,15 @@ type Config struct {
 	Common    Common
 	Upstreams Upstreams
 	Visitors  Visitors
+
+	// ProxyNameSuffix is appended to every emitted `name = "<upstream>"` in the
+	// rendered config. Empty by default. The controller sets it to a runtime
+	// template expression (e.g. "-{{ .Envs.POD_NAME }}") when the client
+	// workload is a DaemonSet so each replica registers a unique proxy name
+	// while still sharing the same loadBalancer.group — without this, frps
+	// rejects replicas 2..N with "proxy [<name>] already exists" because
+	// pxyMgr.Add deduplicates by name before group membership is evaluated.
+	ProxyNameSuffix string
 }
 
 type TransportConfig struct {
@@ -138,6 +147,7 @@ type Upstream_TCPMUX struct {
 	Multiplexer   string
 	CustomDomains []string
 	Transport     *Upstream_TCP_Transport
+	LoadBalancer  *LoadBalancerConfig
 }
 
 type Upstream struct {
@@ -250,6 +260,7 @@ type Upstream_HTTP struct {
 	HTTPPassword      string
 	HealthCheck       *Upstream_HTTP_HealthCheck
 	Transport         *Upstream_TCP_Transport
+	LoadBalancer      *LoadBalancerConfig
 }
 
 type Upstream_HTTP_HealthCheck struct {
@@ -266,6 +277,7 @@ type Upstream_HTTPS struct {
 	CustomDomains []string
 	ProxyProtocol *string
 	Transport     *Upstream_TCP_Transport
+	LoadBalancer  *LoadBalancerConfig
 }
 
 // validateUpstreamServerPorts checks that no two TCP/UDP upstreams use the same server port
@@ -311,6 +323,78 @@ func validateUpstreamServerPorts(upstreamObjects []frpv1alpha1.Upstream) error {
 	return nil
 }
 
+// validateDaemonSetWorkloadCompatibility enforces that when the Client workload
+// is a DaemonSet, every Upstream uses a protocol frps can load-balance
+// (tcp/http/https/tcpmux per the frp load-balancer docs) AND declares a
+// loadBalancer.group. Without these, replicas 2..N either fan out without
+// load balancing (each registers a unique proxy name via the POD_NAME suffix
+// the controller injects) or, for udp/stcp/xtcp, frps has no group concept
+// at all. Reject early so the Client surfaces Phase=Failed instead of silently
+// creating a broken multi-replica deployment.
+func validateDaemonSetWorkloadCompatibility(
+	clientObject *frpv1alpha1.Client,
+	upstreamObjects []frpv1alpha1.Upstream,
+) error {
+	if clientObject.Spec.Workload == nil || clientObject.Spec.Workload.Kind != frpv1alpha1.WorkloadKindDaemonSet {
+		return nil
+	}
+
+	for _, upstream := range upstreamObjects {
+		var unsupported string
+		switch {
+		case upstream.Spec.UDP != nil:
+			unsupported = "UDP"
+		case upstream.Spec.STCP != nil:
+			unsupported = "STCP"
+		case upstream.Spec.XTCP != nil:
+			unsupported = "XTCP"
+		}
+		if unsupported != "" {
+			return errors.NewBadRequest(fmt.Sprintf(
+				"upstream %q uses %s which is not supported by frps load balancer; DaemonSet workload requires tcp/http/https/tcpmux with loadBalancer.group set",
+				upstream.Name, unsupported))
+		}
+
+		var protocol, path string
+		var lb *frpv1alpha1.LoadBalancer
+		switch {
+		case upstream.Spec.TCP != nil:
+			protocol, path, lb = "TCP", "spec.tcp.loadBalancer.group", upstream.Spec.TCP.LoadBalancer
+		case upstream.Spec.HTTP != nil:
+			protocol, path, lb = "HTTP", "spec.http.loadBalancer.group", upstream.Spec.HTTP.LoadBalancer
+		case upstream.Spec.HTTPS != nil:
+			protocol, path, lb = "HTTPS", "spec.https.loadBalancer.group", upstream.Spec.HTTPS.LoadBalancer
+		case upstream.Spec.TCPMUX != nil:
+			protocol, path, lb = "TCPMUX", "spec.tcpmux.loadBalancer.group", upstream.Spec.TCPMUX.LoadBalancer
+		default:
+			continue
+		}
+		if lb == nil || lb.Group == "" {
+			return errors.NewBadRequest(fmt.Sprintf(
+				"upstream %q (%s) requires %s when client workload is DaemonSet",
+				upstream.Name, protocol, path))
+		}
+	}
+
+	return nil
+}
+
+// fetchSecretValue resolves a SecretRef from the given namespace and returns
+// the referenced key's value. Returns an error when the secret is missing,
+// inaccessible, or doesn't contain the requested key — letting the caller
+// surface a clear failure instead of silently emitting an empty value.
+func fetchSecretValue(ctx context.Context, k8sclient client.Client, namespace string, ref *frpv1alpha1.SecretRef) (string, error) {
+	secret := &corev1.Secret{}
+	if err := k8sclient.Get(ctx, types.NamespacedName{Name: ref.Secret.Name, Namespace: namespace}, secret); err != nil {
+		return "", err
+	}
+	val, ok := secret.Data[ref.Secret.Key]
+	if !ok {
+		return "", errors.NewBadRequest(fmt.Sprintf("key %s not found in secret %s", ref.Secret.Key, ref.Secret.Name))
+	}
+	return string(val), nil
+}
+
 // validateVisitorPorts checks that no two STCP/XTCP visitors use the same port
 func validateVisitorPorts(visitorObjects []frpv1alpha1.Visitor) error {
 	visitorPorts := make(map[int]string) // port -> visitor name
@@ -345,6 +429,10 @@ func NewConfig(k8sclient client.Client,
 	upstreamObjects []frpv1alpha1.Upstream,
 	visitorObjects []frpv1alpha1.Visitor,
 ) (Config, error) {
+	if err := validateDaemonSetWorkloadCompatibility(clientObject, upstreamObjects); err != nil {
+		return Config{}, err
+	}
+
 	// Validate that no duplicate server ports exist for TCP/UDP upstreams
 	if err := validateUpstreamServerPorts(upstreamObjects); err != nil {
 		return Config{}, err
@@ -583,23 +671,16 @@ func NewConfig(k8sclient client.Client,
 				}
 			}
 
-			// Handle LoadBalancer
 			if upstreamObject.Spec.TCP.LoadBalancer != nil {
 				upstream.TCP.LoadBalancer = &LoadBalancerConfig{
 					Group: upstreamObject.Spec.TCP.LoadBalancer.Group,
 				}
-
 				if upstreamObject.Spec.TCP.LoadBalancer.GroupKey != nil {
-					secret := &corev1.Secret{}
-					err := k8sclient.Get(context.TODO(), types.NamespacedName{
-						Name:      upstreamObject.Spec.TCP.LoadBalancer.GroupKey.Secret.Name,
-						Namespace: clientObject.Namespace,
-					}, secret)
-					if err == nil {
-						if val, ok := secret.Data[upstreamObject.Spec.TCP.LoadBalancer.GroupKey.Secret.Key]; ok {
-							upstream.TCP.LoadBalancer.GroupKey = string(val)
-						}
+					val, err := fetchSecretValue(context.TODO(), k8sclient, clientObject.Namespace, upstreamObject.Spec.TCP.LoadBalancer.GroupKey)
+					if err != nil {
+						return config, err
 					}
+					upstream.TCP.LoadBalancer.GroupKey = val
 				}
 			}
 
@@ -883,6 +964,19 @@ func NewConfig(k8sclient client.Client,
 					}
 				}
 			}
+
+			if upstreamObject.Spec.HTTP.LoadBalancer != nil {
+				upstream.HTTP.LoadBalancer = &LoadBalancerConfig{
+					Group: upstreamObject.Spec.HTTP.LoadBalancer.Group,
+				}
+				if upstreamObject.Spec.HTTP.LoadBalancer.GroupKey != nil {
+					val, err := fetchSecretValue(context.TODO(), k8sclient, clientObject.Namespace, upstreamObject.Spec.HTTP.LoadBalancer.GroupKey)
+					if err != nil {
+						return config, err
+					}
+					upstream.HTTP.LoadBalancer.GroupKey = val
+				}
+			}
 		}
 
 		if upstreamObject.Spec.HTTPS != nil {
@@ -909,6 +1003,19 @@ func NewConfig(k8sclient client.Client,
 					}
 				}
 			}
+
+			if upstreamObject.Spec.HTTPS.LoadBalancer != nil {
+				upstream.HTTPS.LoadBalancer = &LoadBalancerConfig{
+					Group: upstreamObject.Spec.HTTPS.LoadBalancer.Group,
+				}
+				if upstreamObject.Spec.HTTPS.LoadBalancer.GroupKey != nil {
+					val, err := fetchSecretValue(context.TODO(), k8sclient, clientObject.Namespace, upstreamObject.Spec.HTTPS.LoadBalancer.GroupKey)
+					if err != nil {
+						return config, err
+					}
+					upstream.HTTPS.LoadBalancer.GroupKey = val
+				}
+			}
 		}
 
 		if upstreamObject.Spec.TCPMUX != nil {
@@ -922,6 +1029,19 @@ func NewConfig(k8sclient client.Client,
 				upstream.TCPMUX.Transport = &Upstream_TCP_Transport{
 					UseCompression: upstreamObject.Spec.TCPMUX.Transport.UseCompression,
 					UseEncryption:  upstreamObject.Spec.TCPMUX.Transport.UseEncryption,
+				}
+			}
+
+			if upstreamObject.Spec.TCPMUX.LoadBalancer != nil {
+				upstream.TCPMUX.LoadBalancer = &LoadBalancerConfig{
+					Group: upstreamObject.Spec.TCPMUX.LoadBalancer.Group,
+				}
+				if upstreamObject.Spec.TCPMUX.LoadBalancer.GroupKey != nil {
+					val, err := fetchSecretValue(context.TODO(), k8sclient, clientObject.Namespace, upstreamObject.Spec.TCPMUX.LoadBalancer.GroupKey)
+					if err != nil {
+						return config, err
+					}
+					upstream.TCPMUX.LoadBalancer.GroupKey = val
 				}
 			}
 		}

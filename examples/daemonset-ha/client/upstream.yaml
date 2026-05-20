@@ -1,0 +1,23 @@
+apiVersion: frp.zufardhiyaulhaq.com/v1alpha1
+kind: Upstream
+metadata:
+  name: webhello
+  namespace: default
+spec:
+  client: edge
+  tcp:
+    host: webhello.default.svc.cluster.local
+    port: 8080
+    server:
+      port: 18080
+    # loadBalancer.group is the linchpin of the DaemonSet HA story: every
+    # frpc replica in the DaemonSet registers under the same group + key,
+    # and frps round-robins incoming TCP connections across the live
+    # members. Without a group, only the last-registered frpc would
+    # receive traffic.
+    loadBalancer:
+      group: webhello-tcp
+      groupKey:
+        secret:
+          name: edge-secret
+          key: token
