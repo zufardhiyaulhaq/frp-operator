@@ -1,5 +1,9 @@
 # Build the manager binary
-FROM golang:1.23 as builder
+# Run the builder on the native BUILDPLATFORM and cross-compile for the target
+# platform (fast — avoids QEMU-emulating the Go toolchain).
+FROM --platform=$BUILDPLATFORM golang:1.23 as builder
+ARG TARGETOS
+ARG TARGETARCH
 
 WORKDIR /workspace
 # Copy the Go Modules manifests
@@ -15,8 +19,8 @@ COPY api/ api/
 COPY controllers/ controllers/
 COPY pkg/ pkg/
 
-# Build
-RUN CGO_ENABLED=0 GOOS=linux go build -a -o manager main.go
+# Build (cross-compile for the requested target platform)
+RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} go build -a -o manager main.go
 
 # Use distroless as minimal base image to package the manager binary
 # Refer to https://github.com/GoogleContainerTools/distroless for more details

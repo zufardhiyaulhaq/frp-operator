@@ -159,6 +159,9 @@ type ClientSpec_PodTemplate struct {
 	// +optional
 	// SecurityContext holds pod-level security attributes
 	SecurityContext *corev1.PodSecurityContext `json:"securityContext,omitempty"`
+	// +optional
+	// Env is a list of environment variables to set in the FRP client container (e.g. GOMEMLIMIT)
+	Env []corev1.EnvVar `json:"env,omitempty"`
 }
 
 // ClientStatus defines the observed state of Client

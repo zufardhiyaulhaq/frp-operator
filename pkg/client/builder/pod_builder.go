@@ -92,6 +92,11 @@ func (n *PodBuilder) Build() (*corev1.Pod, error) {
 		container.Resources = *n.PodTemplate.Resources
 	}
 
+	// Apply container env from PodTemplate
+	if n.PodTemplate != nil && n.PodTemplate.Env != nil {
+		container.Env = n.PodTemplate.Env
+	}
+
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        n.Name + "-frpc",

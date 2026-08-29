@@ -307,3 +307,54 @@ func TestPodBuilder_LabelAnnotationOverride(t *testing.T) {
 		t.Errorf("Expected custom annotation to override default, got %s", pod.Annotations["sidecar.istio.io/inject"])
 	}
 }
+
+func TestPodBuilder_WithEnv(t *testing.T) {
+	pt := &frpv1alpha1.ClientSpec_PodTemplate{
+		Env: []corev1.EnvVar{
+			{Name: "GOMEMLIMIT", Value: "80MiB"},
+			{
+				Name: "MEM_LIMIT",
+				ValueFrom: &corev1.EnvVarSource{
+					ResourceFieldRef: &corev1.ResourceFieldSelector{Resource: "limits.memory"},
+				},
+			},
+		},
+	}
+
+	pod, err := NewPodBuilder().
+		SetName("test").
+		SetNamespace("default").
+		SetImage("fatedier/frpc:v0.65.0").
+		SetPodTemplate(pt).
+		Build()
+	if err != nil {
+		t.Fatalf("Build() error = %v", err)
+	}
+
+	env := pod.Spec.Containers[0].Env
+	if len(env) != 2 {
+		t.Fatalf("Expected 2 env vars, got %d", len(env))
+	}
+	if env[0].Name != "GOMEMLIMIT" || env[0].Value != "80MiB" {
+		t.Errorf("Expected GOMEMLIMIT=80MiB, got %s=%s", env[0].Name, env[0].Value)
+	}
+	if env[1].ValueFrom == nil || env[1].ValueFrom.ResourceFieldRef == nil ||
+		env[1].ValueFrom.ResourceFieldRef.Resource != "limits.memory" {
+		t.Errorf("Expected MEM_LIMIT to reference limits.memory, got %+v", env[1])
+	}
+}
+
+func TestPodBuilder_NoEnvByDefault(t *testing.T) {
+	pod, err := NewPodBuilder().
+		SetName("test").
+		SetNamespace("default").
+		SetImage("fatedier/frpc:v0.65.0").
+		SetPodTemplate(&frpv1alpha1.ClientSpec_PodTemplate{}).
+		Build()
+	if err != nil {
+		t.Fatalf("Build() error = %v", err)
+	}
+	if len(pod.Spec.Containers[0].Env) != 0 {
+		t.Errorf("Expected no env vars, got %v", pod.Spec.Containers[0].Env)
+	}
+}

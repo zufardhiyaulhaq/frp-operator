@@ -51,3 +51,6 @@ spec:
       prometheus.io/scrape: "true"
     serviceAccountName: frp-client-sa
     priorityClassName: high-priority
+    env:
+      - name: GOMEMLIMIT
+        value: "200MiB"

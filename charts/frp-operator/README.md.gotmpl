@@ -30,7 +30,7 @@
 - Group-level health checks
 
 **Operational features**
-- Pod templates on `Client` to set resources, node selectors, tolerations, labels, annotations, affinity, security context, and more
+- Pod templates on `Client` to set resources, node selectors, tolerations, labels, annotations, affinity, security context, environment variables (e.g. `GOMEMLIMIT`), and more
 - Reliable, restart-free config reload — operator `exec`s into the pod and verifies `/frp/config.toml` matches the expected state before triggering the FRP admin API reload
 - Validation for duplicate `Upstream` server ports and duplicate `Visitor` ports, surfaced via descriptive errors
 - Helm chart with native CRDs and RBAC
