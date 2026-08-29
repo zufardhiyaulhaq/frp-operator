@@ -1,3 +1,4 @@
+{% raw %}
 # Phase 3: Operations & Observability Implementation Plan
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
@@ -869,3 +870,4 @@ Files modified:
 - `pkg/client/builder/pod_builder.go` - PodTemplate support
 - `controllers/client_controller.go` - Events, status updates
 - `examples/operations/` - Example manifests
+{% endraw %}

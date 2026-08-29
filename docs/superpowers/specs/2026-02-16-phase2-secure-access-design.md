@@ -1,3 +1,4 @@
+{% raw %}
 # Phase 2: Secure Access Control Design
 
 **Date:** 2026-02-16
@@ -325,3 +326,4 @@ The OIDC client credentials should be fetched at config build time, similar to e
 2. Unit tests for allowUsers array serialization
 3. Integration test with OIDC provider (mock or real)
 4. Pod builder tests for TLS volume mounting
+{% endraw %}

@@ -1,3 +1,4 @@
+{% raw %}
 # Phase 1: Web Service Exposure Design
 
 **Date:** 2026-02-16
@@ -281,3 +282,4 @@ transport.useCompression = {{ $upstream.HTTP.Transport.UseCompression }}
 2. Unit tests for model transformation including secret fetching
 3. Integration test deploying HTTP upstream and verifying TOML output
 4. Example manifests that can be applied against a real FRP server
+{% endraw %}

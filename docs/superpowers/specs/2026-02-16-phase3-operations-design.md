@@ -1,3 +1,4 @@
+{% raw %}
 # Phase 3: Operations & Observability Design
 
 **Date:** 2026-02-16
@@ -375,3 +376,4 @@ func (b *PodBuilder) Build() *corev1.Pod {
 2. Controller tests for status condition updates
 3. Controller tests for event emission
 4. Integration tests verifying pod has expected configuration
+{% endraw %}

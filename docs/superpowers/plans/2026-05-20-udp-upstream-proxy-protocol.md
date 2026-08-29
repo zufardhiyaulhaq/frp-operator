@@ -1,3 +1,4 @@
+{% raw %}
 # UDP Upstream Proxy Protocol + Transport Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
@@ -578,3 +579,4 @@ Task 5 is verification-only. If any step fails, return to the relevant earlier t
 - TCP, STCP, XTCP, HTTP, HTTPS, TCPMUX upstream paths.
 - A configurable `bandwidthLimitMode` (stays the literal `"client"` in the template).
 - `Chart.yaml` version bump and `make readme` — handled by the normal release flow.
+{% endraw %}

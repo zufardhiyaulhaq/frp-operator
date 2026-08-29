@@ -1,3 +1,4 @@
+{% raw %}
 # Operator Metrics and Grafana Dashboard Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
@@ -1557,3 +1558,4 @@ Expected: all green. Report the full list of changed/added files for the user to
 - **Spec coverage:** metrics (Task 2), status fetch (Task 1), reconciler wiring incl. NotFound deletion and `updateClientStatus` (Task 3), `metrics.secure` + scrape objects (Task 4), dashboard JSON + ConfigMap (Task 5), Grafana push into "FRP Operator" folder (Task 6), Chart/values/README/AGENTS/release notes (Task 7). Testing section: handler tests (1), metrics tests (2), controller NotFound test (3), helm template checks (4, 5), JSON sanity (5). `frpc verify` / existing behaviour untouched.
 - **Placeholders:** none; every code step has full content.
 - **Type consistency:** `handler.ProxyStatus` fields and `Status` signature match between Tasks 1–3; `metrics.RecordClient(c, clientID, image)`, `RecordProxies(ns, client, proxies, err)`, `DeleteClient(ns, client)`, `SetLastReconcile(ns, client, time)` consistent across Tasks 2–3; vector variable names (`clientInfo`, `proxyStatus`, `proxyInfo`, `adminUp`, `lastReconcile`, …) used in tests match the implementation; chart port names `http`/`https` consistent across deployment, service and scrape templates.
+{% endraw %}

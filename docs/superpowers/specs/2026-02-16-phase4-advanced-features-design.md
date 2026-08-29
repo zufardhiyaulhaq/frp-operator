@@ -1,3 +1,4 @@
+{% raw %}
 # Phase 4: Advanced Features Design
 
 **Date:** 2026-02-16
@@ -511,3 +512,4 @@ The group key should be fetched from the secret at config build time, similar to
 3. Integration tests for load balancing across multiple upstreams
 4. Integration tests for TCPMUX functionality
 5. Example manifests for all plugin types
+{% endraw %}

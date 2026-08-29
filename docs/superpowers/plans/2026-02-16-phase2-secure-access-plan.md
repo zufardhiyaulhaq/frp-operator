@@ -1,3 +1,4 @@
+{% raw %}
 # Phase 2: Secure Access Control Implementation Plan
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
@@ -850,3 +851,4 @@ Files modified:
 - `pkg/client/utils/template.go` - TOML templates
 - `pkg/client/builder/pod_builder.go` - TLS volume mounts
 - `examples/secure-access/` - Example manifests
+{% endraw %}

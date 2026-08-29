@@ -1,3 +1,4 @@
+{% raw %}
 # Remove kube-rbac-proxy from frp-operator
 
 **Date:** 2026-05-18
@@ -121,3 +122,4 @@ Add to the next chart release notes:
 - No `values.yaml` opt-in toggle to keep the proxy — this is a clean breaking change per the brainstorm decision.
 - Chart version bump in `charts/frp-operator/Chart.yaml` is handled by the normal release flow (`make helm.create.releases`), not this change.
 - `make readme` regeneration is part of the release flow.
+{% endraw %}

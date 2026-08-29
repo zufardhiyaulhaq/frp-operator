@@ -1,3 +1,4 @@
+{% raw %}
 # Phase 1: Web Service Exposure Implementation Plan
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
@@ -955,3 +956,4 @@ Files modified:
 - `pkg/client/builder/configuration_builder_test.go` - Tests
 - `examples/http/` - Example manifests
 - `charts/frp-operator/crds/` - Updated CRDs
+{% endraw %}

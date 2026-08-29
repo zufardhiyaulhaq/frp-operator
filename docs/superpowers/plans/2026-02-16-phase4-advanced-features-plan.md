@@ -1,3 +1,4 @@
+{% raw %}
 # Phase 4: Advanced Features Implementation Plan
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
@@ -1063,3 +1064,4 @@ Files modified:
 - `pkg/client/models/config.go` - Model structs, NewConfig
 - `pkg/client/utils/template.go` - TOML templates
 - `examples/advanced/` - Example manifests
+{% endraw %}

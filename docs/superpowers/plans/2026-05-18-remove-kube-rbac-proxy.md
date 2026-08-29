@@ -1,3 +1,4 @@
+{% raw %}
 # Remove kube-rbac-proxy Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
@@ -757,3 +758,4 @@ Task 7 is verification-only. If any step fails, return to the relevant earlier t
 - CRD or `api/v1alpha1` changes.
 - Controller reconciliation logic in `controllers/` or `pkg/client/`.
 - Adding a `values.yaml` toggle to re-enable the proxy.
+{% endraw %}

@@ -1,3 +1,4 @@
+{% raw %}
 # Proxy Protocol + Transport for UDP Upstream
 
 **Date:** 2026-05-20
@@ -173,3 +174,4 @@ Add cases to:
 - TCP `proxyURL` relocation to the `Client` CRD — separate follow-up spec.
 - Any change to TCP, STCP, XTCP, HTTP, HTTPS, or TCPMUX upstreams.
 - A configurable `bandwidthLimitMode` (stays the literal `"client"`).
+{% endraw %}
