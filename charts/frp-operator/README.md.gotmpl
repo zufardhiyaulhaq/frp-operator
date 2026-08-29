@@ -33,8 +33,8 @@
 - Pod templates on `Client` to set resources, node selectors, tolerations, labels, annotations, affinity, security context, environment variables (e.g. `GOMEMLIMIT`), and more
 - `enabled: false` on `Upstream` and `Visitor` to pause a tunnel without deleting it (its port is released)
 - Wire protocol v2 (`transport.wireProtocol`) on `Client` for an AEAD-encrypted control channel (frps >= v0.69.0)
-- Each `Client` reports a `clientID` of `<namespace>/<name>` in the frps dashboard (frps >= v0.67.0; set `spec.clientID: ""` to omit)
-- Reliable, restart-free config reload — operator `exec`s into the pod and verifies `/frp/config.toml` matches the expected state before triggering the FRP admin API reload
+- Each `Client` reports a `clientID` of `<namespace>/<name>` in the frps dashboard (frps >= v0.67.0; set `spec.clientID: ""` to omit) — frps allows only one online client per clientID
+- Reliable, restart-free config reload — operator `exec`s into the pod and verifies `/frp/config.toml` matches the expected state, and runs `frpc verify` on the rendered config before triggering the reload
 - Validation for duplicate `Upstream` server ports and duplicate `Visitor` ports, surfaced via descriptive errors
 - Helm chart with native CRDs and RBAC
 - Secure metrics endpoint served directly by the manager on `:8443` using Kubernetes TokenReview / SubjectAccessReview (no `kube-rbac-proxy` sidecar)

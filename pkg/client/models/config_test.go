@@ -1,6 +1,7 @@
 package models
 
 import (
+	"strings"
 	"testing"
 
 	frpv1alpha1 "github.com/zufardhiyaulhaq/frp-operator/api/v1alpha1"
@@ -1843,10 +1844,10 @@ func TestNewConfig_UpstreamEnabled(t *testing.T) {
 	if len(config.Upstreams) != 3 {
 		t.Fatalf("NewConfig() Upstreams length = %d, want 3", len(config.Upstreams))
 	}
-	want := map[string]bool{"a-nil": true, "b-true": true, "c-false": false}
+	want := map[string]bool{"a-nil": false, "b-true": false, "c-false": true}
 	for _, u := range config.Upstreams {
-		if u.Enabled != want[u.Name] {
-			t.Errorf("upstream %q Enabled = %v, want %v", u.Name, u.Enabled, want[u.Name])
+		if u.Disabled != want[u.Name] {
+			t.Errorf("upstream %q Disabled = %v, want %v", u.Name, u.Disabled, want[u.Name])
 		}
 	}
 }
@@ -1901,10 +1902,10 @@ func TestNewConfig_VisitorEnabled(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewConfig() unexpected error = %v", err)
 	}
-	want := map[string]bool{"a-nil": true, "b-true": true, "c-false": false}
+	want := map[string]bool{"a-nil": false, "b-true": false, "c-false": true}
 	for _, v := range config.Visitors {
-		if v.Enabled != want[v.Name] {
-			t.Errorf("visitor %q Enabled = %v, want %v", v.Name, v.Enabled, want[v.Name])
+		if v.Disabled != want[v.Name] {
+			t.Errorf("visitor %q Disabled = %v, want %v", v.Name, v.Disabled, want[v.Name])
 		}
 	}
 }
@@ -1925,6 +1926,113 @@ func TestValidateVisitorPorts_DisabledReleasesPort(t *testing.T) {
 	if err := validateVisitorPorts([]frpv1alpha1.Visitor{mk("old", nil), mk("new", nil)}); err == nil {
 		t.Errorf("two enabled visitors on the same port should conflict")
 	}
+}
+
+func TestValidateUpstreamNames(t *testing.T) {
+	mkUpstream := func(namespace, name string) frpv1alpha1.Upstream {
+		return frpv1alpha1.Upstream{
+			ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace},
+			Spec: frpv1alpha1.UpstreamSpec{
+				TCP: &frpv1alpha1.UpstreamSpec_TCP{
+					Host:   "localhost",
+					Port:   80,
+					Server: frpv1alpha1.UpstreamSpec_TCP_Server{Port: 8080},
+				},
+			},
+		}
+	}
+
+	t.Run("duplicate names across namespaces returns error mentioning both", func(t *testing.T) {
+		err := validateUpstreamNames([]frpv1alpha1.Upstream{
+			mkUpstream("team-a", "nginx"),
+			mkUpstream("team-b", "nginx"),
+		})
+		if err == nil {
+			t.Fatal("expected error for duplicate upstream names across namespaces, got nil")
+		}
+		msg := err.Error()
+		if !strings.Contains(msg, "team-a/nginx") || !strings.Contains(msg, "team-b/nginx") {
+			t.Errorf("error message should mention both conflicting upstreams, got: %s", msg)
+		}
+	})
+
+	t.Run("unique names returns nil", func(t *testing.T) {
+		err := validateUpstreamNames([]frpv1alpha1.Upstream{
+			mkUpstream("team-a", "nginx"),
+			mkUpstream("team-b", "redis"),
+		})
+		if err != nil {
+			t.Errorf("expected no error for unique upstream names, got: %v", err)
+		}
+	})
+
+	t.Run("disabled upstreams still count toward duplicate name check", func(t *testing.T) {
+		disabled := mkUpstream("team-a", "nginx")
+		disabled.Spec.Enabled = boolPtr(false)
+		err := validateUpstreamNames([]frpv1alpha1.Upstream{
+			disabled,
+			mkUpstream("team-b", "nginx"),
+		})
+		if err == nil {
+			t.Error("expected error even when one of the duplicate upstreams is disabled")
+		}
+	})
+}
+
+func TestValidateVisitorNames(t *testing.T) {
+	mkSTCPVisitor := func(namespace, name string) frpv1alpha1.Visitor {
+		return frpv1alpha1.Visitor{
+			ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace},
+			Spec: frpv1alpha1.VisitorSpec{
+				STCP: &frpv1alpha1.VisitorSpec_STCP{Host: "127.0.0.1", Port: 2222, ServerName: "ssh"},
+			},
+		}
+	}
+	mkXTCPVisitorWithFallback := func(namespace, name string) frpv1alpha1.Visitor {
+		return frpv1alpha1.Visitor{
+			ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace},
+			Spec: frpv1alpha1.VisitorSpec{
+				XTCP: &frpv1alpha1.VisitorSpec_XTCP{
+					Host: "127.0.0.1", Port: 2223, ServerName: "ssh",
+					Fallback: &frpv1alpha1.VisitorSpec_Fallback{ServerName: "ssh-fallback", Timeout: 5},
+				},
+			},
+		}
+	}
+
+	t.Run("duplicate names across namespaces returns error mentioning both", func(t *testing.T) {
+		err := validateVisitorNames([]frpv1alpha1.Visitor{
+			mkSTCPVisitor("team-a", "peer"),
+			mkSTCPVisitor("team-b", "peer"),
+		})
+		if err == nil {
+			t.Fatal("expected error for duplicate visitor names across namespaces, got nil")
+		}
+		msg := err.Error()
+		if !strings.Contains(msg, "team-a/peer") || !strings.Contains(msg, "team-b/peer") {
+			t.Errorf("error message should mention both conflicting visitors, got: %s", msg)
+		}
+	})
+
+	t.Run("unique names returns nil", func(t *testing.T) {
+		err := validateVisitorNames([]frpv1alpha1.Visitor{
+			mkSTCPVisitor("team-a", "peer"),
+			mkSTCPVisitor("team-b", "other"),
+		})
+		if err != nil {
+			t.Errorf("expected no error for unique visitor names, got: %v", err)
+		}
+	})
+
+	t.Run("real visitor collides with synthetic XTCP fallback visitor name", func(t *testing.T) {
+		err := validateVisitorNames([]frpv1alpha1.Visitor{
+			mkSTCPVisitor("team-a", "x-fallback"),
+			mkXTCPVisitorWithFallback("team-b", "x"),
+		})
+		if err == nil {
+			t.Fatal("expected error when a real visitor name collides with a synthetic '<name>-fallback' visitor")
+		}
+	})
 }
 
 func TestVisitorServicePorts(t *testing.T) {

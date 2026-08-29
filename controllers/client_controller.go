@@ -21,6 +21,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"strings"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -51,6 +52,7 @@ const (
 	EventReasonClientConnected    = "ClientConnected"
 	EventReasonConfigReloaded     = "ConfigReloaded"
 	EventReasonConfigReloadFailed = "ConfigReloadFailed"
+	EventReasonPodImageUpdated    = "PodImageUpdated"
 )
 
 // ClientReconciler reconciles a Client object
@@ -62,8 +64,8 @@ type ClientReconciler struct {
 	Recorder  record.EventRecorder
 }
 
-// readPodFile reads a file from a pod container and returns its content
-func (r *ClientReconciler) readPodFile(namespace, podName, containerName, filePath string) (string, error) {
+// execInPod runs a command in a pod container and returns its stdout.
+func (r *ClientReconciler) execInPod(namespace, podName, containerName string, command []string) (string, error) {
 	req := r.Clientset.CoreV1().RESTClient().Post().
 		Resource("pods").
 		Name(podName).
@@ -71,7 +73,7 @@ func (r *ClientReconciler) readPodFile(namespace, podName, containerName, filePa
 		SubResource("exec").
 		VersionedParams(&corev1.PodExecOptions{
 			Container: containerName,
-			Command:   []string{"cat", filePath},
+			Command:   command,
 			Stdout:    true,
 			Stderr:    true,
 		}, scheme.ParameterCodec)
@@ -87,7 +89,7 @@ func (r *ClientReconciler) readPodFile(namespace, podName, containerName, filePa
 		Stderr: &stderr,
 	})
 	if err != nil {
-		return "", fmt.Errorf("exec failed: %w, stderr: %s", err, stderr.String())
+		return stdout.String(), fmt.Errorf("exec failed: %w, stderr: %s", err, stderr.String())
 	}
 
 	return stdout.String(), nil
@@ -277,6 +279,25 @@ func (r *ClientReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return ctrl.Result{}, err
 	}
 
+	// Roll the pod when the image has changed (e.g. operator upgrade bumped the frpc version).
+	// The config written by this operator may not be loadable by an older frpc binary.
+	if len(createdPod.Spec.Containers) > 0 && createdPod.Spec.Containers[0].Image != pod.Spec.Containers[0].Image {
+		if createdPod.DeletionTimestamp == nil {
+			log.Info("frpc image changed, deleting pod to recreate it",
+				"current", createdPod.Spec.Containers[0].Image, "desired", pod.Spec.Containers[0].Image)
+			if err := r.Client.Delete(context.TODO(), createdPod); err != nil && !errors.IsNotFound(err) {
+				return ctrl.Result{}, err
+			}
+			r.Recorder.Event(client, corev1.EventTypeNormal, EventReasonPodImageUpdated,
+				fmt.Sprintf("Recreating FRP client pod with image %s", pod.Spec.Containers[0].Image))
+		}
+		r.setCondition(client, status.ConditionTypeReady, metav1.ConditionFalse, status.ReasonPodCreated, "Recreating pod with updated image")
+		if err := r.updateClientStatus(ctx, client, status.ClientPhasePending, "Recreating pod with updated image", len(filteredUpstreams), len(filteredVisitors)); err != nil {
+			log.Error(err, "failed to update client status")
+		}
+		return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
+	}
+
 	log.Info("check pod running")
 	if createdPod.Status.Phase != corev1.PodRunning {
 		r.setCondition(client, status.ConditionTypeReady, metav1.ConditionFalse, status.ReasonPodCreated, "Pod not yet running")
@@ -320,12 +341,7 @@ func (r *ClientReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	if reloadPending {
 		// Read the config file from the pod to verify it matches expected config
 		log.Info("verifying configmap is synced to pod")
-		podConfigContent, err := r.readPodFile(
-			createdPod.Namespace,
-			createdPod.Name,
-			"frpc",
-			"/frp/config.toml",
-		)
+		podConfigContent, err := r.execInPod(createdPod.Namespace, createdPod.Name, "frpc", []string{"cat", "/frp/config.toml"})
 		if err != nil {
 			log.Error(err, "failed to read config from pod, requeuing")
 			return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
@@ -336,6 +352,22 @@ func (r *ClientReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		if podConfigContent != expectedConfig {
 			log.Info("configmap not yet synced to pod, requeuing")
 			return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
+		}
+
+		log.Info("verifying frpc config with frpc verify")
+		if out, err := r.execInPod(createdPod.Namespace, createdPod.Name, "frpc", []string{"frpc", "verify", "-c", "/frp/config.toml"}); err != nil {
+			detail := strings.TrimSpace(out)
+			if detail == "" {
+				detail = err.Error()
+			}
+			msg := fmt.Sprintf("frpc verify failed: %s", detail)
+			log.Error(err, "frpc verify failed, not reloading")
+			r.Recorder.Event(client, corev1.EventTypeWarning, EventReasonConfigReloadFailed, msg)
+			r.setCondition(client, status.ConditionTypeConfigSync, metav1.ConditionFalse, status.ReasonConfigReloadFailed, msg)
+			if statusErr := r.updateClientStatus(ctx, client, status.ClientPhaseRunning, msg, len(filteredUpstreams), len(filteredVisitors)); statusErr != nil {
+				log.Error(statusErr, "failed to update client status")
+			}
+			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 		}
 
 		// Config is synced, reload frpc

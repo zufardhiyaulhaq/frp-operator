@@ -82,11 +82,11 @@ const (
 )
 
 type Visitor struct {
-	Name    string
-	Enabled bool
-	Type    VisitorType
-	STCP    Visitor_STCP
-	XTCP    Visitor_XTCP
+	Name     string
+	Disabled bool
+	Type     VisitorType
+	STCP     Visitor_STCP
+	XTCP     Visitor_XTCP
 }
 
 type Visitors []Visitor
@@ -144,16 +144,16 @@ type Upstream_TCPMUX struct {
 }
 
 type Upstream struct {
-	Name    string
-	Enabled bool
-	Type    UpstreamType
-	TCP     Upstream_TCP
-	UDP     Upstream_UDP
-	STCP    Upstream_STCP
-	XTCP    Upstream_STCP
-	HTTP    Upstream_HTTP
-	HTTPS   Upstream_HTTPS
-	TCPMUX  Upstream_TCPMUX
+	Name     string
+	Disabled bool
+	Type     UpstreamType
+	TCP      Upstream_TCP
+	UDP      Upstream_UDP
+	STCP     Upstream_STCP
+	XTCP     Upstream_STCP
+	HTTP     Upstream_HTTP
+	HTTPS    Upstream_HTTPS
+	TCPMUX   Upstream_TCPMUX
 }
 
 type Upstreams []Upstream
@@ -395,6 +395,59 @@ func validateVisitorPorts(visitorObjects []frpv1alpha1.Visitor) error {
 	return nil
 }
 
+// validateUpstreamNames rejects two upstreams that would render the same frpc proxy name.
+// frpc v0.70.0+ rejects configs with duplicate proxy names, and the reconciler matches
+// spec.client across namespaces, so two Upstreams named the same in different namespaces
+// would otherwise collide. Disabled upstreams still count: frpc validates names before
+// applying `enabled`.
+func validateUpstreamNames(upstreamObjects []frpv1alpha1.Upstream) error {
+	seen := make(map[string]frpv1alpha1.Upstream) // proxy name -> first upstream with that name
+
+	for _, upstream := range upstreamObjects {
+		if existing, exists := seen[upstream.Name]; exists {
+			return errors.NewBadRequest(
+				fmt.Sprintf("duplicate upstream name %q: %s/%s conflicts with %s/%s",
+					upstream.Name, existing.Namespace, existing.Name, upstream.Namespace, upstream.Name))
+		}
+		seen[upstream.Name] = upstream
+	}
+
+	return nil
+}
+
+// validateVisitorNames rejects two visitors that would render the same frpc visitor name,
+// including the synthetic "<name>-fallback" visitor emitted for XTCP fallbacks. Disabled
+// visitors still count: frpc validates names before applying `enabled`.
+func validateVisitorNames(visitorObjects []frpv1alpha1.Visitor) error {
+	seen := make(map[string]frpv1alpha1.Visitor) // visitor name -> first visitor with that name
+
+	checkAndReserve := func(name string, owner frpv1alpha1.Visitor) error {
+		if existing, exists := seen[name]; exists {
+			return errors.NewBadRequest(
+				fmt.Sprintf("duplicate visitor name %q: %s/%s conflicts with %s/%s",
+					name, existing.Namespace, existing.Name, owner.Namespace, owner.Name))
+		}
+		seen[name] = owner
+		return nil
+	}
+
+	for _, visitor := range visitorObjects {
+		if err := checkAndReserve(visitor.Name, visitor); err != nil {
+			return err
+		}
+	}
+
+	for _, visitor := range visitorObjects {
+		if visitor.Spec.XTCP != nil && visitor.Spec.XTCP.Fallback != nil {
+			if err := checkAndReserve(visitor.Name+"-fallback", visitor); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
 // VisitorServicePorts returns the bind ports of enabled STCP/XTCP visitors, in input order.
 // Disabled visitors are excluded so they do not occupy a port on the client Service.
 func VisitorServicePorts(visitorObjects []frpv1alpha1.Visitor) []int {
@@ -425,6 +478,17 @@ func NewConfig(k8sclient client.Client,
 
 	// Validate that no duplicate ports exist for STCP/XTCP visitors
 	if err := validateVisitorPorts(visitorObjects); err != nil {
+		return Config{}, err
+	}
+
+	// Validate that no duplicate names exist for upstreams (frpc rejects duplicate proxy names)
+	if err := validateUpstreamNames(upstreamObjects); err != nil {
+		return Config{}, err
+	}
+
+	// Validate that no duplicate names exist for visitors, including synthetic XTCP fallback
+	// visitor names (frpc rejects duplicate visitor names)
+	if err := validateVisitorNames(visitorObjects); err != nil {
 		return Config{}, err
 	}
 
@@ -592,8 +656,8 @@ func NewConfig(k8sclient client.Client,
 	upstreams := []Upstream{}
 	for _, upstreamObject := range upstreamObjects {
 		upstream := Upstream{
-			Name:    upstreamObject.Name,
-			Enabled: isEnabled(upstreamObject.Spec.Enabled),
+			Name:     upstreamObject.Name,
+			Disabled: !isEnabled(upstreamObject.Spec.Enabled),
 		}
 
 		if upstreamObject.Spec.TCP == nil && upstreamObject.Spec.UDP == nil && upstreamObject.Spec.STCP == nil && upstreamObject.Spec.XTCP == nil && upstreamObject.Spec.HTTP == nil && upstreamObject.Spec.HTTPS == nil && upstreamObject.Spec.TCPMUX == nil {
@@ -1018,8 +1082,8 @@ func NewConfig(k8sclient client.Client,
 	visitors := []Visitor{}
 	for _, visitorObject := range visitorObjects {
 		visitor := Visitor{
-			Name:    visitorObject.Name,
-			Enabled: isEnabled(visitorObject.Spec.Enabled),
+			Name:     visitorObject.Name,
+			Disabled: !isEnabled(visitorObject.Spec.Enabled),
 		}
 
 		if visitorObject.Spec.STCP == nil && visitorObject.Spec.XTCP == nil {

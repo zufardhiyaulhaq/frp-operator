@@ -1604,7 +1604,7 @@ func TestConfigurationBuilder_Build(t *testing.T) {
 				},
 			},
 			wantNotContain: []string{
-				`clientID`,
+				`clientID = `,
 			},
 		},
 		{
@@ -1646,7 +1646,7 @@ func TestConfigurationBuilder_Build(t *testing.T) {
 			config: models.Config{
 				Common: models.Common{ServerAddress: "frp.example.com", ServerPort: 7000, AdminAddress: "0.0.0.0", AdminPort: 7400, AdminUsername: "admin", AdminPassword: "secret"},
 				Upstreams: models.Upstreams{
-					{Name: "paused", Type: 1, Enabled: false, TCP: models.Upstream_TCP{Host: "localhost", Port: 80, ServerPort: 8080}},
+					{Name: "paused", Type: 1, Disabled: true, TCP: models.Upstream_TCP{Host: "localhost", Port: 80, ServerPort: 8080}},
 				},
 			},
 			wantContains: []string{
@@ -1659,7 +1659,19 @@ func TestConfigurationBuilder_Build(t *testing.T) {
 			config: models.Config{
 				Common: models.Common{ServerAddress: "frp.example.com", ServerPort: 7000, AdminAddress: "0.0.0.0", AdminPort: 7400, AdminUsername: "admin", AdminPassword: "secret"},
 				Upstreams: models.Upstreams{
-					{Name: "live", Type: 1, Enabled: true, TCP: models.Upstream_TCP{Host: "localhost", Port: 80, ServerPort: 8080}},
+					{Name: "live", Type: 1, TCP: models.Upstream_TCP{Host: "localhost", Port: 80, ServerPort: 8080}},
+				},
+			},
+			wantNotContain: []string{
+				`enabled =`,
+			},
+		},
+		{
+			name: "zero-value upstream renders without enabled key",
+			config: models.Config{
+				Common: models.Common{ServerAddress: "frp.example.com", ServerPort: 7000, AdminAddress: "0.0.0.0", AdminPort: 7400, AdminUsername: "admin", AdminPassword: "secret"},
+				Upstreams: models.Upstreams{
+					{Name: "x", Type: 1, TCP: models.Upstream_TCP{Host: "localhost", Port: 80, ServerPort: 8080}},
 				},
 			},
 			wantNotContain: []string{
@@ -1671,7 +1683,7 @@ func TestConfigurationBuilder_Build(t *testing.T) {
 			config: models.Config{
 				Common: models.Common{ServerAddress: "frp.example.com", ServerPort: 7000, AdminAddress: "0.0.0.0", AdminPort: 7400, AdminUsername: "admin", AdminPassword: "secret"},
 				Visitors: models.Visitors{
-					{Name: "paused-visitor", Type: 1, Enabled: false, STCP: models.Visitor_STCP{Host: "127.0.0.1", Port: 2222, ServerName: "ssh", SecretKey: "k"}},
+					{Name: "paused-visitor", Type: 1, Disabled: true, STCP: models.Visitor_STCP{Host: "127.0.0.1", Port: 2222, ServerName: "ssh", SecretKey: "k"}},
 				},
 			},
 			wantContains: []string{
@@ -1684,7 +1696,7 @@ func TestConfigurationBuilder_Build(t *testing.T) {
 			config: models.Config{
 				Common: models.Common{ServerAddress: "frp.example.com", ServerPort: 7000, AdminAddress: "0.0.0.0", AdminPort: 7400, AdminUsername: "admin", AdminPassword: "secret"},
 				Upstreams: models.Upstreams{
-					{Name: "web", Type: 5, Enabled: true, HTTP: models.Upstream_HTTP{
+					{Name: "web", Type: 5, HTTP: models.Upstream_HTTP{
 						Host: "web.default.svc", Port: 80, Subdomain: "web",
 						LoadBalancer: &models.LoadBalancerConfig{Group: "web-group", GroupKey: "group-secret"},
 					}},
@@ -1701,7 +1713,7 @@ func TestConfigurationBuilder_Build(t *testing.T) {
 			config: models.Config{
 				Common: models.Common{ServerAddress: "frp.example.com", ServerPort: 7000, AdminAddress: "0.0.0.0", AdminPort: 7400, AdminUsername: "admin", AdminPassword: "secret"},
 				Upstreams: models.Upstreams{
-					{Name: "secure", Type: 6, Enabled: true, HTTPS: models.Upstream_HTTPS{
+					{Name: "secure", Type: 6, HTTPS: models.Upstream_HTTPS{
 						Host: "web.default.svc", Port: 443, CustomDomains: []string{"secure.example.com"},
 						LoadBalancer: &models.LoadBalancerConfig{Group: "secure-group"},
 					}},
