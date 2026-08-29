@@ -1591,6 +1591,23 @@ func TestConfigurationBuilder_Build(t *testing.T) {
 			},
 		},
 		{
+			name: "clientID omitted when empty",
+			config: models.Config{
+				Common: models.Common{
+					ServerAddress: "frp.example.com",
+					ServerPort:    7000,
+					ClientID:      "",
+					AdminAddress:  "0.0.0.0",
+					AdminPort:     7400,
+					AdminUsername: "admin",
+					AdminPassword: "secret",
+				},
+			},
+			wantNotContain: []string{
+				`clientID`,
+			},
+		},
+		{
 			name: "transport wireProtocol rendered when set",
 			config: models.Config{
 				Common: models.Common{

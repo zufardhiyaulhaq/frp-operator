@@ -4,6 +4,7 @@ metadata:
   name: client-01
   namespace: default
 spec:
+  # clientID: ""   # set to "" to disable; default is "<namespace>/<name>" (frps allows one online client per clientID)
   server:
     host: 178.128.100.87
     port: 7000
@@ -12,5 +13,5 @@ spec:
         secret:
           name: client-01-secret
           key: token
-  # transport:
-  #   wireProtocol: v2   # AEAD-encrypted control channel; requires frps >= v0.69.0
+    # transport:
+    #   wireProtocol: v2   # AEAD-encrypted control channel; requires frps >= v0.69.0

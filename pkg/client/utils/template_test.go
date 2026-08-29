@@ -347,8 +347,9 @@ func TestTemplateTCPUpstreamBasic(t *testing.T) {
 		},
 		Upstreams: []testUpstream{
 			{
-				Name: "tcp-service",
-				Type: 1,
+				Name:    "tcp-service",
+				Enabled: true,
+				Type:    1,
 				TCP: testUpstreamTCP{
 					Host:       "localhost",
 					Port:       8080,
@@ -381,8 +382,9 @@ func TestTemplateTCPUpstreamWithProxyProtocol(t *testing.T) {
 		},
 		Upstreams: []testUpstream{
 			{
-				Name: "tcp-service",
-				Type: 1,
+				Name:    "tcp-service",
+				Enabled: true,
+				Type:    1,
 				TCP: testUpstreamTCP{
 					Host:          "localhost",
 					Port:          8080,
@@ -410,8 +412,9 @@ func TestTemplateTCPUpstreamWithHealthCheck(t *testing.T) {
 		},
 		Upstreams: []testUpstream{
 			{
-				Name: "tcp-service",
-				Type: 1,
+				Name:    "tcp-service",
+				Enabled: true,
+				Type:    1,
 				TCP: testUpstreamTCP{
 					Host:       "localhost",
 					Port:       8080,
@@ -447,8 +450,9 @@ func TestTemplateTCPUpstreamWithTransport(t *testing.T) {
 		},
 		Upstreams: []testUpstream{
 			{
-				Name: "tcp-service",
-				Type: 1,
+				Name:    "tcp-service",
+				Enabled: true,
+				Type:    1,
 				TCP: testUpstreamTCP{
 					Host:       "localhost",
 					Port:       8080,
@@ -489,8 +493,9 @@ func TestTemplateUDPUpstream(t *testing.T) {
 		},
 		Upstreams: []testUpstream{
 			{
-				Name: "udp-service",
-				Type: 2,
+				Name:    "udp-service",
+				Enabled: true,
+				Type:    2,
 				UDP: testUpstreamUDP{
 					Host:       "localhost",
 					Port:       53,
@@ -523,8 +528,9 @@ func TestTemplateUDPUpstreamWithProxyProtocol(t *testing.T) {
 		},
 		Upstreams: []testUpstream{
 			{
-				Name: "udp-service",
-				Type: 2,
+				Name:    "udp-service",
+				Enabled: true,
+				Type:    2,
 				UDP: testUpstreamUDP{
 					Host:          "localhost",
 					Port:          53,
@@ -552,8 +558,9 @@ func TestTemplateUDPUpstreamWithTransport(t *testing.T) {
 		},
 		Upstreams: []testUpstream{
 			{
-				Name: "udp-service",
-				Type: 2,
+				Name:    "udp-service",
+				Enabled: true,
+				Type:    2,
 				UDP: testUpstreamUDP{
 					Host:       "localhost",
 					Port:       53,
@@ -592,8 +599,9 @@ func TestTemplateSTCPUpstream(t *testing.T) {
 		},
 		Upstreams: []testUpstream{
 			{
-				Name: "stcp-service",
-				Type: 3,
+				Name:    "stcp-service",
+				Enabled: true,
+				Type:    3,
 				STCP: testUpstreamSTCP{
 					Host:      "localhost",
 					Port:      22,
@@ -627,8 +635,9 @@ func TestTemplateSTCPUpstreamWithAllOptions(t *testing.T) {
 		},
 		Upstreams: []testUpstream{
 			{
-				Name: "stcp-service",
-				Type: 3,
+				Name:    "stcp-service",
+				Enabled: true,
+				Type:    3,
 				STCP: testUpstreamSTCP{
 					Host:          "localhost",
 					Port:          22,
@@ -679,8 +688,9 @@ func TestTemplateXTCPUpstream(t *testing.T) {
 		},
 		Upstreams: []testUpstream{
 			{
-				Name: "xtcp-service",
-				Type: 4,
+				Name:    "xtcp-service",
+				Enabled: true,
+				Type:    4,
 				XTCP: testUpstreamSTCP{
 					Host:      "localhost",
 					Port:      3389,
@@ -712,8 +722,9 @@ func TestTemplateHTTPUpstreamBasic(t *testing.T) {
 		},
 		Upstreams: []testUpstream{
 			{
-				Name: "http-service",
-				Type: 5,
+				Name:    "http-service",
+				Enabled: true,
+				Type:    5,
 				HTTP: testUpstreamHTTP{
 					Host: "localhost",
 					Port: 80,
@@ -743,8 +754,9 @@ func TestTemplateHTTPUpstreamWithSubdomain(t *testing.T) {
 		},
 		Upstreams: []testUpstream{
 			{
-				Name: "http-service",
-				Type: 5,
+				Name:    "http-service",
+				Enabled: true,
+				Type:    5,
 				HTTP: testUpstreamHTTP{
 					Host:      "localhost",
 					Port:      80,
@@ -771,8 +783,9 @@ func TestTemplateHTTPUpstreamWithCustomDomains(t *testing.T) {
 		},
 		Upstreams: []testUpstream{
 			{
-				Name: "http-service",
-				Type: 5,
+				Name:    "http-service",
+				Enabled: true,
+				Type:    5,
 				HTTP: testUpstreamHTTP{
 					Host:          "localhost",
 					Port:          80,
@@ -799,8 +812,9 @@ func TestTemplateHTTPUpstreamWithLocations(t *testing.T) {
 		},
 		Upstreams: []testUpstream{
 			{
-				Name: "http-service",
-				Type: 5,
+				Name:    "http-service",
+				Enabled: true,
+				Type:    5,
 				HTTP: testUpstreamHTTP{
 					Host:      "localhost",
 					Port:      80,
@@ -827,8 +841,9 @@ func TestTemplateHTTPUpstreamWithHostHeaderRewrite(t *testing.T) {
 		},
 		Upstreams: []testUpstream{
 			{
-				Name: "http-service",
-				Type: 5,
+				Name:    "http-service",
+				Enabled: true,
+				Type:    5,
 				HTTP: testUpstreamHTTP{
 					Host:              "localhost",
 					Port:              80,
@@ -855,8 +870,9 @@ func TestTemplateHTTPUpstreamWithRequestHeaders(t *testing.T) {
 		},
 		Upstreams: []testUpstream{
 			{
-				Name: "http-service",
-				Type: 5,
+				Name:    "http-service",
+				Enabled: true,
+				Type:    5,
 				HTTP: testUpstreamHTTP{
 					Host: "localhost",
 					Port: 80,
@@ -885,8 +901,9 @@ func TestTemplateHTTPUpstreamWithResponseHeaders(t *testing.T) {
 		},
 		Upstreams: []testUpstream{
 			{
-				Name: "http-service",
-				Type: 5,
+				Name:    "http-service",
+				Enabled: true,
+				Type:    5,
 				HTTP: testUpstreamHTTP{
 					Host: "localhost",
 					Port: 80,
@@ -915,8 +932,9 @@ func TestTemplateHTTPUpstreamWithAuth(t *testing.T) {
 		},
 		Upstreams: []testUpstream{
 			{
-				Name: "http-service",
-				Type: 5,
+				Name:    "http-service",
+				Enabled: true,
+				Type:    5,
 				HTTP: testUpstreamHTTP{
 					Host:         "localhost",
 					Port:         80,
@@ -945,8 +963,9 @@ func TestTemplateHTTPUpstreamWithHealthCheck(t *testing.T) {
 		},
 		Upstreams: []testUpstream{
 			{
-				Name: "http-service",
-				Type: 5,
+				Name:    "http-service",
+				Enabled: true,
+				Type:    5,
 				HTTP: testUpstreamHTTP{
 					Host: "localhost",
 					Port: 80,
@@ -983,8 +1002,9 @@ func TestTemplateHTTPUpstreamWithTransport(t *testing.T) {
 		},
 		Upstreams: []testUpstream{
 			{
-				Name: "http-service",
-				Type: 5,
+				Name:    "http-service",
+				Enabled: true,
+				Type:    5,
 				HTTP: testUpstreamHTTP{
 					Host: "localhost",
 					Port: 80,
@@ -1015,8 +1035,9 @@ func TestTemplateHTTPSUpstreamBasic(t *testing.T) {
 		},
 		Upstreams: []testUpstream{
 			{
-				Name: "https-service",
-				Type: 6,
+				Name:    "https-service",
+				Enabled: true,
+				Type:    6,
 				HTTPS: testUpstreamHTTPS{
 					Host:          "localhost",
 					Port:          443,
@@ -1049,8 +1070,9 @@ func TestTemplateHTTPSUpstreamWithProxyProtocol(t *testing.T) {
 		},
 		Upstreams: []testUpstream{
 			{
-				Name: "https-service",
-				Type: 6,
+				Name:    "https-service",
+				Enabled: true,
+				Type:    6,
 				HTTPS: testUpstreamHTTPS{
 					Host:          "localhost",
 					Port:          443,
@@ -1078,8 +1100,9 @@ func TestTemplateHTTPSUpstreamWithTransport(t *testing.T) {
 		},
 		Upstreams: []testUpstream{
 			{
-				Name: "https-service",
-				Type: 6,
+				Name:    "https-service",
+				Enabled: true,
+				Type:    6,
 				HTTPS: testUpstreamHTTPS{
 					Host:          "localhost",
 					Port:          443,
@@ -1118,8 +1141,9 @@ func TestTemplateHTTPSUpstreamWithProxyURL(t *testing.T) {
 		},
 		Upstreams: []testUpstream{
 			{
-				Name: "https-service",
-				Type: 6,
+				Name:    "https-service",
+				Enabled: true,
+				Type:    6,
 				HTTPS: testUpstreamHTTPS{
 					Host:          "localhost",
 					Port:          443,
@@ -1151,8 +1175,9 @@ func TestTemplateSTCPVisitor(t *testing.T) {
 		},
 		Visitors: []testVisitor{
 			{
-				Name: "stcp-visitor",
-				Type: 1,
+				Name:    "stcp-visitor",
+				Enabled: true,
+				Type:    1,
 				STCP: testVisitorSTCP{
 					Host:       "127.0.0.1",
 					Port:       6000,
@@ -1186,8 +1211,9 @@ func TestTemplateXTCPVisitor(t *testing.T) {
 		},
 		Visitors: []testVisitor{
 			{
-				Name: "xtcp-visitor",
-				Type: 2,
+				Name:    "xtcp-visitor",
+				Enabled: true,
+				Type:    2,
 				XTCP: testVisitorXTCP{
 					Host:                 "127.0.0.1",
 					Port:                 7000,
@@ -1225,8 +1251,9 @@ func TestTemplateXTCPVisitorWithAssistedAddrs(t *testing.T) {
 		},
 		Visitors: []testVisitor{
 			{
-				Name: "xtcp-visitor",
-				Type: 2,
+				Name:    "xtcp-visitor",
+				Enabled: true,
+				Type:    2,
 				XTCP: testVisitorXTCP{
 					Host:                 "127.0.0.1",
 					Port:                 7000,
@@ -1257,8 +1284,9 @@ func TestTemplateXTCPVisitorWithFallback(t *testing.T) {
 		},
 		Visitors: []testVisitor{
 			{
-				Name: "xtcp-visitor",
-				Type: 2,
+				Name:    "xtcp-visitor",
+				Enabled: true,
+				Type:    2,
 				XTCP: testVisitorXTCP{
 					Host:                 "127.0.0.1",
 					Port:                 7000,
@@ -1296,8 +1324,9 @@ func TestTemplateMultipleUpstreams(t *testing.T) {
 		},
 		Upstreams: []testUpstream{
 			{
-				Name: "tcp-service",
-				Type: 1,
+				Name:    "tcp-service",
+				Enabled: true,
+				Type:    1,
 				TCP: testUpstreamTCP{
 					Host:       "localhost",
 					Port:       8080,
@@ -1305,8 +1334,9 @@ func TestTemplateMultipleUpstreams(t *testing.T) {
 				},
 			},
 			{
-				Name: "http-service",
-				Type: 5,
+				Name:    "http-service",
+				Enabled: true,
+				Type:    5,
 				HTTP: testUpstreamHTTP{
 					Host:      "localhost",
 					Port:      80,
@@ -1340,8 +1370,9 @@ func TestTemplateMultipleVisitors(t *testing.T) {
 		},
 		Visitors: []testVisitor{
 			{
-				Name: "stcp-visitor",
-				Type: 1,
+				Name:    "stcp-visitor",
+				Enabled: true,
+				Type:    1,
 				STCP: testVisitorSTCP{
 					Host:       "127.0.0.1",
 					Port:       6000,
@@ -1350,8 +1381,9 @@ func TestTemplateMultipleVisitors(t *testing.T) {
 				},
 			},
 			{
-				Name: "xtcp-visitor",
-				Type: 2,
+				Name:    "xtcp-visitor",
+				Enabled: true,
+				Type:    2,
 				XTCP: testVisitorXTCP{
 					Host:                 "127.0.0.1",
 					Port:                 7000,
@@ -1411,8 +1443,9 @@ func TestTemplateHTTPUpstreamFull(t *testing.T) {
 		},
 		Upstreams: []testUpstream{
 			{
-				Name: "full-http",
-				Type: 5,
+				Name:    "full-http",
+				Enabled: true,
+				Type:    5,
 				HTTP: testUpstreamHTTP{
 					Host:              "backend.local",
 					Port:              8080,
@@ -1483,8 +1516,9 @@ func TestTemplateBandwidthLimitDisabled(t *testing.T) {
 		},
 		Upstreams: []testUpstream{
 			{
-				Name: "tcp-service",
-				Type: 1,
+				Name:    "tcp-service",
+				Enabled: true,
+				Type:    1,
 				TCP: testUpstreamTCP{
 					Host:       "localhost",
 					Port:       8080,
@@ -1568,8 +1602,9 @@ func TestTemplateSTCPUpstreamWithAllowUsers(t *testing.T) {
 		},
 		Upstreams: []testUpstream{
 			{
-				Name: "stcp-service",
-				Type: 3,
+				Name:    "stcp-service",
+				Enabled: true,
+				Type:    3,
 				STCP: testUpstreamSTCP{
 					Host:       "localhost",
 					Port:       22,
@@ -1598,8 +1633,9 @@ func TestTemplateSTCPUpstreamWithAllowUsersWildcard(t *testing.T) {
 		},
 		Upstreams: []testUpstream{
 			{
-				Name: "stcp-service",
-				Type: 3,
+				Name:    "stcp-service",
+				Enabled: true,
+				Type:    3,
 				STCP: testUpstreamSTCP{
 					Host:       "localhost",
 					Port:       22,
@@ -1627,8 +1663,9 @@ func TestTemplateXTCPUpstreamWithAllowUsers(t *testing.T) {
 		},
 		Upstreams: []testUpstream{
 			{
-				Name: "xtcp-service",
-				Type: 4,
+				Name:    "xtcp-service",
+				Enabled: true,
+				Type:    4,
 				XTCP: testUpstreamSTCP{
 					Host:       "localhost",
 					Port:       3389,
@@ -1657,8 +1694,9 @@ func TestTemplateSTCPUpstreamWithoutAllowUsers(t *testing.T) {
 		},
 		Upstreams: []testUpstream{
 			{
-				Name: "stcp-service",
-				Type: 3,
+				Name:    "stcp-service",
+				Enabled: true,
+				Type:    3,
 				STCP: testUpstreamSTCP{
 					Host:      "localhost",
 					Port:      22,

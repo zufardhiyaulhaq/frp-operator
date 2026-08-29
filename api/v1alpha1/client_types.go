@@ -25,6 +25,12 @@ import (
 type ClientSpec struct {
 	Server ClientSpec_Server `json:"server"`
 	// +optional
+	// ClientID identifies this frpc instance to the FRP server (shown in the frps dashboard).
+	// Unset: defaults to "<namespace>/<name>". Set to "" to omit the key entirely — frps enforces
+	// that only one client per clientID may be online at a time, so omit it if you run the same
+	// manifests against one frps from multiple clusters.
+	ClientID *string `json:"clientID,omitempty"`
+	// +optional
 	// PodTemplate allows customization of the FRP client pod
 	PodTemplate *ClientSpec_PodTemplate `json:"podTemplate,omitempty"`
 }

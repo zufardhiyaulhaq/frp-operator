@@ -1740,14 +1740,42 @@ func TestNewConfig_DuplicateVisitorPorts(t *testing.T) {
 
 func TestNewConfig_ClientID(t *testing.T) {
 	fakeClient := createFakeClient(createDefaultTokenSecret("prod")).Build()
-	clientObj := createBasicClient("prod", "edge-01", "frp.example.com", 7000)
 
-	config, err := NewConfig(fakeClient, clientObj, []frpv1alpha1.Upstream{}, []frpv1alpha1.Visitor{})
-	if err != nil {
-		t.Fatalf("NewConfig() unexpected error = %v", err)
+	tests := []struct {
+		name     string
+		clientID *string
+		want     string
+	}{
+		{
+			name:     "nil defaults to namespace/name",
+			clientID: nil,
+			want:     "prod/edge-01",
+		},
+		{
+			name:     "explicit empty string omits clientID",
+			clientID: stringPtr(""),
+			want:     "",
+		},
+		{
+			name:     "custom value is used verbatim",
+			clientID: stringPtr("custom-id"),
+			want:     "custom-id",
+		},
 	}
-	if config.Common.ClientID != "prod/edge-01" {
-		t.Errorf("NewConfig() ClientID = %q, want %q", config.Common.ClientID, "prod/edge-01")
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			clientObj := createBasicClient("prod", "edge-01", "frp.example.com", 7000)
+			clientObj.Spec.ClientID = tt.clientID
+
+			config, err := NewConfig(fakeClient, clientObj, []frpv1alpha1.Upstream{}, []frpv1alpha1.Visitor{})
+			if err != nil {
+				t.Fatalf("NewConfig() unexpected error = %v", err)
+			}
+			if config.Common.ClientID != tt.want {
+				t.Errorf("NewConfig() ClientID = %q, want %q", config.Common.ClientID, tt.want)
+			}
+		})
 	}
 }
 

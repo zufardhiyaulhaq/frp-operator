@@ -442,6 +442,10 @@ func NewConfig(k8sclient client.Client,
 		},
 	}
 
+	if clientObject.Spec.ClientID != nil {
+		config.Common.ClientID = *clientObject.Spec.ClientID
+	}
+
 	if clientObject.Spec.Server.Protocol != nil {
 		config.Common.ServerProtocol = *clientObject.Spec.Server.Protocol
 	}

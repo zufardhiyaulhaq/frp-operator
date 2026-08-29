@@ -4,7 +4,9 @@ const CLIENT_TEMPLATE = `
 # frpc.toml
 serverAddr = "{{ .Common.ServerAddress }}"
 serverPort = {{ .Common.ServerPort }}
+{{ if .Common.ClientID }}
 clientID = "{{ .Common.ClientID }}"
+{{ end }}
 
 {{ if eq .Common.ServerAuthentication.Type 1 }}
 auth.method = "token"

@@ -89,6 +89,11 @@ func (in *ClientList) DeepCopyObject() runtime.Object {
 func (in *ClientSpec) DeepCopyInto(out *ClientSpec) {
 	*out = *in
 	in.Server.DeepCopyInto(&out.Server)
+	if in.ClientID != nil {
+		in, out := &in.ClientID, &out.ClientID
+		*out = new(string)
+		**out = **in
+	}
 	if in.PodTemplate != nil {
 		in, out := &in.PodTemplate, &out.PodTemplate
 		*out = new(ClientSpec_PodTemplate)
