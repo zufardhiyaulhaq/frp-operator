@@ -5,6 +5,7 @@ metadata:
   namespace: default
 spec:
   client: client-01
+  # enabled: false   # pause this upstream without deleting it; its server port is released
   tcp:
     host: nginx-service.default.svc.cluster.local
     port: 80

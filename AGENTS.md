@@ -68,7 +68,7 @@ Reconciliation flow:
 
 ### Key Constants
 
-- FRP image: `fatedier/frpc:v0.65.0`
+- FRP image: `fatedier/frpc:v0.71.0`
 - Admin port: 7400
 - Default credentials: frpc-user / frpc-password (configurable via Secrets)
 

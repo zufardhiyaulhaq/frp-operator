@@ -24,6 +24,11 @@ import (
 type VisitorSpec struct {
 	Client string `json:"client"`
 	// +optional
+	// +kubebuilder:default=true
+	// Enabled controls whether this visitor is active in frpc. Set to false to pause it
+	// without deleting the resource. A disabled visitor does not reserve its port.
+	Enabled *bool `json:"enabled,omitempty"`
+	// +optional
 	STCP *VisitorSpec_STCP `json:"stcp"`
 	// +optional
 	XTCP *VisitorSpec_XTCP `json:"xtcp"`

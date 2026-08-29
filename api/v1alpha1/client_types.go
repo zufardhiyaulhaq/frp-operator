@@ -64,6 +64,11 @@ type ClientSpec_Server_Transport struct {
 	// +optional
 	// ConnectServerLocalIP binds the outbound connection to a specific local IP
 	ConnectServerLocalIP string `json:"connectServerLocalIP,omitempty"`
+	// +kubebuilder:validation:Enum=v1;v2
+	// +optional
+	// WireProtocol selects the frpc/frps wire protocol. "v2" adds AEAD encryption to the
+	// control channel and requires frps >= v0.69.0. Defaults to frpc's default ("v1").
+	WireProtocol string `json:"wireProtocol,omitempty"`
 }
 
 type ClientSpec_Server_TLS struct {

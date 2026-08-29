@@ -38,12 +38,14 @@ type TransportConfig struct {
 	DialServerTimeout    string
 	DialServerKeepalive  string
 	ConnectServerLocalIP string
+	WireProtocol         string
 }
 
 type Common struct {
 	ServerAddress        string
 	ServerPort           int
 	ServerProtocol       string
+	ClientID             string
 	ServerAuthentication ServerAuthentication
 	AdminAddress         string
 	AdminPort            int
@@ -80,10 +82,11 @@ const (
 )
 
 type Visitor struct {
-	Name string
-	Type VisitorType
-	STCP Visitor_STCP
-	XTCP Visitor_XTCP
+	Name    string
+	Enabled bool
+	Type    VisitorType
+	STCP    Visitor_STCP
+	XTCP    Visitor_XTCP
 }
 
 type Visitors []Visitor
@@ -141,15 +144,16 @@ type Upstream_TCPMUX struct {
 }
 
 type Upstream struct {
-	Name   string
-	Type   UpstreamType
-	TCP    Upstream_TCP
-	UDP    Upstream_UDP
-	STCP   Upstream_STCP
-	XTCP   Upstream_STCP
-	HTTP   Upstream_HTTP
-	HTTPS  Upstream_HTTPS
-	TCPMUX Upstream_TCPMUX
+	Name    string
+	Enabled bool
+	Type    UpstreamType
+	TCP     Upstream_TCP
+	UDP     Upstream_UDP
+	STCP    Upstream_STCP
+	XTCP    Upstream_STCP
+	HTTP    Upstream_HTTP
+	HTTPS   Upstream_HTTPS
+	TCPMUX  Upstream_TCPMUX
 }
 
 type Upstreams []Upstream
@@ -187,6 +191,28 @@ type Upstream_XTCP struct {
 type LoadBalancerConfig struct {
 	Group    string
 	GroupKey string
+}
+
+// resolveLoadBalancer converts a CRD LoadBalancer into the model, reading groupKey from its
+// Secret when set. A missing Secret or key leaves GroupKey empty (matches prior TCP behavior).
+func resolveLoadBalancer(k8sclient client.Client, namespace string, lb *frpv1alpha1.LoadBalancer) *LoadBalancerConfig {
+	if lb == nil {
+		return nil
+	}
+	result := &LoadBalancerConfig{Group: lb.Group}
+	if lb.GroupKey != nil {
+		secret := &corev1.Secret{}
+		err := k8sclient.Get(context.TODO(), types.NamespacedName{
+			Name:      lb.GroupKey.Secret.Name,
+			Namespace: namespace,
+		}, secret)
+		if err == nil {
+			if val, ok := secret.Data[lb.GroupKey.Secret.Key]; ok {
+				result.GroupKey = string(val)
+			}
+		}
+	}
+	return result
 }
 
 type PluginConfig struct {
@@ -264,6 +290,7 @@ type Upstream_HTTP struct {
 	HTTPPassword      string
 	HealthCheck       *Upstream_HTTP_HealthCheck
 	Transport         *Upstream_TCP_Transport
+	LoadBalancer      *LoadBalancerConfig
 }
 
 type Upstream_HTTP_HealthCheck struct {
@@ -280,6 +307,12 @@ type Upstream_HTTPS struct {
 	CustomDomains []string
 	ProxyProtocol *string
 	Transport     *Upstream_TCP_Transport
+	LoadBalancer  *LoadBalancerConfig
+}
+
+// isEnabled interprets the optional CRD enabled flag: nil or true means enabled.
+func isEnabled(enabled *bool) bool {
+	return enabled == nil || *enabled
 }
 
 // validateUpstreamServerPorts checks that no two TCP/UDP upstreams use the same server port
@@ -293,6 +326,10 @@ func validateUpstreamServerPorts(upstreamObjects []frpv1alpha1.Upstream) error {
 	serverPorts := make(map[int]portInfo) // port -> first upstream info
 
 	for _, upstream := range upstreamObjects {
+		if !isEnabled(upstream.Spec.Enabled) {
+			continue // disabled upstreams do not reserve their port
+		}
+
 		var port int
 		var protocol string
 		var lbGroup string
@@ -330,6 +367,10 @@ func validateVisitorPorts(visitorObjects []frpv1alpha1.Visitor) error {
 	visitorPorts := make(map[int]string) // port -> visitor name
 
 	for _, visitor := range visitorObjects {
+		if !isEnabled(visitor.Spec.Enabled) {
+			continue // disabled visitors do not reserve their port
+		}
+
 		var port int
 		var protocol string
 
@@ -354,6 +395,24 @@ func validateVisitorPorts(visitorObjects []frpv1alpha1.Visitor) error {
 	return nil
 }
 
+// VisitorServicePorts returns the bind ports of enabled STCP/XTCP visitors, in input order.
+// Disabled visitors are excluded so they do not occupy a port on the client Service.
+func VisitorServicePorts(visitorObjects []frpv1alpha1.Visitor) []int {
+	ports := []int{}
+	for _, visitor := range visitorObjects {
+		if !isEnabled(visitor.Spec.Enabled) {
+			continue
+		}
+		if visitor.Spec.STCP != nil {
+			ports = append(ports, visitor.Spec.STCP.Port)
+		}
+		if visitor.Spec.XTCP != nil {
+			ports = append(ports, visitor.Spec.XTCP.Port)
+		}
+	}
+	return ports
+}
+
 func NewConfig(k8sclient client.Client,
 	clientObject *frpv1alpha1.Client,
 	upstreamObjects []frpv1alpha1.Upstream,
@@ -374,6 +433,7 @@ func NewConfig(k8sclient client.Client,
 			ServerAddress:  clientObject.Spec.Server.Host,
 			ServerPort:     clientObject.Spec.Server.Port,
 			ServerProtocol: "TCP",
+			ClientID:       clientObject.Namespace + "/" + clientObject.Name,
 			AdminAddress:   DEFAULT_ADMIN_ADDRESS,
 			AdminPort:      DEFAULT_ADMIN_PORT,
 			AdminUsername:  DEFAULT_ADMIN_USERNAME,
@@ -515,6 +575,7 @@ func NewConfig(k8sclient client.Client,
 			DialServerTimeout:    clientObject.Spec.Server.Transport.DialServerTimeout,
 			DialServerKeepalive:  clientObject.Spec.Server.Transport.DialServerKeepalive,
 			ConnectServerLocalIP: clientObject.Spec.Server.Transport.ConnectServerLocalIP,
+			WireProtocol:         clientObject.Spec.Server.Transport.WireProtocol,
 		}
 
 		if clientObject.Spec.Server.Transport.TCPMux != nil {
@@ -527,7 +588,8 @@ func NewConfig(k8sclient client.Client,
 	upstreams := []Upstream{}
 	for _, upstreamObject := range upstreamObjects {
 		upstream := Upstream{
-			Name: upstreamObject.Name,
+			Name:    upstreamObject.Name,
+			Enabled: isEnabled(upstreamObject.Spec.Enabled),
 		}
 
 		if upstreamObject.Spec.TCP == nil && upstreamObject.Spec.UDP == nil && upstreamObject.Spec.STCP == nil && upstreamObject.Spec.XTCP == nil && upstreamObject.Spec.HTTP == nil && upstreamObject.Spec.HTTPS == nil && upstreamObject.Spec.TCPMUX == nil {
@@ -598,24 +660,7 @@ func NewConfig(k8sclient client.Client,
 			}
 
 			// Handle LoadBalancer
-			if upstreamObject.Spec.TCP.LoadBalancer != nil {
-				upstream.TCP.LoadBalancer = &LoadBalancerConfig{
-					Group: upstreamObject.Spec.TCP.LoadBalancer.Group,
-				}
-
-				if upstreamObject.Spec.TCP.LoadBalancer.GroupKey != nil {
-					secret := &corev1.Secret{}
-					err := k8sclient.Get(context.TODO(), types.NamespacedName{
-						Name:      upstreamObject.Spec.TCP.LoadBalancer.GroupKey.Secret.Name,
-						Namespace: clientObject.Namespace,
-					}, secret)
-					if err == nil {
-						if val, ok := secret.Data[upstreamObject.Spec.TCP.LoadBalancer.GroupKey.Secret.Key]; ok {
-							upstream.TCP.LoadBalancer.GroupKey = string(val)
-						}
-					}
-				}
-			}
+			upstream.TCP.LoadBalancer = resolveLoadBalancer(k8sclient, clientObject.Namespace, upstreamObject.Spec.TCP.LoadBalancer)
 
 			// Handle Plugin
 			if upstreamObject.Spec.TCP.Plugin != nil {
@@ -916,6 +961,8 @@ func NewConfig(k8sclient client.Client,
 					}
 				}
 			}
+
+			upstream.HTTP.LoadBalancer = resolveLoadBalancer(k8sclient, clientObject.Namespace, upstreamObject.Spec.HTTP.LoadBalancer)
 		}
 
 		if upstreamObject.Spec.HTTPS != nil {
@@ -942,6 +989,8 @@ func NewConfig(k8sclient client.Client,
 					}
 				}
 			}
+
+			upstream.HTTPS.LoadBalancer = resolveLoadBalancer(k8sclient, clientObject.Namespace, upstreamObject.Spec.HTTPS.LoadBalancer)
 		}
 
 		if upstreamObject.Spec.TCPMUX != nil {
@@ -965,7 +1014,8 @@ func NewConfig(k8sclient client.Client,
 	visitors := []Visitor{}
 	for _, visitorObject := range visitorObjects {
 		visitor := Visitor{
-			Name: visitorObject.Name,
+			Name:    visitorObject.Name,
+			Enabled: isEnabled(visitorObject.Spec.Enabled),
 		}
 
 		if visitorObject.Spec.STCP == nil && visitorObject.Spec.XTCP == nil {

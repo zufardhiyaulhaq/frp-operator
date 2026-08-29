@@ -1737,3 +1737,249 @@ func TestNewConfig_DuplicateVisitorPorts(t *testing.T) {
 		t.Errorf("NewConfig() error = %v, want error containing 'duplicate visitor port'", err)
 	}
 }
+
+func TestNewConfig_ClientID(t *testing.T) {
+	fakeClient := createFakeClient(createDefaultTokenSecret("prod")).Build()
+	clientObj := createBasicClient("prod", "edge-01", "frp.example.com", 7000)
+
+	config, err := NewConfig(fakeClient, clientObj, []frpv1alpha1.Upstream{}, []frpv1alpha1.Visitor{})
+	if err != nil {
+		t.Fatalf("NewConfig() unexpected error = %v", err)
+	}
+	if config.Common.ClientID != "prod/edge-01" {
+		t.Errorf("NewConfig() ClientID = %q, want %q", config.Common.ClientID, "prod/edge-01")
+	}
+}
+
+func TestNewConfig_WireProtocol(t *testing.T) {
+	fakeClient := createFakeClient(createDefaultTokenSecret("default")).Build()
+
+	t.Run("set", func(t *testing.T) {
+		clientObj := createBasicClient("default", "test-client", "frp.example.com", 7000)
+		clientObj.Spec.Server.Transport = &frpv1alpha1.ClientSpec_Server_Transport{WireProtocol: "v2"}
+
+		config, err := NewConfig(fakeClient, clientObj, []frpv1alpha1.Upstream{}, []frpv1alpha1.Visitor{})
+		if err != nil {
+			t.Fatalf("NewConfig() unexpected error = %v", err)
+		}
+		if config.Common.Transport == nil || config.Common.Transport.WireProtocol != "v2" {
+			t.Errorf("NewConfig() Transport.WireProtocol = %+v, want v2", config.Common.Transport)
+		}
+	})
+
+	t.Run("unset", func(t *testing.T) {
+		clientObj := createBasicClient("default", "test-client", "frp.example.com", 7000)
+		clientObj.Spec.Server.Transport = &frpv1alpha1.ClientSpec_Server_Transport{PoolCount: 5}
+
+		config, err := NewConfig(fakeClient, clientObj, []frpv1alpha1.Upstream{}, []frpv1alpha1.Visitor{})
+		if err != nil {
+			t.Fatalf("NewConfig() unexpected error = %v", err)
+		}
+		if config.Common.Transport.WireProtocol != "" {
+			t.Errorf("NewConfig() Transport.WireProtocol = %q, want empty", config.Common.Transport.WireProtocol)
+		}
+	})
+}
+
+func boolPtr(b bool) *bool {
+	return &b
+}
+
+func TestNewConfig_UpstreamEnabled(t *testing.T) {
+	fakeClient := createFakeClient(createDefaultTokenSecret("default")).Build()
+	clientObj := createBasicClient("default", "test-client", "frp.example.com", 7000)
+
+	mk := func(name string, enabled *bool, port int) frpv1alpha1.Upstream {
+		return frpv1alpha1.Upstream{
+			ObjectMeta: metav1.ObjectMeta{Name: name},
+			Spec: frpv1alpha1.UpstreamSpec{
+				Client:  "test-client",
+				Enabled: enabled,
+				TCP: &frpv1alpha1.UpstreamSpec_TCP{
+					Host:   "localhost",
+					Port:   80,
+					Server: frpv1alpha1.UpstreamSpec_TCP_Server{Port: port},
+				},
+			},
+		}
+	}
+
+	config, err := NewConfig(fakeClient, clientObj, []frpv1alpha1.Upstream{
+		mk("a-nil", nil, 8001),
+		mk("b-true", boolPtr(true), 8002),
+		mk("c-false", boolPtr(false), 8003),
+	}, []frpv1alpha1.Visitor{})
+	if err != nil {
+		t.Fatalf("NewConfig() unexpected error = %v", err)
+	}
+	if len(config.Upstreams) != 3 {
+		t.Fatalf("NewConfig() Upstreams length = %d, want 3", len(config.Upstreams))
+	}
+	want := map[string]bool{"a-nil": true, "b-true": true, "c-false": false}
+	for _, u := range config.Upstreams {
+		if u.Enabled != want[u.Name] {
+			t.Errorf("upstream %q Enabled = %v, want %v", u.Name, u.Enabled, want[u.Name])
+		}
+	}
+}
+
+func TestValidateUpstreamServerPorts_DisabledReleasesPort(t *testing.T) {
+	mk := func(name string, enabled *bool) frpv1alpha1.Upstream {
+		return frpv1alpha1.Upstream{
+			ObjectMeta: metav1.ObjectMeta{Name: name},
+			Spec: frpv1alpha1.UpstreamSpec{
+				Enabled: enabled,
+				TCP: &frpv1alpha1.UpstreamSpec_TCP{
+					Host:   "localhost",
+					Port:   80,
+					Server: frpv1alpha1.UpstreamSpec_TCP_Server{Port: 8080},
+				},
+			},
+		}
+	}
+
+	if err := validateUpstreamServerPorts([]frpv1alpha1.Upstream{mk("old", boolPtr(false)), mk("new", nil)}); err != nil {
+		t.Errorf("disabled upstream should not conflict, got error: %v", err)
+	}
+	if err := validateUpstreamServerPorts([]frpv1alpha1.Upstream{mk("old", boolPtr(true)), mk("new", nil)}); err == nil {
+		t.Errorf("two enabled upstreams on the same port should conflict")
+	}
+}
+
+func TestNewConfig_VisitorEnabled(t *testing.T) {
+	secretKeySecret := createSecret("default", "visitor-secret", map[string][]byte{"key": []byte("k")})
+	fakeClient := createFakeClient(createDefaultTokenSecret("default"), secretKeySecret).Build()
+	clientObj := createBasicClient("default", "test-client", "frp.example.com", 7000)
+
+	mk := func(name string, enabled *bool, port int) frpv1alpha1.Visitor {
+		return frpv1alpha1.Visitor{
+			ObjectMeta: metav1.ObjectMeta{Name: name},
+			Spec: frpv1alpha1.VisitorSpec{
+				Client:  "test-client",
+				Enabled: enabled,
+				STCP: &frpv1alpha1.VisitorSpec_STCP{
+					Host: "127.0.0.1", Port: port, ServerName: "ssh",
+					ServerSecretKey: frpv1alpha1.VisitorSpec_STCP_ServerSecretKey{
+						Secret: frpv1alpha1.Secret{Name: "visitor-secret", Key: "key"},
+					},
+				},
+			},
+		}
+	}
+
+	config, err := NewConfig(fakeClient, clientObj, []frpv1alpha1.Upstream{}, []frpv1alpha1.Visitor{
+		mk("a-nil", nil, 2201), mk("b-true", boolPtr(true), 2202), mk("c-false", boolPtr(false), 2203),
+	})
+	if err != nil {
+		t.Fatalf("NewConfig() unexpected error = %v", err)
+	}
+	want := map[string]bool{"a-nil": true, "b-true": true, "c-false": false}
+	for _, v := range config.Visitors {
+		if v.Enabled != want[v.Name] {
+			t.Errorf("visitor %q Enabled = %v, want %v", v.Name, v.Enabled, want[v.Name])
+		}
+	}
+}
+
+func TestValidateVisitorPorts_DisabledReleasesPort(t *testing.T) {
+	mk := func(name string, enabled *bool) frpv1alpha1.Visitor {
+		return frpv1alpha1.Visitor{
+			ObjectMeta: metav1.ObjectMeta{Name: name},
+			Spec: frpv1alpha1.VisitorSpec{
+				Enabled: enabled,
+				STCP:    &frpv1alpha1.VisitorSpec_STCP{Host: "127.0.0.1", Port: 2222, ServerName: "ssh"},
+			},
+		}
+	}
+	if err := validateVisitorPorts([]frpv1alpha1.Visitor{mk("old", boolPtr(false)), mk("new", nil)}); err != nil {
+		t.Errorf("disabled visitor should not conflict, got error: %v", err)
+	}
+	if err := validateVisitorPorts([]frpv1alpha1.Visitor{mk("old", nil), mk("new", nil)}); err == nil {
+		t.Errorf("two enabled visitors on the same port should conflict")
+	}
+}
+
+func TestVisitorServicePorts(t *testing.T) {
+	visitors := []frpv1alpha1.Visitor{
+		{ObjectMeta: metav1.ObjectMeta{Name: "stcp-on"}, Spec: frpv1alpha1.VisitorSpec{
+			STCP: &frpv1alpha1.VisitorSpec_STCP{Port: 2201}}},
+		{ObjectMeta: metav1.ObjectMeta{Name: "xtcp-off"}, Spec: frpv1alpha1.VisitorSpec{
+			Enabled: boolPtr(false), XTCP: &frpv1alpha1.VisitorSpec_XTCP{Port: 2202}}},
+		{ObjectMeta: metav1.ObjectMeta{Name: "xtcp-on"}, Spec: frpv1alpha1.VisitorSpec{
+			Enabled: boolPtr(true), XTCP: &frpv1alpha1.VisitorSpec_XTCP{Port: 2203}}},
+	}
+	got := VisitorServicePorts(visitors)
+	want := []int{2201, 2203}
+	if len(got) != len(want) {
+		t.Fatalf("VisitorServicePorts() = %v, want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("VisitorServicePorts()[%d] = %d, want %d", i, got[i], want[i])
+		}
+	}
+}
+
+func TestNewConfig_HTTPUpstreamWithLoadBalancer(t *testing.T) {
+	groupKeySecret := createSecret("default", "lb-secret", map[string][]byte{"key": []byte("group-secret")})
+	fakeClient := createFakeClient(createDefaultTokenSecret("default"), groupKeySecret).Build()
+	clientObj := createBasicClient("default", "test-client", "frp.example.com", 7000)
+
+	upstreams := []frpv1alpha1.Upstream{
+		{
+			ObjectMeta: metav1.ObjectMeta{Name: "web"},
+			Spec: frpv1alpha1.UpstreamSpec{
+				Client: "test-client",
+				HTTP: &frpv1alpha1.UpstreamSpec_HTTP{
+					Host: "web.default.svc", Port: 80, Subdomain: "web",
+					LoadBalancer: &frpv1alpha1.LoadBalancer{
+						Group:    "web-group",
+						GroupKey: &frpv1alpha1.SecretRef{Secret: frpv1alpha1.Secret{Name: "lb-secret", Key: "key"}},
+					},
+				},
+			},
+		},
+	}
+
+	config, err := NewConfig(fakeClient, clientObj, upstreams, []frpv1alpha1.Visitor{})
+	if err != nil {
+		t.Fatalf("NewConfig() unexpected error = %v", err)
+	}
+	lb := config.Upstreams[0].HTTP.LoadBalancer
+	if lb == nil {
+		t.Fatalf("HTTP.LoadBalancer is nil")
+	}
+	if lb.Group != "web-group" || lb.GroupKey != "group-secret" {
+		t.Errorf("HTTP.LoadBalancer = %+v, want group web-group / key group-secret", lb)
+	}
+}
+
+func TestNewConfig_HTTPSUpstreamWithLoadBalancer(t *testing.T) {
+	fakeClient := createFakeClient(createDefaultTokenSecret("default")).Build()
+	clientObj := createBasicClient("default", "test-client", "frp.example.com", 7000)
+
+	upstreams := []frpv1alpha1.Upstream{
+		{
+			ObjectMeta: metav1.ObjectMeta{Name: "secure"},
+			Spec: frpv1alpha1.UpstreamSpec{
+				Client: "test-client",
+				HTTPS: &frpv1alpha1.UpstreamSpec_HTTPS{
+					Host: "web.default.svc", Port: 443, CustomDomains: []string{"secure.example.com"},
+					LoadBalancer: &frpv1alpha1.LoadBalancer{Group: "secure-group"},
+				},
+			},
+		},
+	}
+
+	config, err := NewConfig(fakeClient, clientObj, upstreams, []frpv1alpha1.Visitor{})
+	if err != nil {
+		t.Fatalf("NewConfig() unexpected error = %v", err)
+	}
+	lb := config.Upstreams[0].HTTPS.LoadBalancer
+	if lb == nil {
+		t.Fatalf("HTTPS.LoadBalancer is nil")
+	}
+	if lb.Group != "secure-group" || lb.GroupKey != "" {
+		t.Errorf("HTTPS.LoadBalancer = %+v, want group secure-group / empty key", lb)
+	}
+}

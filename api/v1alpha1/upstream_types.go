@@ -24,6 +24,11 @@ import (
 type UpstreamSpec struct {
 	Client string `json:"client"`
 	// +optional
+	// +kubebuilder:default=true
+	// Enabled controls whether this upstream is active in frpc. Set to false to pause it
+	// without deleting the resource. A disabled upstream does not reserve its server port.
+	Enabled *bool `json:"enabled,omitempty"`
+	// +optional
 	TCP *UpstreamSpec_TCP `json:"tcp,omitempty"`
 	// +optional
 	UDP *UpstreamSpec_UDP `json:"udp,omitempty"`
@@ -115,6 +120,9 @@ type UpstreamSpec_HTTP struct {
 	HealthCheck *UpstreamSpec_HTTP_HealthCheck `json:"healthCheck,omitempty"`
 	// +optional
 	Transport *UpstreamSpec_TCP_Transport `json:"transport,omitempty"`
+	// +optional
+	// LoadBalancer groups this upstream with others sharing the same group for load balancing
+	LoadBalancer *LoadBalancer `json:"loadBalancer,omitempty"`
 }
 
 type HTTPHeaders struct {
@@ -139,6 +147,9 @@ type UpstreamSpec_HTTPS struct {
 	ProxyProtocol *string `json:"proxyProtocol,omitempty"`
 	// +optional
 	Transport *UpstreamSpec_TCP_Transport `json:"transport,omitempty"`
+	// +optional
+	// LoadBalancer groups this upstream with others sharing the same group for load balancing
+	LoadBalancer *LoadBalancer `json:"loadBalancer,omitempty"`
 }
 
 // LoadBalancer configures load balancing across multiple upstreams

@@ -1660,6 +1660,14 @@ spec:
                         description: TCPMux enables TCP stream multiplexing to reduce
                           connection overhead
                         type: boolean
+                      wireProtocol:
+                        description: |-
+                          WireProtocol selects the frpc/frps wire protocol. "v2" adds AEAD encryption to the
+                          control channel and requires frps >= v0.69.0. Defaults to frpc's default ("v1").
+                        enum:
+                        - v1
+                        - v2
+                        type: string
                     type: object
                 required:
                 - authentication

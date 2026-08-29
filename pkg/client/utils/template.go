@@ -4,6 +4,7 @@ const CLIENT_TEMPLATE = `
 # frpc.toml
 serverAddr = "{{ .Common.ServerAddress }}"
 serverPort = {{ .Common.ServerPort }}
+clientID = "{{ .Common.ClientID }}"
 
 {{ if eq .Common.ServerAuthentication.Type 1 }}
 auth.method = "token"
@@ -60,6 +61,9 @@ transport.dialServerKeepalive = "{{ .Common.Transport.DialServerKeepalive }}"
 {{ if .Common.Transport.ConnectServerLocalIP }}
 transport.connectServerLocalIP = "{{ .Common.Transport.ConnectServerLocalIP }}"
 {{ end }}
+{{ if .Common.Transport.WireProtocol }}
+transport.wireProtocol = "{{ .Common.Transport.WireProtocol }}"
+{{ end }}
 {{ end }}
 
 {{ range $upstream := .Upstreams }}
@@ -69,6 +73,9 @@ transport.connectServerLocalIP = "{{ .Common.Transport.ConnectServerLocalIP }}"
 {{ if eq $upstream.Type 1 }}
 name = "{{ $upstream.Name }}"
 type = "tcp"
+{{ if not $upstream.Enabled }}
+enabled = false
+{{ end }}
 {{ if $upstream.TCP.Host }}
 localIP = "{{ $upstream.TCP.Host }}"
 {{ end }}
@@ -168,6 +175,9 @@ loadBalancer.groupKey = "{{ $upstream.TCP.LoadBalancer.GroupKey }}"
 {{ if eq $upstream.Type 2 }}
 name = "{{ $upstream.Name }}"
 type = "udp"
+{{ if not $upstream.Enabled }}
+enabled = false
+{{ end }}
 localIP = "{{ $upstream.UDP.Host }}"
 localPort = {{ $upstream.UDP.Port }}
 remotePort = {{ $upstream.UDP.ServerPort }}
@@ -191,6 +201,9 @@ transport.bandwidthLimitMode = "client"
 {{ if eq $upstream.Type 3 }}
 name = "{{ $upstream.Name }}"
 type = "stcp"
+{{ if not $upstream.Enabled }}
+enabled = false
+{{ end }}
 localIP = "{{ $upstream.STCP.Host }}"
 localPort = {{ $upstream.STCP.Port }}
 secretKey = "{{ $upstream.STCP.SecretKey }}"
@@ -228,6 +241,9 @@ allowUsers = [{{ range $i, $u := $upstream.STCP.AllowUsers }}{{ if $i }}, {{ end
 {{ if eq $upstream.Type 4 }}
 name = "{{ $upstream.Name }}"
 type = "xtcp"
+{{ if not $upstream.Enabled }}
+enabled = false
+{{ end }}
 localIP = "{{ $upstream.XTCP.Host }}"
 localPort = {{ $upstream.XTCP.Port }}
 secretKey = "{{ $upstream.XTCP.SecretKey }}"
@@ -265,6 +281,9 @@ allowUsers = [{{ range $i, $u := $upstream.XTCP.AllowUsers }}{{ if $i }}, {{ end
 {{ if eq $upstream.Type 5 }}
 name = "{{ $upstream.Name }}"
 type = "http"
+{{ if not $upstream.Enabled }}
+enabled = false
+{{ end }}
 localIP = "{{ $upstream.HTTP.Host }}"
 localPort = {{ $upstream.HTTP.Port }}
 
@@ -324,11 +343,21 @@ transport.bandwidthLimitMode = "client"
 transport.proxyURL = "{{ $upstream.HTTP.Transport.ProxyURL }}"
 {{ end }}
 {{ end }}
+
+{{ if $upstream.HTTP.LoadBalancer }}
+loadBalancer.group = "{{ $upstream.HTTP.LoadBalancer.Group }}"
+{{ if $upstream.HTTP.LoadBalancer.GroupKey }}
+loadBalancer.groupKey = "{{ $upstream.HTTP.LoadBalancer.GroupKey }}"
+{{ end }}
+{{ end }}
 {{ end }}
 
 {{ if eq $upstream.Type 6 }}
 name = "{{ $upstream.Name }}"
 type = "https"
+{{ if not $upstream.Enabled }}
+enabled = false
+{{ end }}
 localIP = "{{ $upstream.HTTPS.Host }}"
 localPort = {{ $upstream.HTTPS.Port }}
 
@@ -353,11 +382,21 @@ transport.bandwidthLimitMode = "client"
 transport.proxyURL = "{{ $upstream.HTTPS.Transport.ProxyURL }}"
 {{ end }}
 {{ end }}
+
+{{ if $upstream.HTTPS.LoadBalancer }}
+loadBalancer.group = "{{ $upstream.HTTPS.LoadBalancer.Group }}"
+{{ if $upstream.HTTPS.LoadBalancer.GroupKey }}
+loadBalancer.groupKey = "{{ $upstream.HTTPS.LoadBalancer.GroupKey }}"
+{{ end }}
+{{ end }}
 {{ end }}
 
 {{ if eq $upstream.Type 7 }}
 name = "{{ $upstream.Name }}"
 type = "tcpmux"
+{{ if not $upstream.Enabled }}
+enabled = false
+{{ end }}
 multiplexer = "{{ $upstream.TCPMUX.Multiplexer }}"
 localIP = "{{ $upstream.TCPMUX.Host }}"
 localPort = {{ $upstream.TCPMUX.Port }}
@@ -380,6 +419,9 @@ transport.useCompression = {{ $upstream.TCPMUX.Transport.UseCompression }}
 {{ if eq $visitor.Type 1 }}
 name = "{{ $visitor.Name }}"
 type = "stcp"
+{{ if not $visitor.Enabled }}
+enabled = false
+{{ end }}
 serverName = "{{ $visitor.STCP.ServerName }}"
 secretKey = "{{ $visitor.STCP.SecretKey }}"
 bindAddr = "{{ $visitor.STCP.Host }}"
@@ -389,6 +431,9 @@ bindPort = {{ $visitor.STCP.Port }}
 {{ if eq $visitor.Type 2 }}
 name = "{{ $visitor.Name }}"
 type = "xtcp"
+{{ if not $visitor.Enabled }}
+enabled = false
+{{ end }}
 serverName = "{{ $visitor.XTCP.ServerName }}"
 secretKey = "{{ $visitor.XTCP.SecretKey }}"
 bindAddr = "{{ $visitor.XTCP.Host }}"
@@ -404,6 +449,9 @@ fallbackTimeoutMs = {{ $visitor.XTCP.Fallback.Timeout }}
 [[visitors]]
 name = "{{ $visitor.Name }}-fallback"
 type = "stcp"
+{{ if not $visitor.Enabled }}
+enabled = false
+{{ end }}
 serverName = "{{ $visitor.XTCP.Fallback.ServerName }}"
 secretKey = "{{ $visitor.XTCP.SecretKey }}"
 bindPort = -1

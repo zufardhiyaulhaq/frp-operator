@@ -192,14 +192,8 @@ func (r *ClientReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		SetNamespace(client.Namespace).
 		SetAdminPort(config.Common.AdminPort)
 
-	for _, visitor := range filteredVisitors {
-		if visitor.Spec.STCP != nil {
-			serviceBuilder.AddVisitorPort(visitor.Spec.STCP.Port)
-		}
-
-		if visitor.Spec.XTCP != nil {
-			serviceBuilder.AddVisitorPort(visitor.Spec.XTCP.Port)
-		}
+	for _, port := range models.VisitorServicePorts(filteredVisitors) {
+		serviceBuilder.AddVisitorPort(port)
 	}
 	service, err := serviceBuilder.Build()
 	if err != nil {
@@ -228,7 +222,7 @@ func (r *ClientReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	podBuilder := builder.NewPodBuilder().
 		SetName(client.Name).
 		SetNamespace(client.Namespace).
-		SetImage("fatedier/frpc:v0.65.0").
+		SetImage("fatedier/frpc:v0.71.0").
 		SetPodTemplate(client.Spec.PodTemplate)
 
 	// Wire TLS secret if configured

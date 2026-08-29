@@ -12,3 +12,5 @@ spec:
         secret:
           name: client-01-secret
           key: token
+  # transport:
+  #   wireProtocol: v2   # AEAD-encrypted control channel; requires frps >= v0.69.0

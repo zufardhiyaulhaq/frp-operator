@@ -31,3 +31,9 @@ spec:
     transport:
       useEncryption: true
       useCompression: true
+    loadBalancer:
+      group: nginx-http
+      # groupKey:
+      #   secret:
+      #     name: nginx-lb-secret
+      #     key: key

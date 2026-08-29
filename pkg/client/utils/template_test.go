@@ -26,6 +26,7 @@ type testCommon struct {
 	ServerAddress        string
 	ServerPort           int
 	ServerProtocol       string
+	ClientID             string
 	ServerAuthentication testServerAuthentication
 	AdminAddress         string
 	AdminPort            int
@@ -55,15 +56,16 @@ type testServerAuthentication struct {
 }
 
 type testUpstream struct {
-	Name   string
-	Type   int
-	TCP    testUpstreamTCP
-	UDP    testUpstreamUDP
-	STCP   testUpstreamSTCP
-	XTCP   testUpstreamSTCP
-	HTTP   testUpstreamHTTP
-	HTTPS  testUpstreamHTTPS
-	TCPMUX testUpstreamTCPMUX
+	Name    string
+	Enabled bool
+	Type    int
+	TCP     testUpstreamTCP
+	UDP     testUpstreamUDP
+	STCP    testUpstreamSTCP
+	XTCP    testUpstreamSTCP
+	HTTP    testUpstreamHTTP
+	HTTPS   testUpstreamHTTPS
+	TCPMUX  testUpstreamTCPMUX
 }
 
 type testUpstreamTCPMUX struct {
@@ -145,6 +147,7 @@ type testUpstreamHTTP struct {
 	HTTPPassword      string
 	HealthCheck       *testHTTPHealthCheck
 	Transport         *testTransport
+	LoadBalancer      *testLoadBalancerConfig
 }
 
 type testUpstreamHTTPS struct {
@@ -153,6 +156,7 @@ type testUpstreamHTTPS struct {
 	CustomDomains []string
 	ProxyProtocol *string
 	Transport     *testTransport
+	LoadBalancer  *testLoadBalancerConfig
 }
 
 type testHealthCheck struct {
@@ -183,10 +187,11 @@ type testBandwidthLimit struct {
 }
 
 type testVisitor struct {
-	Name string
-	Type int
-	STCP testVisitorSTCP
-	XTCP testVisitorXTCP
+	Name    string
+	Enabled bool
+	Type    int
+	STCP    testVisitorSTCP
+	XTCP    testVisitorXTCP
 }
 
 type testVisitorSTCP struct {

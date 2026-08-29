@@ -2,7 +2,7 @@
 
 Expose your service in Kubernetes to the Internet with open source FRP!
 
-![Version: 1.6.0](https://img.shields.io/badge/Version-1.6.0-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 0.8.0](https://img.shields.io/badge/AppVersion-0.8.0-informational?style=flat-square) [![made with Go](https://img.shields.io/badge/made%20with-Go-brightgreen)](http://golang.org) [![Github main branch build](https://img.shields.io/github/workflow/status/zufardhiyaulhaq/frp-operator/Main)](https://github.com/zufardhiyaulhaq/frp-operator/actions/workflows/main.yml) [![GitHub issues](https://img.shields.io/github/issues/zufardhiyaulhaq/frp-operator)](https://github.com/zufardhiyaulhaq/frp-operator/issues) [![GitHub pull requests](https://img.shields.io/github/issues-pr/zufardhiyaulhaq/frp-operator)](https://github.com/zufardhiyaulhaq/frp-operator/pulls)[![Artifact Hub](https://img.shields.io/endpoint?url=https://artifacthub.io/badge/repository/frp-operator)](https://artifacthub.io/packages/search?repo=frp-operator)
+![Version: 1.7.0](https://img.shields.io/badge/Version-1.7.0-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 0.9.0](https://img.shields.io/badge/AppVersion-0.9.0-informational?style=flat-square) [![made with Go](https://img.shields.io/badge/made%20with-Go-brightgreen)](http://golang.org) [![Github main branch build](https://img.shields.io/github/workflow/status/zufardhiyaulhaq/frp-operator/Main)](https://github.com/zufardhiyaulhaq/frp-operator/actions/workflows/main.yml) [![GitHub issues](https://img.shields.io/github/issues/zufardhiyaulhaq/frp-operator)](https://github.com/zufardhiyaulhaq/frp-operator/issues) [![GitHub pull requests](https://img.shields.io/github/issues-pr/zufardhiyaulhaq/frp-operator)](https://github.com/zufardhiyaulhaq/frp-operator/pulls)[![Artifact Hub](https://img.shields.io/endpoint?url=https://artifacthub.io/badge/repository/frp-operator)](https://artifacthub.io/packages/search?repo=frp-operator)
 
 ## Features
 
@@ -27,11 +27,14 @@ Expose your service in Kubernetes to the Internet with open source FRP!
 **Advanced traffic features**
 - FRP plugins on `Upstream` (e.g. static_file, unix_domain_socket, http_proxy, socks5, https2http, etc.)
 - Transport tuning per `Upstream` (protocol, pool count, multiplex, bandwidth limits)
-- Load balancing across upstreams via FRP groups
+- Load balancing across TCP, HTTP, and HTTPS upstreams via FRP groups
 - Group-level health checks
 
 **Operational features**
 - Pod templates on `Client` to set resources, node selectors, tolerations, labels, annotations, affinity, security context, environment variables (e.g. `GOMEMLIMIT`), and more
+- `enabled: false` on `Upstream` and `Visitor` to pause a tunnel without deleting it (its port is released)
+- Wire protocol v2 (`transport.wireProtocol`) on `Client` for an AEAD-encrypted control channel (frps >= v0.69.0)
+- Each `Client` reports a `clientID` of `<namespace>/<name>` in the frps dashboard
 - Reliable, restart-free config reload — operator `exec`s into the pod and verifies `/frp/config.toml` matches the expected state before triggering the FRP admin API reload
 - Validation for duplicate `Upstream` server ports and duplicate `Visitor` ports, surfaced via descriptive errors
 - Helm chart with native CRDs and RBAC
@@ -98,7 +101,7 @@ http://178.128.100.87:8080/
 |-----|------|---------|-------------|
 | operator.image | string | `"ghcr.io/zufardhiyaulhaq/frp-operator"` |  |
 | operator.replica | int | `1` |  |
-| operator.tag | string | `"v0.8.0"` |  |
+| operator.tag | string | `"v0.9.0"` |  |
 | resources.limits.cpu | string | `"200m"` |  |
 | resources.limits.memory | string | `"100Mi"` |  |
 | resources.requests.cpu | string | `"100m"` |  |

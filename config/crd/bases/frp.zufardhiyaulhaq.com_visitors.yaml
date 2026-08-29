@@ -51,6 +51,12 @@ spec:
             properties:
               client:
                 type: string
+              enabled:
+                default: true
+                description: |-
+                  Enabled controls whether this visitor is active in frpc. Set to false to pause it
+                  without deleting the resource. A disabled visitor does not reserve its port.
+                type: boolean
               stcp:
                 properties:
                   host:

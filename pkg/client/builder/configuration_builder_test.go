@@ -1573,6 +1573,131 @@ func TestConfigurationBuilder_Build(t *testing.T) {
 				`transport.connectServerLocalIP = "10.0.0.5"`,
 			},
 		},
+		{
+			name: "clientID is rendered",
+			config: models.Config{
+				Common: models.Common{
+					ServerAddress: "frp.example.com",
+					ServerPort:    7000,
+					ClientID:      "prod/edge-01",
+					AdminAddress:  "0.0.0.0",
+					AdminPort:     7400,
+					AdminUsername: "admin",
+					AdminPassword: "secret",
+				},
+			},
+			wantContains: []string{
+				`clientID = "prod/edge-01"`,
+			},
+		},
+		{
+			name: "transport wireProtocol rendered when set",
+			config: models.Config{
+				Common: models.Common{
+					ServerAddress: "frp.example.com",
+					ServerPort:    7000,
+					AdminAddress:  "0.0.0.0",
+					AdminPort:     7400,
+					AdminUsername: "admin",
+					AdminPassword: "secret",
+					Transport:     &models.TransportConfig{TCPMux: true, WireProtocol: "v2"},
+				},
+			},
+			wantContains: []string{
+				`transport.wireProtocol = "v2"`,
+			},
+		},
+		{
+			name: "transport wireProtocol omitted when unset",
+			config: models.Config{
+				Common: models.Common{
+					ServerAddress: "frp.example.com",
+					ServerPort:    7000,
+					AdminAddress:  "0.0.0.0",
+					AdminPort:     7400,
+					AdminUsername: "admin",
+					AdminPassword: "secret",
+					Transport:     &models.TransportConfig{TCPMux: true},
+				},
+			},
+			wantNotContain: []string{
+				`transport.wireProtocol`,
+			},
+		},
+		{
+			name: "disabled upstream renders enabled = false",
+			config: models.Config{
+				Common: models.Common{ServerAddress: "frp.example.com", ServerPort: 7000, AdminAddress: "0.0.0.0", AdminPort: 7400, AdminUsername: "admin", AdminPassword: "secret"},
+				Upstreams: models.Upstreams{
+					{Name: "paused", Type: 1, Enabled: false, TCP: models.Upstream_TCP{Host: "localhost", Port: 80, ServerPort: 8080}},
+				},
+			},
+			wantContains: []string{
+				`name = "paused"`,
+				`enabled = false`,
+			},
+		},
+		{
+			name: "enabled upstream omits enabled key",
+			config: models.Config{
+				Common: models.Common{ServerAddress: "frp.example.com", ServerPort: 7000, AdminAddress: "0.0.0.0", AdminPort: 7400, AdminUsername: "admin", AdminPassword: "secret"},
+				Upstreams: models.Upstreams{
+					{Name: "live", Type: 1, Enabled: true, TCP: models.Upstream_TCP{Host: "localhost", Port: 80, ServerPort: 8080}},
+				},
+			},
+			wantNotContain: []string{
+				`enabled =`,
+			},
+		},
+		{
+			name: "disabled visitor renders enabled = false",
+			config: models.Config{
+				Common: models.Common{ServerAddress: "frp.example.com", ServerPort: 7000, AdminAddress: "0.0.0.0", AdminPort: 7400, AdminUsername: "admin", AdminPassword: "secret"},
+				Visitors: models.Visitors{
+					{Name: "paused-visitor", Type: 1, Enabled: false, STCP: models.Visitor_STCP{Host: "127.0.0.1", Port: 2222, ServerName: "ssh", SecretKey: "k"}},
+				},
+			},
+			wantContains: []string{
+				`name = "paused-visitor"`,
+				`enabled = false`,
+			},
+		},
+		{
+			name: "http upstream renders loadBalancer",
+			config: models.Config{
+				Common: models.Common{ServerAddress: "frp.example.com", ServerPort: 7000, AdminAddress: "0.0.0.0", AdminPort: 7400, AdminUsername: "admin", AdminPassword: "secret"},
+				Upstreams: models.Upstreams{
+					{Name: "web", Type: 5, Enabled: true, HTTP: models.Upstream_HTTP{
+						Host: "web.default.svc", Port: 80, Subdomain: "web",
+						LoadBalancer: &models.LoadBalancerConfig{Group: "web-group", GroupKey: "group-secret"},
+					}},
+				},
+			},
+			wantContains: []string{
+				`type = "http"`,
+				`loadBalancer.group = "web-group"`,
+				`loadBalancer.groupKey = "group-secret"`,
+			},
+		},
+		{
+			name: "https upstream renders loadBalancer without groupKey",
+			config: models.Config{
+				Common: models.Common{ServerAddress: "frp.example.com", ServerPort: 7000, AdminAddress: "0.0.0.0", AdminPort: 7400, AdminUsername: "admin", AdminPassword: "secret"},
+				Upstreams: models.Upstreams{
+					{Name: "secure", Type: 6, Enabled: true, HTTPS: models.Upstream_HTTPS{
+						Host: "web.default.svc", Port: 443, CustomDomains: []string{"secure.example.com"},
+						LoadBalancer: &models.LoadBalancerConfig{Group: "secure-group"},
+					}},
+				},
+			},
+			wantContains: []string{
+				`type = "https"`,
+				`loadBalancer.group = "secure-group"`,
+			},
+			wantNotContain: []string{
+				`loadBalancer.groupKey`,
+			},
+		},
 	}
 
 	for _, tt := range tests {

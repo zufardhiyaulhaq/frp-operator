@@ -51,6 +51,12 @@ spec:
             properties:
               client:
                 type: string
+              enabled:
+                default: true
+                description: |-
+                  Enabled controls whether this upstream is active in frpc. Set to false to pause it
+                  without deleting the resource. A disabled upstream does not reserve its server port.
+                type: boolean
               http:
                 properties:
                   customDomains:
@@ -111,6 +117,32 @@ spec:
                         type: object
                     required:
                     - secret
+                    type: object
+                  loadBalancer:
+                    description: LoadBalancer groups this upstream with others sharing
+                      the same group for load balancing
+                    properties:
+                      group:
+                        description: Group is the load balancer group name
+                        type: string
+                      groupKey:
+                        description: GroupKey is the shared secret for the group
+                        properties:
+                          secret:
+                            properties:
+                              key:
+                                type: string
+                              name:
+                                type: string
+                            required:
+                            - key
+                            - name
+                            type: object
+                        required:
+                        - secret
+                        type: object
+                    required:
+                    - group
                     type: object
                   locations:
                     items:
@@ -177,6 +209,32 @@ spec:
                     type: array
                   host:
                     type: string
+                  loadBalancer:
+                    description: LoadBalancer groups this upstream with others sharing
+                      the same group for load balancing
+                    properties:
+                      group:
+                        description: Group is the load balancer group name
+                        type: string
+                      groupKey:
+                        description: GroupKey is the shared secret for the group
+                        properties:
+                          secret:
+                            properties:
+                              key:
+                                type: string
+                              name:
+                                type: string
+                            required:
+                            - key
+                            - name
+                            type: object
+                        required:
+                        - secret
+                        type: object
+                    required:
+                    - group
+                    type: object
                   port:
                     type: integer
                   proxyProtocol:
