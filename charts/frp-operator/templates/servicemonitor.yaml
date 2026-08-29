@@ -1,0 +1,39 @@
+{{- if .Values.metrics.serviceMonitor.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ .Release.Name }}-controller-manager
+  labels:
+    control-plane: controller-manager
+    app.kubernetes.io/name: {{ .Release.Name }}
+    helm.sh/chart: {{ template "frp-operator.chart" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    {{- with .Values.metrics.serviceMonitor.additionalLabels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ .Release.Name }}
+      control-plane: controller-manager
+  namespaceSelector:
+    matchNames:
+    - {{ .Release.Namespace }}
+  endpoints:
+  {{- if .Values.metrics.secure }}
+  - port: https
+    scheme: https
+    path: /metrics
+    interval: {{ .Values.metrics.serviceMonitor.interval }}
+    bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
+    tlsConfig:
+      insecureSkipVerify: true
+    honorLabels: true
+  {{- else }}
+  - port: http
+    path: /metrics
+    interval: {{ .Values.metrics.serviceMonitor.interval }}
+    honorLabels: true
+  {{- end }}
+{{- end }}

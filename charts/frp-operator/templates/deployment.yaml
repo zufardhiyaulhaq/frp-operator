@@ -24,8 +24,13 @@ spec:
       containers:
       - args:
         - --health-probe-bind-address=:8081
+        {{- if .Values.metrics.secure }}
         - --metrics-bind-address=:8443
         - --metrics-secure=true
+        {{- else }}
+        - --metrics-bind-address=:8080
+        - --metrics-secure=false
+        {{- end }}
         - --leader-elect
         command:
         - /manager
@@ -39,9 +44,15 @@ spec:
           periodSeconds: 20
         name: manager
         ports:
+        {{- if .Values.metrics.secure }}
         - containerPort: 8443
           name: https
           protocol: TCP
+        {{- else }}
+        - containerPort: 8080
+          name: http
+          protocol: TCP
+        {{- end }}
         readinessProbe:
           httpGet:
             path: /readyz

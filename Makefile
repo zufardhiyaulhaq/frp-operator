@@ -106,7 +106,6 @@ OUT_DIR := ./output
 $(shell mkdir -p $(OUT_DIR))
 
 test:
-	go get golang.org/x/tools/cmd/cover	
 	go test -coverprofile=./output/coverage.out -race ./...
 	go tool cover -html=./output/coverage.out -o ./output/coverage.html
 

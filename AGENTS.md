@@ -64,7 +64,12 @@ Reconciliation flow:
   - `configmap_builder.go`, `pod_builder.go`, `service_builder.go`: K8s resource builders
 - **models/config.go**: Transforms CRs → internal Config, fetches secrets
 - **handler/reload.go**: Calls FRP admin API to reload config without pod restart
+- **handler/status.go**: Reads proxy status from the FRP admin API (`/api/status`) for metrics
 - **utils/template.go**: FRP TOML configuration template
+
+### Metrics (pkg/metrics/)
+
+FRP-specific Prometheus gauges (`frp_client_*`, `frp_proxy_*`) registered on the controller-runtime registry. Written only by `ClientReconciler`; series are removed when a Client is deleted. Grafana dashboard JSON is hand-maintained at `dashboards/frp-operator.json`.
 
 ### Key Constants
 
@@ -93,5 +98,6 @@ controllers/        # Reconciliation logic
 pkg/client/         # Core business logic (builders, models, handlers)
 config/             # Kustomize manifests (CRDs, RBAC, manager), mostly not being used. fix the RBAC & CRDs under charts instead
 charts/             # Helm chart
+dashboards/         # Grafana dashboard JSON
 examples/           # Usage examples (simple, tcp-full, p2p)
 ```

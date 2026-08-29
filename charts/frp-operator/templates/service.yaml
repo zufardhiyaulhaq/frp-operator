@@ -10,10 +10,17 @@ metadata:
   name: {{ .Release.Name }}-controller-manager-metrics-service
 spec:
   ports:
+  {{- if .Values.metrics.secure }}
   - name: https
     port: 8443
     protocol: TCP
     targetPort: 8443
+  {{- else }}
+  - name: http
+    port: 8080
+    protocol: TCP
+    targetPort: 8080
+  {{- end }}
   selector:
     app.kubernetes.io/name: {{ .Release.Name }}
     control-plane: controller-manager

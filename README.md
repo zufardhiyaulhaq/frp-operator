@@ -2,7 +2,7 @@
 
 Expose your service in Kubernetes to the Internet with open source FRP!
 
-![Version: 1.7.0](https://img.shields.io/badge/Version-1.7.0-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 0.9.0](https://img.shields.io/badge/AppVersion-0.9.0-informational?style=flat-square) [![made with Go](https://img.shields.io/badge/made%20with-Go-brightgreen)](http://golang.org) [![Github main branch build](https://img.shields.io/github/workflow/status/zufardhiyaulhaq/frp-operator/Main)](https://github.com/zufardhiyaulhaq/frp-operator/actions/workflows/main.yml) [![GitHub issues](https://img.shields.io/github/issues/zufardhiyaulhaq/frp-operator)](https://github.com/zufardhiyaulhaq/frp-operator/issues) [![GitHub pull requests](https://img.shields.io/github/issues-pr/zufardhiyaulhaq/frp-operator)](https://github.com/zufardhiyaulhaq/frp-operator/pulls)[![Artifact Hub](https://img.shields.io/endpoint?url=https://artifacthub.io/badge/repository/frp-operator)](https://artifacthub.io/packages/search?repo=frp-operator)
+![Version: 1.8.0](https://img.shields.io/badge/Version-1.8.0-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 0.10.0](https://img.shields.io/badge/AppVersion-0.10.0-informational?style=flat-square) [![made with Go](https://img.shields.io/badge/made%20with-Go-brightgreen)](http://golang.org) [![Github main branch build](https://img.shields.io/github/workflow/status/zufardhiyaulhaq/frp-operator/Main)](https://github.com/zufardhiyaulhaq/frp-operator/actions/workflows/main.yml) [![GitHub issues](https://img.shields.io/github/issues/zufardhiyaulhaq/frp-operator)](https://github.com/zufardhiyaulhaq/frp-operator/issues) [![GitHub pull requests](https://img.shields.io/github/issues-pr/zufardhiyaulhaq/frp-operator)](https://github.com/zufardhiyaulhaq/frp-operator/pulls)[![Artifact Hub](https://img.shields.io/endpoint?url=https://artifacthub.io/badge/repository/frp-operator)](https://artifacthub.io/packages/search?repo=frp-operator)
 
 ## Features
 
@@ -38,7 +38,8 @@ Expose your service in Kubernetes to the Internet with open source FRP!
 - Reliable, restart-free config reload — operator `exec`s into the pod and verifies `/frp/config.toml` matches the expected state, and runs `frpc verify` on the rendered config before triggering the reload
 - Validation for duplicate `Upstream` server ports and duplicate `Visitor` ports, surfaced via descriptive errors
 - Helm chart with native CRDs and RBAC
-- Secure metrics endpoint served directly by the manager on `:8443` using Kubernetes TokenReview / SubjectAccessReview (no `kube-rbac-proxy` sidecar)
+- Prometheus metrics for every `Client` and proxy (`frp_client_ready`, `frp_client_config_synced`, `frp_proxy_status`, ...) plus controller-runtime metrics, served on `:8080` (or `:8443` with Kubernetes token authentication when `metrics.secure=true`)
+- Optional Prometheus Operator `ServiceMonitor` and a Grafana dashboard (`dashboards/frp-operator.json`)
 
 ## Document
 1. [RFC: Fast Reverse Proxy Operator](https://docs.google.com/document/d/18_X4KKLNMAFcfYP-Nh0wwU31RP903IrLuc1Uemxcpoo)
@@ -95,13 +96,36 @@ nginx   17m
 http://178.128.100.87:8080/
 ```
 
+## Monitoring
+
+The operator exposes Prometheus metrics on the `<release>-controller-manager-metrics-service` Service (port `http`/8080 by default):
+
+| Metric | Labels | Description |
+|---|---|---|
+| `frp_client_info` | `namespace`, `client`, `server_address`, `server_port`, `client_id`, `frpc_image` | Always 1 |
+| `frp_client_ready` | `namespace`, `client` | 1 when the `Ready` condition is True |
+| `frp_client_config_synced` | `namespace`, `client` | 1 when the `ConfigSynced` condition is True |
+| `frp_client_upstreams` / `frp_client_visitors` | `namespace`, `client` | Attached resource counts |
+| `frp_client_admin_up` | `namespace`, `client` | 1 when the frpc admin API answered `/api/status` |
+| `frp_client_last_reconcile_timestamp_seconds` | `namespace`, `client` | Unix time of the last reconcile |
+| `frp_proxy_status` | `namespace`, `client`, `proxy`, `type`, `status` | One-hot frpc proxy phase (`running`, `start error`, `check failed`, `closed`, `wait start`, `new`) |
+| `frp_proxy_info` | `namespace`, `client`, `proxy`, `type`, `local_addr`, `remote_addr`, `plugin` | Always 1 |
+
+Enable scraping with `metrics.serviceMonitor.enabled=true` (Prometheus Operator; the VictoriaMetrics operator also consumes `ServiceMonitor` objects). With `metrics.secure=true` the scraper's ServiceAccount must be allowed `GET /metrics` (bind it to the `<release>-metrics-reader` ClusterRole).
+
+A Grafana dashboard lives at [`dashboards/frp-operator.json`](https://github.com/zufardhiyaulhaq/frp-operator/blob/main/dashboards/frp-operator.json) — import it into Grafana (Dashboards → New → Import) and pick your Prometheus/VictoriaMetrics datasource.
+
 ## Values
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
+| metrics.secure | bool | `false` |  |
+| metrics.serviceMonitor.additionalLabels | object | `{}` |  |
+| metrics.serviceMonitor.enabled | bool | `false` |  |
+| metrics.serviceMonitor.interval | string | `"30s"` |  |
 | operator.image | string | `"ghcr.io/zufardhiyaulhaq/frp-operator"` |  |
 | operator.replica | int | `1` |  |
-| operator.tag | string | `"v0.9.0"` |  |
+| operator.tag | string | `"v0.10.0"` |  |
 | resources.limits.cpu | string | `"200m"` |  |
 | resources.limits.memory | string | `"100Mi"` |  |
 | resources.requests.cpu | string | `"100m"` |  |

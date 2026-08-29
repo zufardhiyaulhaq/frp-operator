@@ -45,6 +45,7 @@ import (
 	"github.com/zufardhiyaulhaq/frp-operator/pkg/client/handler"
 	"github.com/zufardhiyaulhaq/frp-operator/pkg/client/models"
 	"github.com/zufardhiyaulhaq/frp-operator/pkg/client/status"
+	"github.com/zufardhiyaulhaq/frp-operator/pkg/metrics"
 )
 
 // Event reasons
@@ -54,6 +55,9 @@ const (
 	EventReasonConfigReloadFailed = "ConfigReloadFailed"
 	EventReasonPodImageUpdated    = "PodImageUpdated"
 )
+
+// frpcImage is the frpc container image managed by the operator.
+const frpcImage = "fatedier/frpc:v0.71.0"
 
 // ClientReconciler reconciles a Client object
 type ClientReconciler struct {
@@ -114,6 +118,10 @@ func (r *ClientReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	client := &frpv1alpha1.Client{}
 	err := r.Client.Get(ctx, req.NamespacedName, client)
 	if err != nil {
+		if errors.IsNotFound(err) {
+			log.Info("client not found, removing its metrics")
+			metrics.DeleteClient(req.Namespace, req.Name)
+		}
 		return ctrl.Result{}, nil
 	}
 
@@ -224,7 +232,7 @@ func (r *ClientReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	podBuilder := builder.NewPodBuilder().
 		SetName(client.Name).
 		SetNamespace(client.Namespace).
-		SetImage("fatedier/frpc:v0.71.0").
+		SetImage(frpcImage).
 		SetPodTemplate(client.Spec.PodTemplate)
 
 	// Wire TLS secret if configured
@@ -264,6 +272,7 @@ func (r *ClientReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 			if statusErr := r.updateClientStatus(ctx, client, status.ClientPhaseFailed, err.Error(), len(filteredUpstreams), len(filteredVisitors)); statusErr != nil {
 				log.Error(statusErr, "failed to update client status")
 			}
+			metrics.RecordProxies(client.Namespace, client.Name, nil, fmt.Errorf("pod failed"))
 			return ctrl.Result{}, err
 		}
 		// Emit event and set status
@@ -273,6 +282,7 @@ func (r *ClientReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		if err := r.updateClientStatus(ctx, client, status.ClientPhasePending, "Pod created, waiting for it to start", len(filteredUpstreams), len(filteredVisitors)); err != nil {
 			log.Error(err, "failed to update client status")
 		}
+		metrics.RecordProxies(client.Namespace, client.Name, nil, fmt.Errorf("pod not running"))
 		// Requeue to wait for pod to be created and running
 		return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
 	} else if err != nil {
@@ -295,6 +305,7 @@ func (r *ClientReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		if err := r.updateClientStatus(ctx, client, status.ClientPhasePending, "Recreating pod with updated image", len(filteredUpstreams), len(filteredVisitors)); err != nil {
 			log.Error(err, "failed to update client status")
 		}
+		metrics.RecordProxies(client.Namespace, client.Name, nil, fmt.Errorf("pod being recreated"))
 		return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
 	}
 
@@ -304,6 +315,7 @@ func (r *ClientReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		if err := r.updateClientStatus(ctx, client, status.ClientPhasePending, "Pod not yet running", len(filteredUpstreams), len(filteredVisitors)); err != nil {
 			log.Error(err, "failed to update client status")
 		}
+		metrics.RecordProxies(client.Namespace, client.Name, nil, fmt.Errorf("pod not running"))
 		return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
 	}
 
@@ -314,6 +326,14 @@ func (r *ClientReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		len(filteredUpstreams), len(filteredVisitors)); err != nil {
 		log.Error(err, "failed to update client status")
 	}
+
+	// Read proxy status from the frpc admin API for metrics. Failure is not fatal.
+	config.Common.AdminAddress = service.Name + "." + service.Namespace + ".svc"
+	proxies, statusErr := handler.Status(config)
+	if statusErr != nil {
+		log.Info("failed to read frpc status", "error", statusErr.Error())
+	}
+	metrics.RecordProxies(client.Namespace, client.Name, proxies, statusErr)
 
 	log.Info("compare configmap")
 	reloadPending := createdConfigMap.Annotations != nil && createdConfigMap.Annotations["frp.zufardhiyaulhaq.com/reload-pending"] == "true"
@@ -372,7 +392,6 @@ func (r *ClientReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 		// Config is synced, reload frpc
 		log.Info("configmap synced to pod, reloading frpc config")
-		config.Common.AdminAddress = service.Name + "." + service.Namespace + ".svc"
 		err = handler.Reload(config)
 		if err != nil {
 			log.Error(err, "failed to reload config")
@@ -395,8 +414,19 @@ func (r *ClientReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		log.Info("config reloaded successfully")
 		r.Recorder.Event(client, corev1.EventTypeNormal, EventReasonConfigReloaded, "Configuration reloaded successfully")
 		r.setCondition(client, status.ConditionTypeConfigSync, metav1.ConditionTrue, status.ReasonConfigReloaded, "Configuration synchronized")
+		if statusErr := r.updateClientStatus(ctx, client, status.ClientPhaseRunning,
+			fmt.Sprintf("Connected to %s:%d", client.Spec.Server.Host, client.Spec.Server.Port),
+			len(filteredUpstreams), len(filteredVisitors)); statusErr != nil {
+			log.Error(statusErr, "failed to update client status")
+		}
 	} else {
 		log.Info("no configmap diff found")
+		r.setCondition(client, status.ConditionTypeConfigSync, metav1.ConditionTrue, status.ReasonConfigReloaded, "Configuration synchronized")
+		if statusErr := r.updateClientStatus(ctx, client, status.ClientPhaseRunning,
+			fmt.Sprintf("Connected to %s:%d", client.Spec.Server.Host, client.Spec.Server.Port),
+			len(filteredUpstreams), len(filteredVisitors)); statusErr != nil {
+			log.Error(statusErr, "failed to update client status")
+		}
 	}
 
 	log.Info("compare service")
@@ -434,7 +464,7 @@ func (r *ClientReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Complete(r)
 }
 
-// updateClientStatus updates the status of a Client resource
+// updateClientStatus updates the status of a Client resource and refreshes its metrics.
 func (r *ClientReconciler) updateClientStatus(ctx context.Context, client *frpv1alpha1.Client,
 	phase, message string, upstreamCount, visitorCount int) error {
 
@@ -442,6 +472,13 @@ func (r *ClientReconciler) updateClientStatus(ctx context.Context, client *frpv1
 	client.Status.Message = message
 	client.Status.UpstreamCount = upstreamCount
 	client.Status.VisitorCount = visitorCount
+
+	clientID := client.Namespace + "/" + client.Name
+	if client.Spec.ClientID != nil {
+		clientID = *client.Spec.ClientID
+	}
+	metrics.RecordClient(client, clientID, frpcImage)
+	metrics.SetLastReconcile(client.Namespace, client.Name, time.Now())
 
 	return r.Status().Update(ctx, client)
 }
