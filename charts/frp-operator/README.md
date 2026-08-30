@@ -2,7 +2,7 @@
 
 Expose your service in Kubernetes to the Internet with open source FRP!
 
-![Version: 1.8.0](https://img.shields.io/badge/Version-1.8.0-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 0.10.0](https://img.shields.io/badge/AppVersion-0.10.0-informational?style=flat-square) [![made with Go](https://img.shields.io/badge/made%20with-Go-brightgreen)](http://golang.org) [![Github main branch build](https://img.shields.io/github/workflow/status/zufardhiyaulhaq/frp-operator/Main)](https://github.com/zufardhiyaulhaq/frp-operator/actions/workflows/main.yml) [![GitHub issues](https://img.shields.io/github/issues/zufardhiyaulhaq/frp-operator)](https://github.com/zufardhiyaulhaq/frp-operator/issues) [![GitHub pull requests](https://img.shields.io/github/issues-pr/zufardhiyaulhaq/frp-operator)](https://github.com/zufardhiyaulhaq/frp-operator/pulls)[![Artifact Hub](https://img.shields.io/endpoint?url=https://artifacthub.io/badge/repository/frp-operator)](https://artifacthub.io/packages/search?repo=frp-operator)
+![Version: 1.9.0](https://img.shields.io/badge/Version-1.9.0-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 0.11.0](https://img.shields.io/badge/AppVersion-0.11.0-informational?style=flat-square) [![made with Go](https://img.shields.io/badge/made%20with-Go-brightgreen)](http://golang.org) [![Github main branch build](https://img.shields.io/github/workflow/status/zufardhiyaulhaq/frp-operator/Main)](https://github.com/zufardhiyaulhaq/frp-operator/actions/workflows/main.yml) [![GitHub issues](https://img.shields.io/github/issues/zufardhiyaulhaq/frp-operator)](https://github.com/zufardhiyaulhaq/frp-operator/issues) [![GitHub pull requests](https://img.shields.io/github/issues-pr/zufardhiyaulhaq/frp-operator)](https://github.com/zufardhiyaulhaq/frp-operator/pulls)[![Artifact Hub](https://img.shields.io/endpoint?url=https://artifacthub.io/badge/repository/frp-operator)](https://artifacthub.io/packages/search?repo=frp-operator)
 
 ## Features
 
@@ -37,6 +37,7 @@ Expose your service in Kubernetes to the Internet with open source FRP!
 - Each `Client` reports a `clientID` of `<namespace>/<name>` in the frps dashboard (frps >= v0.67.0; set `spec.clientID: ""` to omit) — frps allows only one online client per clientID
 - Reliable, restart-free config reload — operator `exec`s into the pod and verifies `/frp/config.toml` matches the expected state, and runs `frpc verify` on the rendered config before triggering the reload
 - Validation for duplicate `Upstream` server ports and duplicate `Visitor` ports, surfaced via descriptive errors
+- Expose `Service type=LoadBalancer` through a pool of frps servers (`ServerPool` + `loadBalancerClass: frp.zufardhiyaulhaq.com/frp`)
 - Helm chart with native CRDs and RBAC
 - Prometheus metrics for every `Client` and proxy (`frp_client_ready`, `frp_client_config_synced`, `frp_proxy_status`, ...) plus controller-runtime metrics, served on `:8080` (or `:8443` with Kubernetes token authentication when `metrics.secure=true`)
 - Optional Prometheus Operator `ServiceMonitor` and a Grafana dashboard (`dashboards/frp-operator.json`)
@@ -96,6 +97,41 @@ nginx   17m
 http://178.128.100.87:8080/
 ```
 
+## LoadBalancer Services
+
+Create a `ServerPool` in the operator namespace listing your frps servers, then create Services with `type: LoadBalancer` and `loadBalancerClass: frp.zufardhiyaulhaq.com/frp`. The operator picks a server, generates the `Client`/`Upstream` resources in the operator namespace and writes the server's `publicAddress` to `status.loadBalancer.ingress`.
+
+| Annotation on the Service | Meaning |
+|---|---|
+| `frp.zufardhiyaulhaq.com/server-pool: <name>` | Use only this pool (required for pools with `allocationPolicy: Explicit`) |
+| `frp.zufardhiyaulhaq.com/server: sg-01[,sg-02]` | Bind to exactly these servers; one ingress IP each, all-or-nothing |
+| `frp.zufardhiyaulhaq.com/allocated-server` | Written by the operator; the current binding |
+
+Rules:
+- A Service gets **one** server (one IP) unless it pins several. All its ports land on that server with `remotePort` = Service port.
+- Pools are tried in name order, servers in spec order; the first server with every requested port free (and allowed by `allowedPorts`) wins. Bindings are sticky: a bound Service never moves unless its server is removed from the pool.
+- If no server fits, the Service stays `<pending>` with an Event (`PortUnavailable`, `PortNotAllowed`, `NoServerAvailable`, …). First come, first served: a running Service never loses its IP to another one. Delete the holder and the pending Service binds within seconds.
+- The ingress address appears only after the generated frpc client is `Ready` and every proxy reports `running`.
+- `clientMode: Shared` runs one frpc pod per server for all Services; `PerService` (default) runs one per Service per server.
+- Only TCP and UDP ports are supported. Set `loadBalancer.enabled=false` to turn the controller off.
+- Editing the `frp.zufardhiyaulhaq.com/server-pool` or `frp.zufardhiyaulhaq.com/server` annotation on a bound Service is honoured and re-selects (a live tunnel may move); a pinned multi-server Service is all-or-nothing: if one pinned server is removed from the pool, all of its tunnels are torn down until the binding can be satisfied again.
+
+### Uninstalling / disabling
+
+Every claimed Service carries the finalizer `frp.zufardhiyaulhaq.com/loadbalancer`, which the operator removes once it has cleaned up that Service's generated `Client`/`Upstream` objects. Before running `helm uninstall` or setting `loadBalancer.enabled=false`, either delete the claimed Services or remove their `loadBalancerClass` so the operator can clean up first — otherwise those Services are left stuck deleting (or stuck with a stale finalizer) once the controller stops running.
+
+If the operator is already gone and a Service is stuck on the finalizer, strip it manually:
+```console
+kubectl patch svc <name> -p '{"metadata":{"finalizers":null}}' --type=merge
+```
+then delete the generated `Client`/`Upstream` objects yourself (label `frp.zufardhiyaulhaq.com/managed-by=loadbalancer`) in the operator namespace.
+
+### Security note
+
+The operator matches `Upstream` objects to `Client` objects by name, across namespaces — an `Upstream` naming a generated Client (`pool-<pool>-<server>` in `clientMode: Shared`, `lb-<ns>-<svc>-<server>` in `PerService`) attaches to that Client's live tunnel regardless of which namespace the `Upstream` lives in. This means any user who can create `Upstream` objects can attach to a generated Client if they can guess or discover its name. Restrict `create` on `upstreams.frp.zufardhiyaulhaq.com` to trusted namespaces via RBAC.
+
+See [`examples/loadbalancer`](https://github.com/zufardhiyaulhaq/frp-operator/tree/main/examples/loadbalancer).
+
 ## Monitoring
 
 The operator exposes Prometheus metrics on the `<release>-controller-manager-metrics-service` Service (port `http`/8080 by default):
@@ -110,6 +146,8 @@ The operator exposes Prometheus metrics on the `<release>-controller-manager-met
 | `frp_client_last_reconcile_timestamp_seconds` | `namespace`, `client` | Unix time of the last reconcile |
 | `frp_proxy_status` | `namespace`, `client`, `proxy`, `type`, `status` | One-hot frpc proxy phase (`running`, `start error`, `check failed`, `closed`, `wait start`, `new`) |
 | `frp_proxy_info` | `namespace`, `client`, `proxy`, `type`, `local_addr`, `remote_addr`, `plugin` | Always 1 |
+| `frp_loadbalancer_service` | `namespace`, `service`, `pool`, `server`, `state` | Always 1; state is bound or pending |
+| `frp_serverpool_allocated_ports` | `pool`, `server` | Ports allocated on the server |
 
 Enable scraping with `metrics.serviceMonitor.enabled=true` (Prometheus Operator; the VictoriaMetrics operator also consumes `ServiceMonitor` objects). With `metrics.secure=true` the scraper's ServiceAccount must be allowed `GET /metrics` (bind it to the `<release>-metrics-reader` ClusterRole).
 
@@ -119,13 +157,14 @@ A Grafana dashboard lives at [`dashboards/frp-operator.json`](https://github.com
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
+| loadBalancer.enabled | bool | `true` | Bind `Service type=LoadBalancer` with `loadBalancerClass: frp.zufardhiyaulhaq.com/frp` to `ServerPool` servers |
 | metrics.secure | bool | `false` |  |
 | metrics.serviceMonitor.additionalLabels | object | `{}` |  |
 | metrics.serviceMonitor.enabled | bool | `false` |  |
 | metrics.serviceMonitor.interval | string | `"30s"` |  |
 | operator.image | string | `"ghcr.io/zufardhiyaulhaq/frp-operator"` |  |
 | operator.replica | int | `1` |  |
-| operator.tag | string | `"v0.10.0"` |  |
+| operator.tag | string | `"v0.11.0"` |  |
 | resources.limits.cpu | string | `"200m"` |  |
 | resources.limits.memory | string | `"100Mi"` |  |
 | resources.requests.cpu | string | `"100m"` |  |

@@ -32,10 +32,16 @@ spec:
         - --metrics-secure=false
         {{- end }}
         - --leader-elect
+        - --enable-loadbalancer-controller={{ .Values.loadBalancer.enabled }}
         command:
         - /manager
         image: "{{ .Values.operator.image }}:{{ .Values.operator.tag }}"
         imagePullPolicy: Always
+        env:
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
         livenessProbe:
           httpGet:
             path: /healthz

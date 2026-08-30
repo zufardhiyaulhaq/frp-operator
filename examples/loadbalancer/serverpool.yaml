@@ -1,0 +1,37 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: sg-01-token
+  namespace: frp-operator
+stringData:
+  token: change-me
+---
+apiVersion: frp.zufardhiyaulhaq.com/v1alpha1
+kind: ServerPool
+metadata:
+  name: prod
+  namespace: frp-operator          # must be the operator's namespace
+spec:
+  allocationPolicy: Auto           # Auto (default) | Explicit
+  clientMode: PerService           # PerService (default) | Shared
+  allowedPorts: ["80", "443", "8000-9000"]
+  servers:
+  - name: sg-01
+    host: 178.128.100.87
+    port: 7000
+    publicAddress: 178.128.100.87
+    authentication:
+      token:
+        secret:
+          name: sg-01-token
+          key: token
+  - name: sg-02
+    host: 178.128.100.88
+    port: 7000
+    publicAddress: lb2.example.com
+    allowedPorts: ["443"]
+    authentication:
+      token:
+        secret:
+          name: sg-01-token
+          key: token

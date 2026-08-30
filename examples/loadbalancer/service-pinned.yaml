@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: web-pinned
+  namespace: default
+  annotations:
+    frp.zufardhiyaulhaq.com/server-pool: prod
+    frp.zufardhiyaulhaq.com/server: sg-01
+spec:
+  type: LoadBalancer
+  loadBalancerClass: frp.zufardhiyaulhaq.com/frp
+  selector:
+    app: web
+  ports:
+  - name: https
+    port: 8080
+    targetPort: 8443
+    protocol: TCP

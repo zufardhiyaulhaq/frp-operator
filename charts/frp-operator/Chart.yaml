@@ -2,8 +2,8 @@
 apiVersion: v2
 name: frp-operator
 description: Expose your service in Kubernetes to the Internet with open source FRP!
-version: 1.8.0
-appVersion: 0.10.0
+version: 1.9.0
+appVersion: 0.11.0
 type: application
 home: https://github.com/zufardhiyaulhaq/frp-operator
 

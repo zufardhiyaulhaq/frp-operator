@@ -43,10 +43,13 @@ make helm.create.releases. # create a new helm charts version
 - **Client**: FRP client instance connecting to an external FRP server
 - **Upstream**: Service/port to expose through FRP (supports TCP, UDP, STCP, XTCP protocols)
 - **Visitor**: Inbound tunnel to access another client's Upstreams (for P2P scenarios)
+- **ServerPool**: pool of frps servers used to back `Service type=LoadBalancer` (loadBalancerClass `frp.zufardhiyaulhaq.com/frp`)
 
 ### Controllers (controllers/)
 
 **ClientReconciler** is the primary active controller. Upstream and Visitor controllers are stubs - changes to those CRs are detected by ClientReconciler through list/watch.
+
+**ServiceReconciler** binds claimed LoadBalancer Services to ServerPool servers and generates Client/Upstream CRs in the operator namespace (pure selection logic in `pkg/loadbalancer/`).
 
 Reconciliation flow:
 1. Fetch Client resource
@@ -90,14 +93,17 @@ make install run
 kubectl --context orbstack apply -f examples/simple/
 ```
 
+The LoadBalancer controller (`ServiceReconciler`) needs to know which namespace holds `ServerPool`s and its generated `Client`/`Upstream` resources: `POD_NAMESPACE` env var, or `--operator-namespace` flag. `make run` sets `POD_NAMESPACE` to `default` if it isn't already set.
+
 ## Directory Structure
 
 ```
 api/v1alpha1/       # CRD type definitions
 controllers/        # Reconciliation logic
 pkg/client/         # Core business logic (builders, models, handlers)
+pkg/loadbalancer/   # LB allocator, naming, builders
 config/             # Kustomize manifests (CRDs, RBAC, manager), mostly not being used. fix the RBAC & CRDs under charts instead
 charts/             # Helm chart
 dashboards/         # Grafana dashboard JSON
-examples/           # Usage examples (simple, tcp-full, p2p)
+examples/           # Usage examples (simple, tcp-full, p2p, loadbalancer)
 ```

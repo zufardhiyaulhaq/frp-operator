@@ -1,6 +1,6 @@
 operator:
   image: "ghcr.io/zufardhiyaulhaq/frp-operator"
-  tag: "v0.10.0"
+  tag: "v0.11.0"
   replica: 1
 
 resources:
@@ -17,3 +17,7 @@ metrics:
     enabled: false
     interval: 30s
     additionalLabels: {}
+
+loadBalancer:
+  # -- Bind `Service type=LoadBalancer` with `loadBalancerClass: frp.zufardhiyaulhaq.com/frp` to `ServerPool` servers
+  enabled: true

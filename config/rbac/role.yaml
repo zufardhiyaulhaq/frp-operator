@@ -33,6 +33,14 @@ rules:
   verbs:
   - create
 - apiGroups:
+  - ""
+  resources:
+  - services/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
   - frp.zufardhiyaulhaq.com
   resources:
   - Visitors
@@ -59,8 +67,17 @@ rules:
   resources:
   - Visitors/status
   - clients/status
+  - serverpools/status
   - upstreams/status
   verbs:
   - get
   - patch
   - update
+- apiGroups:
+  - frp.zufardhiyaulhaq.com
+  resources:
+  - serverpools
+  verbs:
+  - get
+  - list
+  - watch
