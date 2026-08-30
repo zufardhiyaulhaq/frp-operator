@@ -124,5 +124,5 @@ The generated `Client`/`Upstream` objects (in the operator's namespace, named `l
 - Bindings are otherwise sticky: a bound Service keeps its server even if a "better" one becomes
   available later, and first-come-first-served applies when two Services race for the same port.
 
-See the chart README's [LoadBalancer Services](../../README.md#loadbalancer-services) section for
+See the chart README's [LoadBalancer Controller](../../README.md#loadbalancer-controller) section for
 the full annotation reference and selection rules.

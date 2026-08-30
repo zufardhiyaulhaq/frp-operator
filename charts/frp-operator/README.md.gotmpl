@@ -9,6 +9,7 @@
 - `Client` — declarative FRP client instance connecting to an external FRP server
 - `Upstream` — a Kubernetes Service/port exposed through FRP
 - `Visitor` — inbound tunnel that consumes another client's STCP/XTCP `Upstream` (for P2P scenarios)
+- `ServerPool` — a pool of frps servers that backs `Service type=LoadBalancer` (see [LoadBalancer Controller](#loadbalancer-controller))
 
 **Upstream protocols**
 - `TCP` and `UDP` — straightforward port forwarding with optional health checks and bandwidth limits
@@ -96,9 +97,71 @@ nginx   17m
 http://178.128.100.87:8080/
 ```
 
-## LoadBalancer Services
+## LoadBalancer Controller
 
-Create a `ServerPool` in the operator namespace listing your frps servers, then create Services with `type: LoadBalancer` and `loadBalancerClass: frp.zufardhiyaulhaq.com/frp`. The operator picks a server, generates the `Client`/`Upstream` resources in the operator namespace and writes the server's `publicAddress` to `status.loadBalancer.ingress`.
+Besides the hand-written `Client`/`Upstream` flow, the operator can act as a load-balancer controller: a `Service` of `type: LoadBalancer` with `loadBalancerClass: frp.zufardhiyaulhaq.com/frp` is bound to one frps server from a `ServerPool`, the operator generates the `Client`/`Upstream` resources in its own namespace, and the server's public address lands in `status.loadBalancer.ingress` — exactly like a cloud load balancer, but through FRP. Charts and tools that already create LoadBalancer Services work unchanged.
+
+### ServerPool
+
+A `ServerPool` lives in the operator namespace (next to the frps token Secrets) and lists the frps servers a Service may be bound to:
+
+```yaml
+apiVersion: frp.zufardhiyaulhaq.com/v1alpha1
+kind: ServerPool
+metadata:
+  name: prod
+  namespace: frp-operator           # the operator's namespace
+spec:
+  allocationPolicy: Auto            # Auto (default): eligible without annotation | Explicit: only when a Service names it
+  clientMode: PerService            # PerService (default): one frpc pod per Service per server | Shared: one frpc pod per server
+  allowedPorts: ["80", "443", "8000-9000"]   # optional; empty = any port
+  servers:
+  - name: sg-01                     # stable key used in annotations and generated names (lowercase, max 40 chars)
+    host: 178.128.100.87            # address frpc dials
+    port: 7000
+    publicAddress: 178.128.100.87   # IP or hostname written to the Service status
+    allowedPorts: ["443"]           # optional per-server override
+    authentication:
+      token:
+        secret:
+          name: sg-01-token
+          key: token
+    # transportProtocol, tls, transport, adminServer: same shapes as Client.spec.server
+  clientTemplate:                   # optional; applied to every generated Client
+    podTemplate:
+      resources:
+        limits:
+          memory: 64Mi
+```
+
+`status.servers[].allocatedPorts` shows which Service holds which port on each server, and the `Ready` condition reports validation problems (missing token Secret, duplicate or invalid server names, bad `allowedPorts`).
+
+### Service
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: web
+  namespace: default
+  annotations:
+    frp.zufardhiyaulhaq.com/server-pool: prod   # optional
+    frp.zufardhiyaulhaq.com/server: sg-01       # optional; "sg-01,sg-02" for one IP per server
+spec:
+  type: LoadBalancer
+  loadBalancerClass: frp.zufardhiyaulhaq.com/frp
+  selector:
+    app: web
+  ports:
+  - name: https
+    port: 443          # opened as remotePort 443 on the frps server
+    targetPort: 8443
+    protocol: TCP
+```
+
+`kubectl get svc web` shows `<pending>` until the generated frpc client is `Ready` and its proxies are `running`, then the server's `publicAddress`. `kubectl describe svc web` shows the Events explaining a pending state; the generated objects are `lb-default-web-sg-01` (`Client`) and `lb-default-web-sg-01-443` (`Upstream`) in the operator namespace.
+
+### Annotations
 
 | Annotation on the Service | Meaning |
 |---|---|
@@ -106,7 +169,8 @@ Create a `ServerPool` in the operator namespace listing your frps servers, then 
 | `frp.zufardhiyaulhaq.com/server: sg-01[,sg-02]` | Bind to exactly these servers; one ingress IP each, all-or-nothing |
 | `frp.zufardhiyaulhaq.com/allocated-server` | Written by the operator; the current binding |
 
-Rules:
+### Rules
+
 - A Service gets **one** server (one IP) unless it pins several. All its ports land on that server with `remotePort` = Service port.
 - Pools are tried in name order, servers in spec order; the first server with every requested port free (and allowed by `allowedPorts`) wins. Bindings are sticky: a bound Service never moves unless its server is removed from the pool.
 - If no server fits, the Service stays `<pending>` with an Event (`PortUnavailable`, `PortNotAllowed`, `NoServerAvailable`, …). First come, first served: a running Service never loses its IP to another one. Delete the holder and the pending Service binds within seconds.
