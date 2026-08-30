@@ -24,7 +24,7 @@
 - Selection: pools sorted by name, servers in spec order, first fit; one server unless `server` annotation lists several; all-or-nothing for pinned lists; no fallback from an `Explicit` pool.
 - Ingress is written only when the generated Client has condition `Ready=True` **and** `handler.Status` reports every Upstream of that Service on that server as `running`.
 - Chart: version `1.9.0`, appVersion `0.11.0`, `operator.tag: v0.11.0`; CRDs synced into `charts/frp-operator/crds/crds.yaml` (append a fourth document).
-- Release notes in `docs/releases/v0.11.0.md`; docs under `docs/superpowers/**` containing `{{`/`{%` must be wrapped in `{% raw %}` … `{% endraw %}`.
+- Release notes in `docs/releases/v0.11.0.md`; docs under `docs/superpowers/**` containing `{{`/`{%` must be wrapped in Liquid raw/endraw tags (first and last line of the file).
 
 ---
 
