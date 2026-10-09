@@ -105,6 +105,7 @@ vet: ## Run go vet against code.
 OUT_DIR := ./output
 $(shell mkdir -p $(OUT_DIR))
 
+.PHONY: test
 test:
 	go test -coverprofile=./output/coverage.out -race ./...
 	go tool cover -html=./output/coverage.out -o ./output/coverage.html
