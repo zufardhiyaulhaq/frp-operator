@@ -80,6 +80,11 @@ spec:
                     required:
                     - secret
                     type: object
+                  serverUser:
+                    description: |-
+                      ServerUser is the frp user that owns the target proxy. Defaults to this Client's user;
+                      set it to reach a proxy published by a Client with a different `user` (see allowUsers).
+                    type: string
                 required:
                 - host
                 - port
@@ -99,6 +104,23 @@ spec:
                     properties:
                       serverName:
                         type: string
+                      serverSecretKey:
+                        description: ServerSecretKey is the fallback STCP proxy's
+                          secret. Defaults to the XTCP serverSecretKey.
+                        properties:
+                          secret:
+                            properties:
+                              key:
+                                type: string
+                              name:
+                                type: string
+                            required:
+                            - key
+                            - name
+                            type: object
+                        required:
+                        - secret
+                        type: object
                       timeout:
                         type: integer
                     required:
@@ -128,6 +150,11 @@ spec:
                     required:
                     - secret
                     type: object
+                  serverUser:
+                    description: |-
+                      ServerUser is the frp user that owns the target proxy (and the fallback STCP proxy).
+                      Defaults to this Client's user.
+                    type: string
                 required:
                 - host
                 - port

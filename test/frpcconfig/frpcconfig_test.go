@@ -156,7 +156,7 @@ func credsSecret() *corev1.Secret {
 	return &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: "creds", Namespace: ns}, Data: data}
 }
 
-func sec(key string) v1.Secret       { return v1.Secret{Name: "creds", Key: key} }
+func sec(key string) v1.Secret      { return v1.Secret{Name: "creds", Key: key} }
 func sref(key string) *v1.SecretRef { return &v1.SecretRef{Secret: sec(key)} }
 
 func baseClient() *v1.Client {
@@ -331,8 +331,8 @@ func featureCases() []featureCase {
 		RequestHeaders:    &v1.HTTPHeaders{Set: map[string]string{"x-from-where": "frp", "X-Real.IP": "1.2.3.4"}},
 		ResponseHeaders:   &v1.HTTPHeaders{Set: map[string]string{"x-resp": "yes"}},
 		HTTPUser:          sref("h-user"), HTTPPassword: sref("h-pass"),
-		HealthCheck:       &v1.UpstreamSpec_HTTP_HealthCheck{Type: "http", Path: "/healthz", TimeoutSeconds: 3, IntervalSeconds: 10, MaxFailed: 3},
-		Transport:         proxyTransport(), LoadBalancer: &v1.LoadBalancer{Group: "web", GroupKey: sref("groupkey")},
+		HealthCheck: &v1.UpstreamSpec_HTTP_HealthCheck{Type: "http", Path: "/healthz", TimeoutSeconds: 3, IntervalSeconds: 10, MaxFailed: 3},
+		Transport:   proxyTransport(), LoadBalancer: &v1.LoadBalancer{Group: "web", GroupKey: sref("groupkey")},
 	}})}, expect: append([]string{`type = "http"`, `subdomain = "app"`, `customDomains = ["a.example.com", "b.example.com"]`, `locations = ["/", "/api"]`,
 		`hostHeaderRewrite = "internal.local"`, `requestHeaders.set."x-from-where" = "frp"`, `requestHeaders.set."X-Real.IP" = "1.2.3.4"`, `responseHeaders.set."x-resp" = "yes"`,
 		`httpUser = "HTTP-USER-VAL"`, `healthCheck.type = "http"`, `healthCheck.path = "/healthz"`, `loadBalancer.group = "web"`}, proxyTransportExpect...)})
@@ -356,6 +356,21 @@ func featureCases() []featureCase {
 		Host: "0.0.0.0", Port: 6001, ServerName: "xtcp-max", ServerSecretKey: v1.VisitorSpec_XTCP_ServerSecretKey{Secret: sec("xtcp-key")},
 		Fallback: &v1.VisitorSpec_Fallback{ServerName: "stcp-max", Timeout: 200},
 	}})}, expect: []string{"natTraversal.disableAssistedAddrs = true", `fallbackTo = "v-xtcp-fallback"`, "fallbackTimeoutMs = 200", `name = "v-xtcp-fallback"`, "bindPort = -1"}})
+	c = baseClient()
+	c.Spec.User = "bob"
+	add(featureCase{name: "visitor_cross_user", client: c, visitor: []v1.Visitor{
+		visitor("v-stcp", v1.VisitorSpec{STCP: &v1.VisitorSpec_STCP{
+			Host: "0.0.0.0", Port: 6000, ServerUser: "alice", ServerName: "stcp-max", ServerSecretKey: v1.VisitorSpec_STCP_ServerSecretKey{Secret: sec("stcp-key")},
+		}}),
+		visitor("v-xtcp", v1.VisitorSpec{XTCP: &v1.VisitorSpec_XTCP{
+			Host: "0.0.0.0", Port: 6001, ServerUser: "alice", ServerName: "xtcp-max", ServerSecretKey: v1.VisitorSpec_XTCP_ServerSecretKey{Secret: sec("xtcp-key")},
+			Fallback: &v1.VisitorSpec_Fallback{ServerName: "stcp-max", Timeout: 200},
+		}}),
+	}, expect: []string{`user = "bob"`, `serverUser = "alice"`}})
+	add(featureCase{name: "visitor_xtcp_fallback_secret", visitor: []v1.Visitor{visitor("v-xtcp", v1.VisitorSpec{XTCP: &v1.VisitorSpec_XTCP{
+		Host: "0.0.0.0", Port: 6001, ServerName: "xtcp-max", ServerSecretKey: v1.VisitorSpec_XTCP_ServerSecretKey{Secret: sec("xtcp-key")},
+		Fallback: &v1.VisitorSpec_Fallback{ServerName: "stcp-max", Timeout: 200, ServerSecretKey: sref("stcp-key")},
+	}})}, expect: []string{`secretKey = "XTCP-KEY-VAL"`, `secretKey = "STCP-KEY-VAL"`}})
 	add(featureCase{name: "visitor_disabled", visitor: []v1.Visitor{visitor("v-off", v1.VisitorSpec{Enabled: ptr(false), STCP: &v1.VisitorSpec_STCP{
 		Host: "0.0.0.0", Port: 6000, ServerName: "s", ServerSecretKey: v1.VisitorSpec_STCP_ServerSecretKey{Secret: sec("stcp-key")},
 	}})}, expect: []string{"enabled = false"}})

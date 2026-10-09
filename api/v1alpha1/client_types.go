@@ -31,6 +31,10 @@ type ClientSpec struct {
 	// manifests against one frps from multiple clusters.
 	ClientID *string `json:"clientID,omitempty"`
 	// +optional
+	// User is this client's frp user. frps namespaces its proxies as "<user>.<name>", and it is
+	// the identity that STCP/XTCP `allowUsers` and visitor `serverUser` refer to.
+	User string `json:"user,omitempty"`
+	// +optional
 	// PodTemplate allows customization of the FRP client pod
 	PodTemplate *ClientSpec_PodTemplate `json:"podTemplate,omitempty"`
 }

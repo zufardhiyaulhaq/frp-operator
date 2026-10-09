@@ -1688,6 +1688,11 @@ spec:
                 - host
                 - port
                 type: object
+              user:
+                description: |-
+                  User is this client's frp user. frps namespaces its proxies as "<user>.<name>", and it is
+                  the identity that STCP/XTCP `allowUsers` and visitor `serverUser` refer to.
+                type: string
             required:
             - server
             type: object

@@ -35,8 +35,12 @@ type VisitorSpec struct {
 }
 
 type VisitorSpec_STCP struct {
-	Host            string                           `json:"host"`
-	Port            int                              `json:"port"`
+	Host string `json:"host"`
+	Port int    `json:"port"`
+	// +optional
+	// ServerUser is the frp user that owns the target proxy. Defaults to this Client's user;
+	// set it to reach a proxy published by a Client with a different `user` (see allowUsers).
+	ServerUser      string                           `json:"serverUser,omitempty"`
 	ServerName      string                           `json:"serverName"`
 	ServerSecretKey VisitorSpec_STCP_ServerSecretKey `json:"serverSecretKey"`
 }
@@ -46,8 +50,12 @@ type VisitorSpec_STCP_ServerSecretKey struct {
 }
 
 type VisitorSpec_XTCP struct {
-	Host                 string                           `json:"host"`
-	Port                 int                              `json:"port"`
+	Host string `json:"host"`
+	Port int    `json:"port"`
+	// +optional
+	// ServerUser is the frp user that owns the target proxy (and the fallback STCP proxy).
+	// Defaults to this Client's user.
+	ServerUser           string                           `json:"serverUser,omitempty"`
 	ServerName           string                           `json:"serverName"`
 	ServerSecretKey      VisitorSpec_XTCP_ServerSecretKey `json:"serverSecretKey"`
 	Fallback             *VisitorSpec_Fallback            `json:"fallback,omitempty"`
@@ -67,6 +75,9 @@ type VisitorSpec_XTCP_ServerSecretKey struct {
 type VisitorSpec_Fallback struct {
 	ServerName string `json:"serverName"`
 	Timeout    int    `json:"timeout"`
+	// +optional
+	// ServerSecretKey is the fallback STCP proxy's secret. Defaults to the XTCP serverSecretKey.
+	ServerSecretKey *SecretRef `json:"serverSecretKey,omitempty"`
 }
 
 // VisitorStatus defines the observed state of Visitor

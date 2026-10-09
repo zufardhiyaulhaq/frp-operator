@@ -1688,6 +1688,11 @@ spec:
                 - host
                 - port
                 type: object
+              user:
+                description: |-
+                  User is this client's frp user. frps namespaces its proxies as "<user>.<name>", and it is
+                  the identity that STCP/XTCP `allowUsers` and visitor `serverUser` refer to.
+                type: string
             required:
             - server
             type: object
@@ -2196,6 +2201,7 @@ spec:
                         - secret
                         type: object
                       httpUser:
+                        description: For static_file, http_proxy
                         properties:
                           secret:
                             properties:
@@ -2248,7 +2254,8 @@ spec:
                         description: For unix_domain_socket
                         type: string
                       username:
-                        description: For socks5, http_proxy
+                        description: For socks5, http_proxy (http_proxy also accepts
+                          httpUser/httpPassword)
                         properties:
                           secret:
                             properties:
@@ -2601,6 +2608,11 @@ spec:
                     required:
                     - secret
                     type: object
+                  serverUser:
+                    description: |-
+                      ServerUser is the frp user that owns the target proxy. Defaults to this Client's user;
+                      set it to reach a proxy published by a Client with a different `user` (see allowUsers).
+                    type: string
                 required:
                 - host
                 - port
@@ -2620,6 +2632,23 @@ spec:
                     properties:
                       serverName:
                         type: string
+                      serverSecretKey:
+                        description: ServerSecretKey is the fallback STCP proxy's
+                          secret. Defaults to the XTCP serverSecretKey.
+                        properties:
+                          secret:
+                            properties:
+                              key:
+                                type: string
+                              name:
+                                type: string
+                            required:
+                            - key
+                            - name
+                            type: object
+                        required:
+                        - secret
+                        type: object
                       timeout:
                         type: integer
                     required:
@@ -2649,6 +2678,11 @@ spec:
                     required:
                     - secret
                     type: object
+                  serverUser:
+                    description: |-
+                      ServerUser is the frp user that owns the target proxy (and the fallback STCP proxy).
+                      Defaults to this Client's user.
+                    type: string
                 required:
                 - host
                 - port

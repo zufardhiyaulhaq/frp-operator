@@ -7,6 +7,9 @@ serverPort = {{ .Common.ServerPort }}
 {{ if .Common.ClientID }}
 clientID = {{ quote .Common.ClientID }}
 {{ end }}
+{{ if .Common.User }}
+user = {{ quote .Common.User }}
+{{ end }}
 
 {{ if and .Common.ServerProtocol (ne .Common.ServerProtocol "tcp") }}
 transport.protocol = {{ quote .Common.ServerProtocol }}
@@ -402,6 +405,12 @@ customDomains = [{{ range $i, $d := $upstream.TCPMUX.CustomDomains }}{{ if $i }}
 {{ if $upstream.TCPMUX.Transport }}
 transport.useEncryption = {{ $upstream.TCPMUX.Transport.UseEncryption }}
 transport.useCompression = {{ $upstream.TCPMUX.Transport.UseCompression }}
+{{ if $upstream.TCPMUX.Transport.BandwdithLimit }}
+{{ if $upstream.TCPMUX.Transport.BandwdithLimit.Enabled }}
+transport.bandwidthLimit = "{{ $upstream.TCPMUX.Transport.BandwdithLimit.Limit }}{{ $upstream.TCPMUX.Transport.BandwdithLimit.Type }}"
+transport.bandwidthLimitMode = "client"
+{{ end }}
+{{ end }}
 {{ end }}
 {{ end }}
 
@@ -416,6 +425,9 @@ type = "stcp"
 {{ if $visitor.Disabled }}
 enabled = false
 {{ end }}
+{{ if $visitor.STCP.ServerUser }}
+serverUser = {{ quote $visitor.STCP.ServerUser }}
+{{ end }}
 serverName = {{ quote $visitor.STCP.ServerName }}
 secretKey = {{ quote $visitor.STCP.SecretKey }}
 bindAddr = {{ quote $visitor.STCP.Host }}
@@ -427,6 +439,9 @@ name = {{ quote $visitor.Name }}
 type = "xtcp"
 {{ if $visitor.Disabled }}
 enabled = false
+{{ end }}
+{{ if $visitor.XTCP.ServerUser }}
+serverUser = {{ quote $visitor.XTCP.ServerUser }}
 {{ end }}
 serverName = {{ quote $visitor.XTCP.ServerName }}
 secretKey = {{ quote $visitor.XTCP.SecretKey }}
@@ -446,8 +461,11 @@ type = "stcp"
 {{ if $visitor.Disabled }}
 enabled = false
 {{ end }}
+{{ if $visitor.XTCP.ServerUser }}
+serverUser = {{ quote $visitor.XTCP.ServerUser }}
+{{ end }}
 serverName = {{ quote $visitor.XTCP.Fallback.ServerName }}
-secretKey = {{ quote $visitor.XTCP.SecretKey }}
+secretKey = {{ quote $visitor.XTCP.Fallback.SecretKey }}
 bindPort = -1
 {{ end }}
 {{ end }}

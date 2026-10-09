@@ -167,7 +167,7 @@ func TestValidateUpstreamServerPorts(t *testing.T) {
 			errMsg:  "duplicate server port 9000",
 		},
 		{
-			name: "TCP and UDP upstreams with same server port - error",
+			name: "TCP and UDP upstreams with same server port",
 			upstreams: []frpv1alpha1.Upstream{
 				{
 					ObjectMeta: metav1.ObjectMeta{Name: "tcp-upstream"},
@@ -190,8 +190,8 @@ func TestValidateUpstreamServerPorts(t *testing.T) {
 					},
 				},
 			},
-			wantErr: true,
-			errMsg:  "duplicate server port 8080",
+			// frps binds TCP and UDP remote ports independently (e.g. DNS on 53/TCP + 53/UDP).
+			wantErr: false,
 		},
 		{
 			name: "two UDP upstreams with same server port - error",
@@ -2237,5 +2237,92 @@ func TestNewConfig_MissingSecretIsAnError(t *testing.T) {
 				t.Errorf("NewConfig() error = %q, want it to mention %q", err, tt.wantMsg)
 			}
 		})
+	}
+}
+
+func TestNewConfig_TCPUpstreamRequiresPortOrPlugin(t *testing.T) {
+	fakeClient := createFakeClient(createDefaultTokenSecret("default")).Build()
+	clientObj := createBasicClient("default", "test-client", "frp.example.com", 7000)
+	upstreams := []frpv1alpha1.Upstream{{ObjectMeta: metav1.ObjectMeta{Name: "no-port", Namespace: "default"}, Spec: frpv1alpha1.UpstreamSpec{
+		Client: "test-client", TCP: &frpv1alpha1.UpstreamSpec_TCP{Host: "svc", Server: frpv1alpha1.UpstreamSpec_TCP_Server{Port: 8080}},
+	}}}
+
+	_, err := NewConfig(fakeClient, clientObj, upstreams, []frpv1alpha1.Visitor{})
+	if err == nil || !errors.IsBadRequest(err) || !strings.Contains(err.Error(), "no-port") {
+		t.Fatalf("NewConfig() error = %v, want BadRequest naming the upstream", err)
+	}
+}
+
+func TestNewConfig_HTTPProxyPluginAcceptsHTTPUser(t *testing.T) {
+	fakeClient := createFakeClient(createDefaultTokenSecret("default"), createSecret("default", "proxy-creds", map[string][]byte{
+		"user": []byte("alice"), "pass": []byte("s3cret"),
+	})).Build()
+	clientObj := createBasicClient("default", "test-client", "frp.example.com", 7000)
+	upstreams := []frpv1alpha1.Upstream{{ObjectMeta: metav1.ObjectMeta{Name: "proxy", Namespace: "default"}, Spec: frpv1alpha1.UpstreamSpec{
+		Client: "test-client", TCP: &frpv1alpha1.UpstreamSpec_TCP{Server: frpv1alpha1.UpstreamSpec_TCP_Server{Port: 8080}, Plugin: &frpv1alpha1.UpstreamPlugin{
+			Type:         "http_proxy",
+			HTTPUser:     &frpv1alpha1.SecretRef{Secret: frpv1alpha1.Secret{Name: "proxy-creds", Key: "user"}},
+			HTTPPassword: &frpv1alpha1.SecretRef{Secret: frpv1alpha1.Secret{Name: "proxy-creds", Key: "pass"}},
+		}},
+	}}}
+
+	config, err := NewConfig(fakeClient, clientObj, upstreams, []frpv1alpha1.Visitor{})
+	if err != nil {
+		t.Fatalf("NewConfig() unexpected error = %v", err)
+	}
+	plugin := config.Upstreams[0].TCP.Plugin
+	if plugin.Username != "alice" || plugin.Password != "s3cret" {
+		t.Errorf("http_proxy credentials = %q/%q, want alice/s3cret", plugin.Username, plugin.Password)
+	}
+}
+
+func TestNewConfig_TCPMUXBandwidthLimit(t *testing.T) {
+	fakeClient := createFakeClient(createDefaultTokenSecret("default")).Build()
+	clientObj := createBasicClient("default", "test-client", "frp.example.com", 7000)
+	upstreams := []frpv1alpha1.Upstream{{ObjectMeta: metav1.ObjectMeta{Name: "mux", Namespace: "default"}, Spec: frpv1alpha1.UpstreamSpec{
+		Client: "test-client", TCPMUX: &frpv1alpha1.UpstreamSpec_TCPMUX{Host: "svc", Port: 22, Multiplexer: "httpconnect", CustomDomains: []string{"mux.example.com"},
+			Transport: &frpv1alpha1.UpstreamSpec_TCP_Transport{BandwdithLimit: &frpv1alpha1.UpstreamSpec_TCP_Transport_BandwdithLimit{Enabled: true, Limit: 5, Type: "MB"}}},
+	}}}
+
+	config, err := NewConfig(fakeClient, clientObj, upstreams, []frpv1alpha1.Visitor{})
+	if err != nil {
+		t.Fatalf("NewConfig() unexpected error = %v", err)
+	}
+	limit := config.Upstreams[0].TCPMUX.Transport.BandwdithLimit
+	if limit == nil || !limit.Enabled || limit.Limit != 5 || limit.Type != "MB" {
+		t.Errorf("TCPMUX BandwdithLimit = %+v, want enabled 5MB", limit)
+	}
+}
+
+func TestNewConfig_UserAndVisitorServerUser(t *testing.T) {
+	fakeClient := createFakeClient(createDefaultTokenSecret("default"), createSecret("default", "keys", map[string][]byte{
+		"xtcp": []byte("xtcp-key"), "stcp": []byte("stcp-key"),
+	})).Build()
+	clientObj := createBasicClient("default", "test-client", "frp.example.com", 7000)
+	clientObj.Spec.User = "bob"
+	xtcpKey := frpv1alpha1.VisitorSpec_XTCP_ServerSecretKey{Secret: frpv1alpha1.Secret{Name: "keys", Key: "xtcp"}}
+	visitors := []frpv1alpha1.Visitor{
+		{ObjectMeta: metav1.ObjectMeta{Name: "a-default-fallback", Namespace: "default"}, Spec: frpv1alpha1.VisitorSpec{Client: "test-client", XTCP: &frpv1alpha1.VisitorSpec_XTCP{
+			Host: "0.0.0.0", Port: 6000, ServerUser: "alice", ServerName: "ssh", ServerSecretKey: xtcpKey,
+			Fallback: &frpv1alpha1.VisitorSpec_Fallback{ServerName: "ssh-stcp", Timeout: 200},
+		}}},
+		{ObjectMeta: metav1.ObjectMeta{Name: "b-own-fallback-key", Namespace: "default"}, Spec: frpv1alpha1.VisitorSpec{Client: "test-client", XTCP: &frpv1alpha1.VisitorSpec_XTCP{
+			Host: "0.0.0.0", Port: 6001, ServerName: "ssh", ServerSecretKey: xtcpKey,
+			Fallback: &frpv1alpha1.VisitorSpec_Fallback{ServerName: "ssh-stcp", Timeout: 200, ServerSecretKey: &frpv1alpha1.SecretRef{Secret: frpv1alpha1.Secret{Name: "keys", Key: "stcp"}}},
+		}}},
+	}
+
+	config, err := NewConfig(fakeClient, clientObj, []frpv1alpha1.Upstream{}, visitors)
+	if err != nil {
+		t.Fatalf("NewConfig() unexpected error = %v", err)
+	}
+	if config.Common.User != "bob" {
+		t.Errorf("Common.User = %q, want bob", config.Common.User)
+	}
+	if got := config.Visitors[0].XTCP; got.ServerUser != "alice" || got.Fallback.SecretKey != "xtcp-key" {
+		t.Errorf("visitor 0 ServerUser/fallback secret = %q/%q, want alice/xtcp-key", got.ServerUser, got.Fallback.SecretKey)
+	}
+	if got := config.Visitors[1].XTCP.Fallback.SecretKey; got != "stcp-key" {
+		t.Errorf("visitor 1 fallback secret = %q, want stcp-key", got)
 	}
 }

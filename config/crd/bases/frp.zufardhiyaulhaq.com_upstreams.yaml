@@ -417,6 +417,7 @@ spec:
                         - secret
                         type: object
                       httpUser:
+                        description: For static_file, http_proxy
                         properties:
                           secret:
                             properties:
@@ -469,7 +470,8 @@ spec:
                         description: For unix_domain_socket
                         type: string
                       username:
-                        description: For socks5, http_proxy
+                        description: For socks5, http_proxy (http_proxy also accepts
+                          httpUser/httpPassword)
                         properties:
                           secret:
                             properties:

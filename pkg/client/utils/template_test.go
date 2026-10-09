@@ -29,6 +29,7 @@ type testCommon struct {
 	ServerPort           int
 	ServerProtocol       string
 	ClientID             string
+	User                 string
 	ServerAuthentication testServerAuthentication
 	AdminAddress         string
 	AdminPort            int
@@ -198,6 +199,7 @@ type testVisitor struct {
 type testVisitorSTCP struct {
 	Host       string
 	Port       int
+	ServerUser string
 	ServerName string
 	SecretKey  string
 }
@@ -205,6 +207,7 @@ type testVisitorSTCP struct {
 type testVisitorXTCP struct {
 	Host                 string
 	Port                 int
+	ServerUser           string
 	ServerName           string
 	SecretKey            string
 	PersistantConnection bool
@@ -214,6 +217,7 @@ type testVisitorXTCP struct {
 
 type testVisitorFallback struct {
 	ServerName string
+	SecretKey  string
 	Timeout    int
 }
 

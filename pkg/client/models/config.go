@@ -49,6 +49,7 @@ type Common struct {
 	ServerPort           int
 	ServerProtocol       string
 	ClientID             string
+	User                 string
 	ServerAuthentication ServerAuthentication
 	AdminAddress         string
 	AdminPort            int
@@ -107,6 +108,7 @@ func (p Visitors) Swap(i, j int) {
 type Visitor_STCP struct {
 	Host       string
 	Port       int
+	ServerUser string
 	ServerName string
 	SecretKey  string
 }
@@ -114,6 +116,7 @@ type Visitor_STCP struct {
 type Visitor_XTCP struct {
 	Host                 string
 	Port                 int
+	ServerUser           string
 	ServerName           string
 	SecretKey            string
 	PersistantConnection bool
@@ -123,6 +126,7 @@ type Visitor_XTCP struct {
 
 type Visitor_XTCP_Fallback struct {
 	ServerName string
+	SecretKey  string
 	Timeout    int
 }
 
@@ -349,12 +353,17 @@ func isEnabled(enabled *bool) bool {
 // validateUpstreamServerPorts checks that no two TCP/UDP upstreams use the same server port
 // unless they are in the same load balancer group (which is intentional for load balancing)
 func validateUpstreamServerPorts(upstreamObjects []frpv1alpha1.Upstream) error {
-	// Track port -> {upstreamName, lbGroup} for conflict detection
+	// Track (port, protocol) -> {upstreamName, lbGroup} for conflict detection. frps binds TCP
+	// and UDP remote ports independently, so 53/TCP and 53/UDP do not conflict.
+	type portKey struct {
+		port     int
+		protocol string
+	}
 	type portInfo struct {
 		upstreamName string
 		lbGroup      string
 	}
-	serverPorts := make(map[int]portInfo) // port -> first upstream info
+	serverPorts := make(map[portKey]portInfo) // (port, protocol) -> first upstream info
 
 	for _, upstream := range upstreamObjects {
 		if !isEnabled(upstream.Spec.Enabled) {
@@ -378,7 +387,8 @@ func validateUpstreamServerPorts(upstreamObjects []frpv1alpha1.Upstream) error {
 			continue // STCP/XTCP/HTTP/HTTPS/TCPMUX don't have server ports
 		}
 
-		if existing, exists := serverPorts[port]; exists {
+		key := portKey{port: port, protocol: protocol}
+		if existing, exists := serverPorts[key]; exists {
 			// Allow same port if both are in the same load balancer group
 			if lbGroup != "" && existing.lbGroup == lbGroup {
 				continue // Same LB group, allowed
@@ -387,7 +397,7 @@ func validateUpstreamServerPorts(upstreamObjects []frpv1alpha1.Upstream) error {
 				fmt.Sprintf("duplicate server port %d: upstream %q (%s) conflicts with upstream %q",
 					port, upstream.Name, protocol, existing.upstreamName))
 		}
-		serverPorts[port] = portInfo{upstreamName: upstream.Name, lbGroup: lbGroup}
+		serverPorts[key] = portInfo{upstreamName: upstream.Name, lbGroup: lbGroup}
 	}
 
 	return nil
@@ -540,6 +550,7 @@ func NewConfig(k8sclient client.Client,
 	if clientObject.Spec.ClientID != nil {
 		config.Common.ClientID = *clientObject.Spec.ClientID
 	}
+	config.Common.User = clientObject.Spec.User
 
 	if clientObject.Spec.Server.Protocol != nil {
 		config.Common.ServerProtocol = *clientObject.Spec.Server.Protocol
@@ -692,6 +703,9 @@ func NewConfig(k8sclient client.Client,
 		}
 
 		if upstreamObject.Spec.TCP != nil {
+			if upstreamObject.Spec.TCP.Plugin == nil && upstreamObject.Spec.TCP.Port == 0 {
+				return config, errors.NewBadRequest(fmt.Sprintf("TCP upstream %q needs either port or plugin", upstreamObject.Name))
+			}
 			upstream.Type = 1
 			upstream.TCP.Host = upstreamObject.Spec.TCP.Host
 			upstream.TCP.Port = upstreamObject.Spec.TCP.Port
@@ -755,6 +769,17 @@ func NewConfig(k8sclient client.Client,
 						return config, err
 					}
 					*credential.dest = value
+				}
+
+				// http_proxy takes its credentials as httpUser/httpPassword in frpc; accept the
+				// CRD's httpUser/httpPassword fields for it as well as username/password.
+				if upstream.TCP.Plugin.Type == "http_proxy" {
+					if upstream.TCP.Plugin.Username == "" {
+						upstream.TCP.Plugin.Username = upstream.TCP.Plugin.HTTPUser
+					}
+					if upstream.TCP.Plugin.Password == "" {
+						upstream.TCP.Plugin.Password = upstream.TCP.Plugin.HTTPPassword
+					}
 				}
 			}
 		}
@@ -992,6 +1017,14 @@ func NewConfig(k8sclient client.Client,
 					UseCompression: upstreamObject.Spec.TCPMUX.Transport.UseCompression,
 					UseEncryption:  upstreamObject.Spec.TCPMUX.Transport.UseEncryption,
 				}
+
+				if upstreamObject.Spec.TCPMUX.Transport.BandwdithLimit != nil {
+					upstream.TCPMUX.Transport.BandwdithLimit = &Upstream_TCP_Transport_BandwidthLimit{
+						Enabled: upstreamObject.Spec.TCPMUX.Transport.BandwdithLimit.Enabled,
+						Limit:   upstreamObject.Spec.TCPMUX.Transport.BandwdithLimit.Limit,
+						Type:    upstreamObject.Spec.TCPMUX.Transport.BandwdithLimit.Type,
+					}
+				}
 			}
 		}
 
@@ -1017,6 +1050,7 @@ func NewConfig(k8sclient client.Client,
 			visitor.Type = 1
 			visitor.STCP.Host = visitorObject.Spec.STCP.Host
 			visitor.STCP.Port = visitorObject.Spec.STCP.Port
+			visitor.STCP.ServerUser = visitorObject.Spec.STCP.ServerUser
 			visitor.STCP.ServerName = visitorObject.Spec.STCP.ServerName
 
 			secretKey, err := secretValue(k8sclient, clientObject.Namespace, visitorObject.Spec.STCP.ServerSecretKey.Secret)
@@ -1030,6 +1064,7 @@ func NewConfig(k8sclient client.Client,
 			visitor.Type = 2
 			visitor.XTCP.Host = visitorObject.Spec.XTCP.Host
 			visitor.XTCP.Port = visitorObject.Spec.XTCP.Port
+			visitor.XTCP.ServerUser = visitorObject.Spec.XTCP.ServerUser
 			visitor.XTCP.ServerName = visitorObject.Spec.XTCP.ServerName
 			visitor.XTCP.PersistantConnection = visitorObject.Spec.XTCP.PersistantConnection
 			visitor.XTCP.EnableAssistedAddrs = visitorObject.Spec.XTCP.EnableAssistedAddrs
@@ -1043,7 +1078,16 @@ func NewConfig(k8sclient client.Client,
 			if visitorObject.Spec.XTCP.Fallback != nil {
 				visitor.XTCP.Fallback = &Visitor_XTCP_Fallback{
 					ServerName: visitorObject.Spec.XTCP.Fallback.ServerName,
+					SecretKey:  secretKey,
 					Timeout:    visitorObject.Spec.XTCP.Fallback.Timeout,
+				}
+
+				if visitorObject.Spec.XTCP.Fallback.ServerSecretKey != nil {
+					fallbackSecretKey, err := secretValue(k8sclient, clientObject.Namespace, visitorObject.Spec.XTCP.Fallback.ServerSecretKey.Secret)
+					if err != nil {
+						return config, err
+					}
+					visitor.XTCP.Fallback.SecretKey = fallbackSecretKey
 				}
 			}
 		}

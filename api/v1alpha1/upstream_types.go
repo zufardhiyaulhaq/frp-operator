@@ -166,7 +166,7 @@ type UpstreamPlugin struct {
 	// +kubebuilder:validation:Enum=socks5;http_proxy;static_file;https2http;https2https;http2http;http2https;unix_domain_socket
 	Type string `json:"type"`
 
-	// For socks5, http_proxy
+	// For socks5, http_proxy (http_proxy also accepts httpUser/httpPassword)
 	// +optional
 	Username *SecretRef `json:"username,omitempty"`
 	// +optional
@@ -177,6 +177,7 @@ type UpstreamPlugin struct {
 	LocalPath string `json:"localPath,omitempty"`
 	// +optional
 	StripPrefix string `json:"stripPrefix,omitempty"`
+	// For static_file, http_proxy
 	// +optional
 	HTTPUser *SecretRef `json:"httpUser,omitempty"`
 	// +optional
