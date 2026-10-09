@@ -227,8 +227,6 @@ type UpstreamSpec_TCP_Transport struct {
 	UseCompression bool `json:"useCompression"`
 	// +optional
 	BandwdithLimit *UpstreamSpec_TCP_Transport_BandwdithLimit `json:"bandwidthLimit"`
-	// +optional
-	ProxyURL *string `json:"proxyURL"`
 }
 
 type UpstreamSpec_TCP_Transport_BandwdithLimit struct {

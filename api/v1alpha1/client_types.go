@@ -62,10 +62,12 @@ type ClientSpec_Server_Transport struct {
 	// TCPMux enables TCP stream multiplexing to reduce connection overhead
 	TCPMux *bool `json:"tcpMux,omitempty"`
 	// +optional
-	// DialServerTimeout is the connection timeout to the FRP server
+	// DialServerTimeout is the connection timeout to the FRP server, as a duration ("10s", "1m")
+	// or whole seconds ("10"). Rendered to frpc as whole seconds.
 	DialServerTimeout string `json:"dialServerTimeout,omitempty"`
 	// +optional
-	// DialServerKeepalive is the keepalive interval (-1s to disable)
+	// DialServerKeepalive is the keepalive interval, as a duration ("30s") or whole seconds;
+	// "-1s" disables it. Rendered to frpc as whole seconds.
 	DialServerKeepalive string `json:"dialServerKeepalive,omitempty"`
 	// +optional
 	// ConnectServerLocalIP binds the outbound connection to a specific local IP
@@ -75,6 +77,10 @@ type ClientSpec_Server_Transport struct {
 	// WireProtocol selects the frpc/frps wire protocol. "v2" adds AEAD encryption to the
 	// control channel and requires frps >= v0.69.0. Defaults to frpc's default ("v1").
 	WireProtocol string `json:"wireProtocol,omitempty"`
+	// +optional
+	// ProxyURL dials the FRP server through an HTTP, SOCKS5 or NTLM proxy,
+	// e.g. "http://user:pass@proxy:8080" or "socks5://proxy:1080".
+	ProxyURL string `json:"proxyURL,omitempty"`
 }
 
 type ClientSpec_Server_TLS struct {

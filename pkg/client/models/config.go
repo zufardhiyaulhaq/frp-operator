@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strconv"
+	"time"
 
 	corev1 "k8s.io/api/core/v1"
 
@@ -35,10 +37,11 @@ type Config struct {
 type TransportConfig struct {
 	PoolCount            int
 	TCPMux               bool
-	DialServerTimeout    string
-	DialServerKeepalive  string
+	DialServerTimeout    int64 // seconds; 0 leaves frpc's default
+	DialServerKeepalive  int64 // seconds; 0 leaves frpc's default, -1 disables
 	ConnectServerLocalIP string
 	WireProtocol         string
+	ProxyURL             string
 }
 
 type Common struct {
@@ -248,7 +251,6 @@ type Upstream_TCP_Transport struct {
 	UseCompression bool
 	UseEncryption  bool
 	BandwdithLimit *Upstream_TCP_Transport_BandwidthLimit
-	ProxyURL       *string
 }
 
 type Upstream_TCP_Transport_BandwidthLimit struct {
@@ -308,6 +310,22 @@ type Upstream_HTTPS struct {
 	ProxyProtocol *string
 	Transport     *Upstream_TCP_Transport
 	LoadBalancer  *LoadBalancerConfig
+}
+
+// durationSeconds converts a CRD duration ("15s", "1m", "-1s") or whole-seconds value ("15")
+// into the whole seconds frpc expects. An empty value returns 0 (frpc's default).
+func durationSeconds(field, value string) (int64, error) {
+	if value == "" {
+		return 0, nil
+	}
+	if seconds, err := strconv.ParseInt(value, 10, 64); err == nil {
+		return seconds, nil
+	}
+	d, err := time.ParseDuration(value)
+	if err != nil || d%time.Second != 0 {
+		return 0, errors.NewBadRequest(fmt.Sprintf("%s %q must be a duration in whole seconds (e.g. \"15s\", \"1m\", \"-1s\")", field, value))
+	}
+	return int64(d / time.Second), nil
 }
 
 // isEnabled interprets the optional CRD enabled flag: nil or true means enabled.
@@ -638,12 +656,22 @@ func NewConfig(k8sclient client.Client,
 
 	// Handle Transport configuration
 	if clientObject.Spec.Server.Transport != nil {
+		dialServerTimeout, err := durationSeconds("dialServerTimeout", clientObject.Spec.Server.Transport.DialServerTimeout)
+		if err != nil {
+			return config, err
+		}
+		dialServerKeepalive, err := durationSeconds("dialServerKeepalive", clientObject.Spec.Server.Transport.DialServerKeepalive)
+		if err != nil {
+			return config, err
+		}
+
 		config.Common.Transport = &TransportConfig{
 			PoolCount:            clientObject.Spec.Server.Transport.PoolCount,
-			DialServerTimeout:    clientObject.Spec.Server.Transport.DialServerTimeout,
-			DialServerKeepalive:  clientObject.Spec.Server.Transport.DialServerKeepalive,
+			DialServerTimeout:    dialServerTimeout,
+			DialServerKeepalive:  dialServerKeepalive,
 			ConnectServerLocalIP: clientObject.Spec.Server.Transport.ConnectServerLocalIP,
 			WireProtocol:         clientObject.Spec.Server.Transport.WireProtocol,
+			ProxyURL:             clientObject.Spec.Server.Transport.ProxyURL,
 		}
 
 		if clientObject.Spec.Server.Transport.TCPMux != nil {
@@ -712,10 +740,6 @@ func NewConfig(k8sclient client.Client,
 				upstream.TCP.Transport = &Upstream_TCP_Transport{
 					UseCompression: upstreamObject.Spec.TCP.Transport.UseCompression,
 					UseEncryption:  upstreamObject.Spec.TCP.Transport.UseEncryption,
-				}
-
-				if upstreamObject.Spec.TCP.Transport.ProxyURL != nil {
-					upstream.TCP.Transport.ProxyURL = upstreamObject.Spec.TCP.Transport.ProxyURL
 				}
 
 				if upstreamObject.Spec.TCP.Transport.BandwdithLimit != nil {
@@ -861,10 +885,6 @@ func NewConfig(k8sclient client.Client,
 					UseEncryption:  upstreamObject.Spec.STCP.Transport.UseEncryption,
 				}
 
-				if upstreamObject.Spec.STCP.Transport.ProxyURL != nil {
-					upstream.STCP.Transport.ProxyURL = upstreamObject.Spec.STCP.Transport.ProxyURL
-				}
-
 				if upstreamObject.Spec.STCP.Transport.BandwdithLimit != nil {
 					upstream.STCP.Transport.BandwdithLimit = &Upstream_TCP_Transport_BandwidthLimit{
 						Enabled: upstreamObject.Spec.STCP.Transport.BandwdithLimit.Enabled,
@@ -914,10 +934,6 @@ func NewConfig(k8sclient client.Client,
 				upstream.XTCP.Transport = &Upstream_TCP_Transport{
 					UseCompression: upstreamObject.Spec.XTCP.Transport.UseCompression,
 					UseEncryption:  upstreamObject.Spec.XTCP.Transport.UseEncryption,
-				}
-
-				if upstreamObject.Spec.XTCP.Transport.ProxyURL != nil {
-					upstream.XTCP.Transport.ProxyURL = upstreamObject.Spec.XTCP.Transport.ProxyURL
 				}
 
 				if upstreamObject.Spec.XTCP.Transport.BandwdithLimit != nil {
@@ -1015,10 +1031,6 @@ func NewConfig(k8sclient client.Client,
 				upstream.HTTP.Transport = &Upstream_TCP_Transport{
 					UseCompression: upstreamObject.Spec.HTTP.Transport.UseCompression,
 					UseEncryption:  upstreamObject.Spec.HTTP.Transport.UseEncryption,
-				}
-
-				if upstreamObject.Spec.HTTP.Transport.ProxyURL != nil {
-					upstream.HTTP.Transport.ProxyURL = upstreamObject.Spec.HTTP.Transport.ProxyURL
 				}
 
 				if upstreamObject.Spec.HTTP.Transport.BandwdithLimit != nil {

@@ -373,25 +373,13 @@ func TestConfigurationBuilder_Build(t *testing.T) {
 			},
 		},
 		{
-			name: "TCP upstream with proxy URL",
+			name: "client transport with proxy URL",
 			config: models.Config{
-				Common: basicCommon(),
-				Upstreams: []models.Upstream{
-					{
-						Name: "tcp-with-proxy-url",
-						Type: 1,
-						TCP: models.Upstream_TCP{
-							Host:       "127.0.0.1",
-							Port:       8080,
-							ServerPort: 18080,
-							Transport: &models.Upstream_TCP_Transport{
-								UseEncryption:  false,
-								UseCompression: false,
-								ProxyURL:       stringPtr("http://proxy.example.com:8080"),
-							},
-						},
-					},
-				},
+				Common: func() models.Common {
+					c := basicCommon()
+					c.Transport = &models.TransportConfig{TCPMux: true, ProxyURL: "http://proxy.example.com:8080"}
+					return c
+				}(),
 			},
 			wantErr: false,
 			wantContains: []string{
@@ -424,7 +412,6 @@ func TestConfigurationBuilder_Build(t *testing.T) {
 									Limit:   50,
 									Type:    "KB",
 								},
-								ProxyURL: stringPtr("socks5://proxy:1080"),
 							},
 						},
 					},
@@ -446,7 +433,6 @@ func TestConfigurationBuilder_Build(t *testing.T) {
 				`transport.useCompression = true`,
 				`transport.bandwidthLimit = "50KB"`,
 				`transport.bandwidthLimitMode = "client"`,
-				`transport.proxyURL = "socks5://proxy:1080"`,
 			},
 		},
 		{
@@ -665,7 +651,6 @@ func TestConfigurationBuilder_Build(t *testing.T) {
 									Limit:   200,
 									Type:    "KB",
 								},
-								ProxyURL: stringPtr("http://proxy:3128"),
 							},
 						},
 					},
@@ -678,7 +663,6 @@ func TestConfigurationBuilder_Build(t *testing.T) {
 				`transport.useCompression = true`,
 				`transport.bandwidthLimit = "200KB"`,
 				`transport.bandwidthLimitMode = "client"`,
-				`transport.proxyURL = "http://proxy:3128"`,
 			},
 		},
 		{
@@ -828,7 +812,6 @@ func TestConfigurationBuilder_Build(t *testing.T) {
 									Limit:   500,
 									Type:    "MB",
 								},
-								ProxyURL: stringPtr("socks5://proxy:1080"),
 							},
 						},
 					},
@@ -841,7 +824,6 @@ func TestConfigurationBuilder_Build(t *testing.T) {
 				`transport.useCompression = false`,
 				`transport.bandwidthLimit = "500MB"`,
 				`transport.bandwidthLimitMode = "client"`,
-				`transport.proxyURL = "socks5://proxy:1080"`,
 			},
 		},
 		{
@@ -947,7 +929,7 @@ func TestConfigurationBuilder_Build(t *testing.T) {
 				`bindAddr = "0.0.0.0"`,
 				`bindPort = 3390`,
 				`keepTunnelOpen = true`,
-				`natHoleStun.disableAssistedAddrs = true`,
+				`natTraversal.disableAssistedAddrs = true`,
 			},
 			wantNotContain: []string{
 				`fallbackTo`,
@@ -980,7 +962,7 @@ func TestConfigurationBuilder_Build(t *testing.T) {
 				`keepTunnelOpen = true`,
 			},
 			wantNotContain: []string{
-				`natHoleStun.disableAssistedAddrs`,
+				`natTraversal.disableAssistedAddrs`,
 			},
 		},
 		{
@@ -1012,7 +994,7 @@ func TestConfigurationBuilder_Build(t *testing.T) {
 				`type = "xtcp"`,
 				`serverName = "remote-rdp-service"`,
 				`keepTunnelOpen = false`,
-				`natHoleStun.disableAssistedAddrs = true`,
+				`natTraversal.disableAssistedAddrs = true`,
 				`fallbackTo = "my-xtcp-visitor-with-fallback-fallback"`,
 				`fallbackTimeoutMs = 5000`,
 				`name = "my-xtcp-visitor-with-fallback-fallback"`,
@@ -1398,7 +1380,7 @@ func TestConfigurationBuilder_Build(t *testing.T) {
 				`name = "socks5-proxy"`,
 				`type = "tcp"`,
 				`remotePort = 1080`,
-				`plugin = "socks5"`,
+				`plugin.type = "socks5"`,
 				`plugin.username = "proxyuser"`,
 				`plugin.password = "proxypass"`,
 			},
@@ -1429,7 +1411,7 @@ func TestConfigurationBuilder_Build(t *testing.T) {
 			wantErr: false,
 			wantContains: []string{
 				`name = "http-proxy"`,
-				`plugin = "http_proxy"`,
+				`plugin.type = "http_proxy"`,
 				`plugin.httpUser = "proxyuser"`,
 				`plugin.httpPassword = "proxypass"`,
 			},
@@ -1457,7 +1439,7 @@ func TestConfigurationBuilder_Build(t *testing.T) {
 			},
 			wantErr: false,
 			wantContains: []string{
-				`plugin = "static_file"`,
+				`plugin.type = "static_file"`,
 				`plugin.localPath = "/data/public"`,
 				`plugin.stripPrefix = "/download"`,
 				`plugin.httpUser = "admin"`,
@@ -1484,7 +1466,7 @@ func TestConfigurationBuilder_Build(t *testing.T) {
 			},
 			wantErr: false,
 			wantContains: []string{
-				`plugin = "unix_domain_socket"`,
+				`plugin.type = "unix_domain_socket"`,
 				`plugin.unixPath = "/var/run/docker.sock"`,
 			},
 		},
@@ -1558,8 +1540,8 @@ func TestConfigurationBuilder_Build(t *testing.T) {
 					Transport: &models.TransportConfig{
 						PoolCount:            5,
 						TCPMux:               true,
-						DialServerTimeout:    "15s",
-						DialServerKeepalive:  "30s",
+						DialServerTimeout:    15,
+						DialServerKeepalive:  30,
 						ConnectServerLocalIP: "10.0.0.5",
 					},
 				},
@@ -1568,8 +1550,8 @@ func TestConfigurationBuilder_Build(t *testing.T) {
 			wantContains: []string{
 				`transport.poolCount = 5`,
 				`transport.tcpMux = true`,
-				`transport.dialServerTimeout = "15s"`,
-				`transport.dialServerKeepalive = "30s"`,
+				`transport.dialServerTimeout = 15`,
+				`transport.dialServerKeepalive = 30`,
 				`transport.connectServerLocalIP = "10.0.0.5"`,
 			},
 		},

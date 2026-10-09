@@ -1698,17 +1698,24 @@ spec:
                             to a specific local IP
                           type: string
                         dialServerKeepalive:
-                          description: DialServerKeepalive is the keepalive interval
-                            (-1s to disable)
+                          description: |-
+                            DialServerKeepalive is the keepalive interval, as a duration ("30s") or whole seconds;
+                            "-1s" disables it. Rendered to frpc as whole seconds.
                           type: string
                         dialServerTimeout:
-                          description: DialServerTimeout is the connection timeout
-                            to the FRP server
+                          description: |-
+                            DialServerTimeout is the connection timeout to the FRP server, as a duration ("10s", "1m")
+                            or whole seconds ("10"). Rendered to frpc as whole seconds.
                           type: string
                         poolCount:
                           description: PoolCount is the number of pre-established
                             connections to the server
                           type: integer
+                        proxyURL:
+                          description: |-
+                            ProxyURL dials the FRP server through an HTTP, SOCKS5 or NTLM proxy,
+                            e.g. "http://user:pass@proxy:8080" or "socks5://proxy:1080".
+                          type: string
                         tcpMux:
                           description: TCPMux enables TCP stream multiplexing to reduce
                             connection overhead

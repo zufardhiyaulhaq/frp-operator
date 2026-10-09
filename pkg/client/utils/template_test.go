@@ -17,10 +17,11 @@ type testConfig struct {
 type testTransportConfig struct {
 	PoolCount            int
 	TCPMux               bool
-	DialServerTimeout    string
-	DialServerKeepalive  string
+	DialServerTimeout    int64
+	DialServerKeepalive  int64
 	ConnectServerLocalIP string
 	WireProtocol         string
+	ProxyURL             string
 }
 
 type testCommon struct {
@@ -178,7 +179,6 @@ type testTransport struct {
 	UseCompression bool
 	UseEncryption  bool
 	BandwdithLimit *testBandwidthLimit
-	ProxyURL       *string
 }
 
 type testBandwidthLimit struct {
@@ -482,7 +482,6 @@ func TestTemplateTCPUpstreamWithHealthCheck(t *testing.T) {
 }
 
 func TestTemplateTCPUpstreamWithTransport(t *testing.T) {
-	proxyURL := "http://proxy.example.com:8080"
 	config := testConfig{
 		Common: testCommon{
 			ServerAddress: "frp.example.com",
@@ -508,7 +507,6 @@ func TestTemplateTCPUpstreamWithTransport(t *testing.T) {
 							Limit:   10,
 							Type:    "MB",
 						},
-						ProxyURL: &proxyURL,
 					},
 				},
 			},
@@ -521,7 +519,7 @@ func TestTemplateTCPUpstreamWithTransport(t *testing.T) {
 	assertContains(t, output, `transport.useCompression = true`)
 	assertContains(t, output, `transport.bandwidthLimit = "10MB"`)
 	assertContains(t, output, `transport.bandwidthLimitMode = "client"`)
-	assertContains(t, output, `transport.proxyURL = "http://proxy.example.com:8080"`)
+	assertNotContains(t, output, `transport.proxyURL`)
 }
 
 func TestTemplateUDPUpstream(t *testing.T) {
@@ -662,7 +660,6 @@ func TestTemplateSTCPUpstream(t *testing.T) {
 
 func TestTemplateSTCPUpstreamWithAllOptions(t *testing.T) {
 	proxyProtocol := "v1"
-	proxyURL := "socks5://proxy:1080"
 	config := testConfig{
 		Common: testCommon{
 			ServerAddress: "frp.example.com",
@@ -694,7 +691,6 @@ func TestTemplateSTCPUpstreamWithAllOptions(t *testing.T) {
 							Limit:   5,
 							Type:    "KB",
 						},
-						ProxyURL: &proxyURL,
 					},
 				},
 			},
@@ -711,7 +707,7 @@ func TestTemplateSTCPUpstreamWithAllOptions(t *testing.T) {
 	assertContains(t, output, `transport.useEncryption = false`)
 	assertContains(t, output, `transport.useCompression = true`)
 	assertContains(t, output, `transport.bandwidthLimit = "5KB"`)
-	assertContains(t, output, `transport.proxyURL = "socks5://proxy:1080"`)
+	assertNotContains(t, output, `transport.proxyURL`)
 }
 
 func TestTemplateXTCPUpstream(t *testing.T) {
@@ -1152,8 +1148,7 @@ func TestTemplateHTTPSUpstreamWithTransport(t *testing.T) {
 	assertContains(t, output, `transport.bandwidthLimit = "100MB"`)
 }
 
-func TestTemplateHTTPSUpstreamWithProxyURL(t *testing.T) {
-	proxyURL := "http://proxy.example.com:8080"
+func TestTemplateClientTransportProxyURL(t *testing.T) {
 	config := testConfig{
 		Common: testCommon{
 			ServerAddress: "frp.example.com",
@@ -1162,22 +1157,7 @@ func TestTemplateHTTPSUpstreamWithProxyURL(t *testing.T) {
 			AdminPort:     7400,
 			AdminUsername: "admin",
 			AdminPassword: "secret",
-		},
-		Upstreams: []testUpstream{
-			{
-				Name: "https-service",
-				Type: 6,
-				HTTPS: testUpstreamHTTPS{
-					Host:          "localhost",
-					Port:          443,
-					CustomDomains: []string{"secure.example.com"},
-					Transport: &testTransport{
-						UseEncryption:  true,
-						UseCompression: true,
-						ProxyURL:       &proxyURL,
-					},
-				},
-			},
+			Transport:     &testTransportConfig{TCPMux: true, ProxyURL: "http://proxy.example.com:8080"},
 		},
 	}
 
@@ -1257,7 +1237,7 @@ func TestTemplateXTCPVisitor(t *testing.T) {
 	assertContains(t, output, `bindAddr = "127.0.0.1"`)
 	assertContains(t, output, `bindPort = 7000`)
 	assertContains(t, output, `keepTunnelOpen = true`)
-	assertContains(t, output, `natHoleStun.disableAssistedAddrs = true`)
+	assertContains(t, output, `natTraversal.disableAssistedAddrs = true`)
 }
 
 func TestTemplateXTCPVisitorWithAssistedAddrs(t *testing.T) {
@@ -1289,7 +1269,7 @@ func TestTemplateXTCPVisitorWithAssistedAddrs(t *testing.T) {
 	output := renderTemplate(t, config)
 
 	assertContains(t, output, `keepTunnelOpen = false`)
-	assertNotContains(t, output, `natHoleStun.disableAssistedAddrs`)
+	assertNotContains(t, output, `natTraversal.disableAssistedAddrs`)
 }
 
 func TestTemplateXTCPVisitorWithFallback(t *testing.T) {
@@ -1446,7 +1426,6 @@ func TestTemplateEmptyUpstreamsAndVisitors(t *testing.T) {
 }
 
 func TestTemplateHTTPUpstreamFull(t *testing.T) {
-	proxyURL := "http://proxy:8080"
 	config := testConfig{
 		Common: testCommon{
 			ServerAddress: "frp.example.com",
@@ -1490,7 +1469,6 @@ func TestTemplateHTTPUpstreamFull(t *testing.T) {
 							Limit:   50,
 							Type:    "MB",
 						},
-						ProxyURL: &proxyURL,
 					},
 				},
 			},
@@ -1515,7 +1493,7 @@ func TestTemplateHTTPUpstreamFull(t *testing.T) {
 	assertContains(t, output, `healthCheck.path = "/healthz"`)
 	assertContains(t, output, `transport.useEncryption = true`)
 	assertContains(t, output, `transport.bandwidthLimit = "50MB"`)
-	assertContains(t, output, `transport.proxyURL = "http://proxy:8080"`)
+	assertNotContains(t, output, `transport.proxyURL`)
 }
 
 func TestTemplateBandwidthLimitDisabled(t *testing.T) {

@@ -6,6 +6,7 @@ import (
 
 	frpv1alpha1 "github.com/zufardhiyaulhaq/frp-operator/api/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -801,7 +802,6 @@ func TestNewConfig_TCPUpstreamWithAllOptions(t *testing.T) {
 							Limit:   100,
 							Type:    "MB",
 						},
-						ProxyURL: stringPtr("http://proxy:8080"),
 					},
 				},
 			},
@@ -840,9 +840,6 @@ func TestNewConfig_TCPUpstreamWithAllOptions(t *testing.T) {
 	}
 	if upstream.TCP.Transport.BandwdithLimit.Limit != 100 {
 		t.Errorf("NewConfig() BandwdithLimit.Limit = %v, want 100", upstream.TCP.Transport.BandwdithLimit.Limit)
-	}
-	if upstream.TCP.Transport.ProxyURL == nil || *upstream.TCP.Transport.ProxyURL != "http://proxy:8080" {
-		t.Errorf("NewConfig() Transport.ProxyURL = %v, want http://proxy:8080", upstream.TCP.Transport.ProxyURL)
 	}
 }
 
@@ -2117,5 +2114,63 @@ func TestNewConfig_HTTPSUpstreamWithLoadBalancer(t *testing.T) {
 	}
 	if lb.Group != "secure-group" || lb.GroupKey != "" {
 		t.Errorf("HTTPS.LoadBalancer = %+v, want group secure-group / empty key", lb)
+	}
+}
+
+func TestNewConfig_DialServerDurations(t *testing.T) {
+	fakeClient := createFakeClient(createDefaultTokenSecret("default")).Build()
+
+	tests := []struct {
+		name          string
+		timeout       string
+		keepalive     string
+		wantTimeout   int64
+		wantKeepalive int64
+		wantErr       bool
+	}{
+		{name: "unset", wantTimeout: 0, wantKeepalive: 0},
+		{name: "durations", timeout: "15s", keepalive: "1m", wantTimeout: 15, wantKeepalive: 60},
+		{name: "whole seconds", timeout: "15", keepalive: "30", wantTimeout: 15, wantKeepalive: 30},
+		{name: "keepalive disabled", keepalive: "-1s", wantKeepalive: -1},
+		{name: "sub-second rejected", timeout: "1500ms", wantErr: true},
+		{name: "garbage rejected", keepalive: "soon", wantErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			clientObj := createBasicClient("default", "test-client", "frp.example.com", 7000)
+			clientObj.Spec.Server.Transport = &frpv1alpha1.ClientSpec_Server_Transport{DialServerTimeout: tt.timeout, DialServerKeepalive: tt.keepalive}
+
+			config, err := NewConfig(fakeClient, clientObj, []frpv1alpha1.Upstream{}, []frpv1alpha1.Visitor{})
+			if tt.wantErr {
+				if err == nil || !errors.IsBadRequest(err) {
+					t.Fatalf("NewConfig() error = %v, want BadRequest", err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("NewConfig() unexpected error = %v", err)
+			}
+			if config.Common.Transport.DialServerTimeout != tt.wantTimeout {
+				t.Errorf("DialServerTimeout = %d, want %d", config.Common.Transport.DialServerTimeout, tt.wantTimeout)
+			}
+			if config.Common.Transport.DialServerKeepalive != tt.wantKeepalive {
+				t.Errorf("DialServerKeepalive = %d, want %d", config.Common.Transport.DialServerKeepalive, tt.wantKeepalive)
+			}
+		})
+	}
+}
+
+func TestNewConfig_TransportProxyURL(t *testing.T) {
+	fakeClient := createFakeClient(createDefaultTokenSecret("default")).Build()
+	clientObj := createBasicClient("default", "test-client", "frp.example.com", 7000)
+	clientObj.Spec.Server.Transport = &frpv1alpha1.ClientSpec_Server_Transport{ProxyURL: "socks5://proxy:1080"}
+
+	config, err := NewConfig(fakeClient, clientObj, []frpv1alpha1.Upstream{}, []frpv1alpha1.Visitor{})
+	if err != nil {
+		t.Fatalf("NewConfig() unexpected error = %v", err)
+	}
+	if config.Common.Transport.ProxyURL != "socks5://proxy:1080" {
+		t.Errorf("Transport.ProxyURL = %q, want socks5://proxy:1080", config.Common.Transport.ProxyURL)
 	}
 }

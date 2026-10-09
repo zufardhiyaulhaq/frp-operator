@@ -185,8 +185,6 @@ spec:
                         - limit
                         - type
                         type: object
-                      proxyURL:
-                        type: string
                       useCompression:
                         default: false
                         type: boolean
@@ -261,8 +259,6 @@ spec:
                         - limit
                         - type
                         type: object
-                      proxyURL:
-                        type: string
                       useCompression:
                         default: false
                         type: boolean
@@ -343,8 +339,6 @@ spec:
                         - limit
                         - type
                         type: object
-                      proxyURL:
-                        type: string
                       useCompression:
                         default: false
                         type: boolean
@@ -526,8 +520,6 @@ spec:
                         - limit
                         - type
                         type: object
-                      proxyURL:
-                        type: string
                       useCompression:
                         default: false
                         type: boolean
@@ -576,8 +568,6 @@ spec:
                         - limit
                         - type
                         type: object
-                      proxyURL:
-                        type: string
                       useCompression:
                         default: false
                         type: boolean
@@ -711,8 +701,6 @@ spec:
                         - limit
                         - type
                         type: object
-                      proxyURL:
-                        type: string
                       useCompression:
                         default: false
                         type: boolean

@@ -59,16 +59,19 @@ transport.tls.trustedCaFile = "{{ .Common.TLS.TrustedCAFile }}"
 transport.poolCount = {{ .Common.Transport.PoolCount }}
 transport.tcpMux = {{ .Common.Transport.TCPMux }}
 {{ if .Common.Transport.DialServerTimeout }}
-transport.dialServerTimeout = "{{ .Common.Transport.DialServerTimeout }}"
+transport.dialServerTimeout = {{ .Common.Transport.DialServerTimeout }}
 {{ end }}
 {{ if .Common.Transport.DialServerKeepalive }}
-transport.dialServerKeepalive = "{{ .Common.Transport.DialServerKeepalive }}"
+transport.dialServerKeepalive = {{ .Common.Transport.DialServerKeepalive }}
 {{ end }}
 {{ if .Common.Transport.ConnectServerLocalIP }}
 transport.connectServerLocalIP = "{{ .Common.Transport.ConnectServerLocalIP }}"
 {{ end }}
 {{ if .Common.Transport.WireProtocol }}
 transport.wireProtocol = "{{ .Common.Transport.WireProtocol }}"
+{{ end }}
+{{ if .Common.Transport.ProxyURL }}
+transport.proxyURL = "{{ .Common.Transport.ProxyURL }}"
 {{ end }}
 {{ end }}
 
@@ -91,7 +94,7 @@ localPort = {{ $upstream.TCP.Port }}
 remotePort = {{ $upstream.TCP.ServerPort }}
 
 {{ if $upstream.TCP.Plugin }}
-plugin = "{{ $upstream.TCP.Plugin.Type }}"
+plugin.type = "{{ $upstream.TCP.Plugin.Type }}"
 
 {{ if eq $upstream.TCP.Plugin.Type "socks5" }}
 {{ if $upstream.TCP.Plugin.Username }}
@@ -165,9 +168,6 @@ transport.bandwidthLimit = "{{ $upstream.TCP.Transport.BandwdithLimit.Limit }}{{
 transport.bandwidthLimitMode = "client"
 {{ end }}
 {{ end }}
-{{ if $upstream.TCP.Transport.ProxyURL }}
-transport.proxyURL = "{{ $upstream.TCP.Transport.ProxyURL }}"
-{{ end }}
 {{ end }}
 
 {{ if $upstream.TCP.LoadBalancer }}
@@ -234,9 +234,6 @@ transport.bandwidthLimit = "{{ $upstream.STCP.Transport.BandwdithLimit.Limit }}{
 transport.bandwidthLimitMode = "client"
 {{ end }}
 {{ end }}
-{{ if $upstream.STCP.Transport.ProxyURL }}
-transport.proxyURL = "{{ $upstream.STCP.Transport.ProxyURL }}"
-{{ end }}
 {{ end }}
 
 {{ if $upstream.STCP.AllowUsers }}
@@ -273,9 +270,6 @@ transport.useCompression = {{ $upstream.XTCP.Transport.UseCompression }}
 transport.bandwidthLimit = "{{ $upstream.XTCP.Transport.BandwdithLimit.Limit }}{{ $upstream.XTCP.Transport.BandwdithLimit.Type }}"
 transport.bandwidthLimitMode = "client"
 {{ end }}
-{{ end }}
-{{ if $upstream.XTCP.Transport.ProxyURL }}
-transport.proxyURL = "{{ $upstream.XTCP.Transport.ProxyURL }}"
 {{ end }}
 {{ end }}
 
@@ -345,9 +339,6 @@ transport.bandwidthLimit = "{{ $upstream.HTTP.Transport.BandwdithLimit.Limit }}{
 transport.bandwidthLimitMode = "client"
 {{ end }}
 {{ end }}
-{{ if $upstream.HTTP.Transport.ProxyURL }}
-transport.proxyURL = "{{ $upstream.HTTP.Transport.ProxyURL }}"
-{{ end }}
 {{ end }}
 
 {{ if $upstream.HTTP.LoadBalancer }}
@@ -383,9 +374,6 @@ transport.useCompression = {{ $upstream.HTTPS.Transport.UseCompression }}
 transport.bandwidthLimit = "{{ $upstream.HTTPS.Transport.BandwdithLimit.Limit }}{{ $upstream.HTTPS.Transport.BandwdithLimit.Type }}"
 transport.bandwidthLimitMode = "client"
 {{ end }}
-{{ end }}
-{{ if $upstream.HTTPS.Transport.ProxyURL }}
-transport.proxyURL = "{{ $upstream.HTTPS.Transport.ProxyURL }}"
 {{ end }}
 {{ end }}
 
@@ -446,7 +434,7 @@ bindAddr = "{{ $visitor.XTCP.Host }}"
 bindPort = {{ $visitor.XTCP.Port }}
 keepTunnelOpen = {{ $visitor.XTCP.PersistantConnection }}
 {{ if not $visitor.XTCP.EnableAssistedAddrs }}
-natHoleStun.disableAssistedAddrs = true
+natTraversal.disableAssistedAddrs = true
 {{ end }}
 {{ if $visitor.XTCP.Fallback }}
 fallbackTo = "{{ $visitor.Name }}-fallback"
