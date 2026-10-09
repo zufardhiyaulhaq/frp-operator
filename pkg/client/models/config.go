@@ -196,26 +196,39 @@ type LoadBalancerConfig struct {
 	GroupKey string
 }
 
+// secretValue reads one key of a Secret. A missing Secret or key is an error: frpc must never
+// be configured with an empty credential that the CR explicitly references.
+func secretValue(k8sclient client.Client, namespace string, ref frpv1alpha1.Secret) (string, error) {
+	secret := &corev1.Secret{}
+	if err := k8sclient.Get(context.TODO(), types.NamespacedName{Name: ref.Name, Namespace: namespace}, secret); err != nil {
+		return "", err
+	}
+	value, ok := secret.Data[ref.Key]
+	if !ok {
+		return "", errors.NewBadRequest(fmt.Sprintf("key %q not found in secret %s/%s", ref.Key, namespace, ref.Name))
+	}
+	return string(value), nil
+}
+
+// optionalSecretValue is secretValue for an optional SecretRef: nil yields "".
+func optionalSecretValue(k8sclient client.Client, namespace string, ref *frpv1alpha1.SecretRef) (string, error) {
+	if ref == nil {
+		return "", nil
+	}
+	return secretValue(k8sclient, namespace, ref.Secret)
+}
+
 // resolveLoadBalancer converts a CRD LoadBalancer into the model, reading groupKey from its
-// Secret when set. A missing Secret or key leaves GroupKey empty (matches prior TCP behavior).
-func resolveLoadBalancer(k8sclient client.Client, namespace string, lb *frpv1alpha1.LoadBalancer) *LoadBalancerConfig {
+// Secret when set.
+func resolveLoadBalancer(k8sclient client.Client, namespace string, lb *frpv1alpha1.LoadBalancer) (*LoadBalancerConfig, error) {
 	if lb == nil {
-		return nil
+		return nil, nil
 	}
-	result := &LoadBalancerConfig{Group: lb.Group}
-	if lb.GroupKey != nil {
-		secret := &corev1.Secret{}
-		err := k8sclient.Get(context.TODO(), types.NamespacedName{
-			Name:      lb.GroupKey.Secret.Name,
-			Namespace: namespace,
-		}, secret)
-		if err == nil {
-			if val, ok := secret.Data[lb.GroupKey.Secret.Key]; ok {
-				result.GroupKey = string(val)
-			}
-		}
+	groupKey, err := optionalSecretValue(k8sclient, namespace, lb.GroupKey)
+	if err != nil {
+		return nil, err
 	}
-	return result
+	return &LoadBalancerConfig{Group: lb.Group, GroupKey: groupKey}, nil
 }
 
 type PluginConfig struct {
@@ -536,30 +549,20 @@ func NewConfig(k8sclient client.Client,
 		config.Common.AdminPort = clientObject.Spec.Server.AdminServer.Port
 		config.Common.PprofEnable = clientObject.Spec.Server.AdminServer.PprofEnable
 
-		// fetch admin username from secret
 		if clientObject.Spec.Server.AdminServer.Username != nil {
-			secret := &corev1.Secret{}
-
-			err := k8sclient.Get(context.TODO(), types.NamespacedName{Name: clientObject.Spec.Server.AdminServer.Username.Secret.Name, Namespace: clientObject.Namespace}, secret)
-			if err == nil {
-				usernameByte, ok := secret.Data[clientObject.Spec.Server.AdminServer.Username.Secret.Key]
-				if ok {
-					config.Common.AdminUsername = string(usernameByte)
-				}
+			username, err := secretValue(k8sclient, clientObject.Namespace, clientObject.Spec.Server.AdminServer.Username.Secret)
+			if err != nil {
+				return config, err
 			}
+			config.Common.AdminUsername = username
 		}
 
-		// fetch admin password from secret
 		if clientObject.Spec.Server.AdminServer.Password != nil {
-			secret := &corev1.Secret{}
-
-			err := k8sclient.Get(context.TODO(), types.NamespacedName{Name: clientObject.Spec.Server.AdminServer.Password.Secret.Name, Namespace: clientObject.Namespace}, secret)
-			if err == nil {
-				usernameByte, ok := secret.Data[clientObject.Spec.Server.AdminServer.Password.Secret.Key]
-				if ok {
-					config.Common.AdminPassword = string(usernameByte)
-				}
+			password, err := secretValue(k8sclient, clientObject.Namespace, clientObject.Spec.Server.AdminServer.Password.Secret)
+			if err != nil {
+				return config, err
 			}
+			config.Common.AdminPassword = password
 		}
 	}
 
@@ -572,60 +575,30 @@ func NewConfig(k8sclient client.Client,
 	}
 
 	if clientObject.Spec.Server.Authentication.Token != nil {
-		config.Common.ServerAuthentication.Type = 1
+		config.Common.ServerAuthentication.Type = TokenAuth
 
-		secret := &corev1.Secret{}
-		err := k8sclient.Get(context.TODO(), types.NamespacedName{Name: clientObject.Spec.Server.Authentication.Token.Secret.Name, Namespace: clientObject.Namespace}, secret)
-		if err != nil && errors.IsNotFound(err) {
-			return config, err
-		} else if err != nil {
+		token, err := secretValue(k8sclient, clientObject.Namespace, clientObject.Spec.Server.Authentication.Token.Secret)
+		if err != nil {
 			return config, err
 		}
-
-		tokenByte, ok := secret.Data[clientObject.Spec.Server.Authentication.Token.Secret.Key]
-		if !ok {
-			return config, err
-		}
-
-		config.Common.ServerAuthentication.Token = string(tokenByte)
+		config.Common.ServerAuthentication.Token = token
 	}
 
 	// Handle OIDC authentication
 	if clientObject.Spec.Server.Authentication.OIDC != nil {
-		config.Common.ServerAuthentication.Type = 2
+		config.Common.ServerAuthentication.Type = OIDCAuth
 
-		// Fetch client ID from secret
-		secret := &corev1.Secret{}
-		err := k8sclient.Get(context.TODO(), types.NamespacedName{
-			Name:      clientObject.Spec.Server.Authentication.OIDC.ClientID.Secret.Name,
-			Namespace: clientObject.Namespace,
-		}, secret)
+		clientID, err := secretValue(k8sclient, clientObject.Namespace, clientObject.Spec.Server.Authentication.OIDC.ClientID.Secret)
 		if err != nil {
 			return config, err
 		}
-		clientIDByte, ok := secret.Data[clientObject.Spec.Server.Authentication.OIDC.ClientID.Secret.Key]
-		if !ok {
-			return config, errors.NewBadRequest(fmt.Sprintf("clientId key %s not found in secret %s",
-				clientObject.Spec.Server.Authentication.OIDC.ClientID.Secret.Key,
-				clientObject.Spec.Server.Authentication.OIDC.ClientID.Secret.Name))
-		}
-		config.Common.ServerAuthentication.OIDCClientID = string(clientIDByte)
+		config.Common.ServerAuthentication.OIDCClientID = clientID
 
-		// Fetch client secret from secret
-		err = k8sclient.Get(context.TODO(), types.NamespacedName{
-			Name:      clientObject.Spec.Server.Authentication.OIDC.ClientSecret.Secret.Name,
-			Namespace: clientObject.Namespace,
-		}, secret)
+		clientSecret, err := secretValue(k8sclient, clientObject.Namespace, clientObject.Spec.Server.Authentication.OIDC.ClientSecret.Secret)
 		if err != nil {
 			return config, err
 		}
-		clientSecretByte, ok := secret.Data[clientObject.Spec.Server.Authentication.OIDC.ClientSecret.Secret.Key]
-		if !ok {
-			return config, errors.NewBadRequest(fmt.Sprintf("clientSecret key %s not found in secret %s",
-				clientObject.Spec.Server.Authentication.OIDC.ClientSecret.Secret.Key,
-				clientObject.Spec.Server.Authentication.OIDC.ClientSecret.Secret.Name))
-		}
-		config.Common.ServerAuthentication.OIDCClientSecret = string(clientSecretByte)
+		config.Common.ServerAuthentication.OIDCClientSecret = clientSecret
 
 		config.Common.ServerAuthentication.OIDCTokenURL = clientObject.Spec.Server.Authentication.OIDC.TokenEndpointURL
 		config.Common.ServerAuthentication.OIDCAudience = clientObject.Spec.Server.Authentication.OIDC.Audience
@@ -752,7 +725,11 @@ func NewConfig(k8sclient client.Client,
 			}
 
 			// Handle LoadBalancer
-			upstream.TCP.LoadBalancer = resolveLoadBalancer(k8sclient, clientObject.Namespace, upstreamObject.Spec.TCP.LoadBalancer)
+			loadBalancer, err := resolveLoadBalancer(k8sclient, clientObject.Namespace, upstreamObject.Spec.TCP.LoadBalancer)
+			if err != nil {
+				return config, err
+			}
+			upstream.TCP.LoadBalancer = loadBalancer
 
 			// Handle Plugin
 			if upstreamObject.Spec.TCP.Plugin != nil {
@@ -764,60 +741,20 @@ func NewConfig(k8sclient client.Client,
 					UnixPath:    upstreamObject.Spec.TCP.Plugin.UnixPath,
 				}
 
-				// Fetch username from secret
-				if upstreamObject.Spec.TCP.Plugin.Username != nil {
-					secret := &corev1.Secret{}
-					err := k8sclient.Get(context.TODO(), types.NamespacedName{
-						Name:      upstreamObject.Spec.TCP.Plugin.Username.Secret.Name,
-						Namespace: clientObject.Namespace,
-					}, secret)
-					if err == nil {
-						if val, ok := secret.Data[upstreamObject.Spec.TCP.Plugin.Username.Secret.Key]; ok {
-							upstream.TCP.Plugin.Username = string(val)
-						}
+				for _, credential := range []struct {
+					ref  *frpv1alpha1.SecretRef
+					dest *string
+				}{
+					{upstreamObject.Spec.TCP.Plugin.Username, &upstream.TCP.Plugin.Username},
+					{upstreamObject.Spec.TCP.Plugin.Password, &upstream.TCP.Plugin.Password},
+					{upstreamObject.Spec.TCP.Plugin.HTTPUser, &upstream.TCP.Plugin.HTTPUser},
+					{upstreamObject.Spec.TCP.Plugin.HTTPPassword, &upstream.TCP.Plugin.HTTPPassword},
+				} {
+					value, err := optionalSecretValue(k8sclient, clientObject.Namespace, credential.ref)
+					if err != nil {
+						return config, err
 					}
-				}
-
-				// Fetch password from secret
-				if upstreamObject.Spec.TCP.Plugin.Password != nil {
-					secret := &corev1.Secret{}
-					err := k8sclient.Get(context.TODO(), types.NamespacedName{
-						Name:      upstreamObject.Spec.TCP.Plugin.Password.Secret.Name,
-						Namespace: clientObject.Namespace,
-					}, secret)
-					if err == nil {
-						if val, ok := secret.Data[upstreamObject.Spec.TCP.Plugin.Password.Secret.Key]; ok {
-							upstream.TCP.Plugin.Password = string(val)
-						}
-					}
-				}
-
-				// Fetch HTTPUser from secret
-				if upstreamObject.Spec.TCP.Plugin.HTTPUser != nil {
-					secret := &corev1.Secret{}
-					err := k8sclient.Get(context.TODO(), types.NamespacedName{
-						Name:      upstreamObject.Spec.TCP.Plugin.HTTPUser.Secret.Name,
-						Namespace: clientObject.Namespace,
-					}, secret)
-					if err == nil {
-						if val, ok := secret.Data[upstreamObject.Spec.TCP.Plugin.HTTPUser.Secret.Key]; ok {
-							upstream.TCP.Plugin.HTTPUser = string(val)
-						}
-					}
-				}
-
-				// Fetch HTTPPassword from secret
-				if upstreamObject.Spec.TCP.Plugin.HTTPPassword != nil {
-					secret := &corev1.Secret{}
-					err := k8sclient.Get(context.TODO(), types.NamespacedName{
-						Name:      upstreamObject.Spec.TCP.Plugin.HTTPPassword.Secret.Name,
-						Namespace: clientObject.Namespace,
-					}, secret)
-					if err == nil {
-						if val, ok := secret.Data[upstreamObject.Spec.TCP.Plugin.HTTPPassword.Secret.Key]; ok {
-							upstream.TCP.Plugin.HTTPPassword = string(val)
-						}
-					}
+					*credential.dest = value
 				}
 			}
 		}
@@ -853,19 +790,11 @@ func NewConfig(k8sclient client.Client,
 			upstream.STCP.Host = upstreamObject.Spec.STCP.Host
 			upstream.STCP.Port = upstreamObject.Spec.STCP.Port
 
-			// fetch secret key from secret
-			secret := &corev1.Secret{}
-			err := k8sclient.Get(context.TODO(), types.NamespacedName{Name: upstreamObject.Spec.STCP.SecretKey.Secret.Name, Namespace: clientObject.Namespace}, secret)
-			if err != nil && errors.IsNotFound(err) {
-				return config, err
-			} else if err != nil {
+			secretKey, err := secretValue(k8sclient, clientObject.Namespace, upstreamObject.Spec.STCP.SecretKey.Secret)
+			if err != nil {
 				return config, err
 			}
-			secretKeyByte, ok := secret.Data[upstreamObject.Spec.STCP.SecretKey.Secret.Key]
-			if !ok {
-				return config, err
-			}
-			upstream.STCP.SecretKey = string(secretKeyByte)
+			upstream.STCP.SecretKey = secretKey
 
 			if upstreamObject.Spec.STCP.ProxyProtocol != nil {
 				upstream.STCP.ProxyProtocol = upstreamObject.Spec.STCP.ProxyProtocol
@@ -904,19 +833,11 @@ func NewConfig(k8sclient client.Client,
 			upstream.XTCP.Host = upstreamObject.Spec.XTCP.Host
 			upstream.XTCP.Port = upstreamObject.Spec.XTCP.Port
 
-			// fetch secret key from secret
-			secret := &corev1.Secret{}
-			err := k8sclient.Get(context.TODO(), types.NamespacedName{Name: upstreamObject.Spec.XTCP.SecretKey.Secret.Name, Namespace: clientObject.Namespace}, secret)
-			if err != nil && errors.IsNotFound(err) {
-				return config, err
-			} else if err != nil {
+			secretKey, err := secretValue(k8sclient, clientObject.Namespace, upstreamObject.Spec.XTCP.SecretKey.Secret)
+			if err != nil {
 				return config, err
 			}
-			secretKeyByte, ok := secret.Data[upstreamObject.Spec.XTCP.SecretKey.Secret.Key]
-			if !ok {
-				return config, err
-			}
-			upstream.XTCP.SecretKey = string(secretKeyByte)
+			upstream.XTCP.SecretKey = secretKey
 
 			if upstreamObject.Spec.XTCP.ProxyProtocol != nil {
 				upstream.XTCP.ProxyProtocol = upstreamObject.Spec.XTCP.ProxyProtocol
@@ -979,42 +900,20 @@ func NewConfig(k8sclient client.Client,
 				upstream.HTTP.ResponseHeaders = upstreamObject.Spec.HTTP.ResponseHeaders.Set
 			}
 
-			// Fetch HTTP user from secret
 			if upstreamObject.Spec.HTTP.HTTPUser != nil {
-				secret := &corev1.Secret{}
-				err := k8sclient.Get(context.TODO(), types.NamespacedName{
-					Name:      upstreamObject.Spec.HTTP.HTTPUser.Secret.Name,
-					Namespace: clientObject.Namespace,
-				}, secret)
+				value, err := secretValue(k8sclient, clientObject.Namespace, upstreamObject.Spec.HTTP.HTTPUser.Secret)
 				if err != nil {
 					return config, err
 				}
-				val, ok := secret.Data[upstreamObject.Spec.HTTP.HTTPUser.Secret.Key]
-				if !ok {
-					return config, errors.NewBadRequest(fmt.Sprintf("key %s not found in secret %s",
-						upstreamObject.Spec.HTTP.HTTPUser.Secret.Key,
-						upstreamObject.Spec.HTTP.HTTPUser.Secret.Name))
-				}
-				upstream.HTTP.HTTPUser = string(val)
+				upstream.HTTP.HTTPUser = value
 			}
 
-			// Fetch HTTP password from secret
 			if upstreamObject.Spec.HTTP.HTTPPassword != nil {
-				secret := &corev1.Secret{}
-				err := k8sclient.Get(context.TODO(), types.NamespacedName{
-					Name:      upstreamObject.Spec.HTTP.HTTPPassword.Secret.Name,
-					Namespace: clientObject.Namespace,
-				}, secret)
+				value, err := secretValue(k8sclient, clientObject.Namespace, upstreamObject.Spec.HTTP.HTTPPassword.Secret)
 				if err != nil {
 					return config, err
 				}
-				val, ok := secret.Data[upstreamObject.Spec.HTTP.HTTPPassword.Secret.Key]
-				if !ok {
-					return config, errors.NewBadRequest(fmt.Sprintf("key %s not found in secret %s",
-						upstreamObject.Spec.HTTP.HTTPPassword.Secret.Key,
-						upstreamObject.Spec.HTTP.HTTPPassword.Secret.Name))
-				}
-				upstream.HTTP.HTTPPassword = string(val)
+				upstream.HTTP.HTTPPassword = value
 			}
 
 			if upstreamObject.Spec.HTTP.HealthCheck != nil {
@@ -1042,7 +941,11 @@ func NewConfig(k8sclient client.Client,
 				}
 			}
 
-			upstream.HTTP.LoadBalancer = resolveLoadBalancer(k8sclient, clientObject.Namespace, upstreamObject.Spec.HTTP.LoadBalancer)
+			loadBalancer, err := resolveLoadBalancer(k8sclient, clientObject.Namespace, upstreamObject.Spec.HTTP.LoadBalancer)
+			if err != nil {
+				return config, err
+			}
+			upstream.HTTP.LoadBalancer = loadBalancer
 		}
 
 		if upstreamObject.Spec.HTTPS != nil {
@@ -1070,7 +973,11 @@ func NewConfig(k8sclient client.Client,
 				}
 			}
 
-			upstream.HTTPS.LoadBalancer = resolveLoadBalancer(k8sclient, clientObject.Namespace, upstreamObject.Spec.HTTPS.LoadBalancer)
+			loadBalancer, err := resolveLoadBalancer(k8sclient, clientObject.Namespace, upstreamObject.Spec.HTTPS.LoadBalancer)
+			if err != nil {
+				return config, err
+			}
+			upstream.HTTPS.LoadBalancer = loadBalancer
 		}
 
 		if upstreamObject.Spec.TCPMUX != nil {
@@ -1112,19 +1019,11 @@ func NewConfig(k8sclient client.Client,
 			visitor.STCP.Port = visitorObject.Spec.STCP.Port
 			visitor.STCP.ServerName = visitorObject.Spec.STCP.ServerName
 
-			// fetch secret key from secret
-			secret := &corev1.Secret{}
-			err := k8sclient.Get(context.TODO(), types.NamespacedName{Name: visitorObject.Spec.STCP.ServerSecretKey.Secret.Name, Namespace: clientObject.Namespace}, secret)
-			if err != nil && errors.IsNotFound(err) {
-				return config, err
-			} else if err != nil {
+			secretKey, err := secretValue(k8sclient, clientObject.Namespace, visitorObject.Spec.STCP.ServerSecretKey.Secret)
+			if err != nil {
 				return config, err
 			}
-			secretKeyByte, ok := secret.Data[visitorObject.Spec.STCP.ServerSecretKey.Secret.Key]
-			if !ok {
-				return config, err
-			}
-			visitor.STCP.SecretKey = string(secretKeyByte)
+			visitor.STCP.SecretKey = secretKey
 		}
 
 		if visitorObject.Spec.XTCP != nil {
@@ -1135,19 +1034,11 @@ func NewConfig(k8sclient client.Client,
 			visitor.XTCP.PersistantConnection = visitorObject.Spec.XTCP.PersistantConnection
 			visitor.XTCP.EnableAssistedAddrs = visitorObject.Spec.XTCP.EnableAssistedAddrs
 
-			// fetch secret key from secret
-			secret := &corev1.Secret{}
-			err := k8sclient.Get(context.TODO(), types.NamespacedName{Name: visitorObject.Spec.XTCP.ServerSecretKey.Secret.Name, Namespace: clientObject.Namespace}, secret)
-			if err != nil && errors.IsNotFound(err) {
-				return config, err
-			} else if err != nil {
+			secretKey, err := secretValue(k8sclient, clientObject.Namespace, visitorObject.Spec.XTCP.ServerSecretKey.Secret)
+			if err != nil {
 				return config, err
 			}
-			secretKeyByte, ok := secret.Data[visitorObject.Spec.XTCP.ServerSecretKey.Secret.Key]
-			if !ok {
-				return config, err
-			}
-			visitor.XTCP.SecretKey = string(secretKeyByte)
+			visitor.XTCP.SecretKey = secretKey
 
 			if visitorObject.Spec.XTCP.Fallback != nil {
 				visitor.XTCP.Fallback = &Visitor_XTCP_Fallback{

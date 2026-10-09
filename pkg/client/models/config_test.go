@@ -2174,3 +2174,68 @@ func TestNewConfig_TransportProxyURL(t *testing.T) {
 		t.Errorf("Transport.ProxyURL = %q, want socks5://proxy:1080", config.Common.Transport.ProxyURL)
 	}
 }
+
+// Every Secret a CR references explicitly must exist and contain the key; otherwise frpc would
+// get an empty credential (or, previously, a config with every proxy silently dropped).
+func TestNewConfig_MissingSecretIsAnError(t *testing.T) {
+	missing := frpv1alpha1.Secret{Name: "token-secret", Key: "no-such-key"}
+	absent := frpv1alpha1.Secret{Name: "no-such-secret", Key: "token"}
+	tcp := func(mutate func(*frpv1alpha1.UpstreamSpec_TCP)) []frpv1alpha1.Upstream {
+		spec := &frpv1alpha1.UpstreamSpec_TCP{Host: "svc", Port: 80, Server: frpv1alpha1.UpstreamSpec_TCP_Server{Port: 8080}}
+		mutate(spec)
+		return []frpv1alpha1.Upstream{{ObjectMeta: metav1.ObjectMeta{Name: "u", Namespace: "default"}, Spec: frpv1alpha1.UpstreamSpec{Client: "test-client", TCP: spec}}}
+	}
+
+	tests := []struct {
+		name      string
+		mutate    func(*frpv1alpha1.Client)
+		upstreams []frpv1alpha1.Upstream
+		visitors  []frpv1alpha1.Visitor
+		wantMsg   string
+	}{
+		{name: "token key", mutate: func(c *frpv1alpha1.Client) { c.Spec.Server.Authentication.Token.Secret = missing }, wantMsg: `key "no-such-key"`},
+		{name: "token secret", mutate: func(c *frpv1alpha1.Client) { c.Spec.Server.Authentication.Token.Secret = absent }, wantMsg: "no-such-secret"},
+		{name: "admin username", mutate: func(c *frpv1alpha1.Client) {
+			c.Spec.Server.AdminServer = &frpv1alpha1.ClientSpec_Server_AdminServer{Port: 7400, Username: &frpv1alpha1.ClientSpec_Server_AdminServer_Username{Secret: missing}}
+		}, wantMsg: `key "no-such-key"`},
+		{name: "admin password", mutate: func(c *frpv1alpha1.Client) {
+			c.Spec.Server.AdminServer = &frpv1alpha1.ClientSpec_Server_AdminServer{Port: 7400, Password: &frpv1alpha1.ClientSpec_Server_AdminServer_Password{Secret: absent}}
+		}, wantMsg: "no-such-secret"},
+		{name: "plugin password", upstreams: tcp(func(s *frpv1alpha1.UpstreamSpec_TCP) {
+			s.Plugin = &frpv1alpha1.UpstreamPlugin{Type: "socks5", Password: &frpv1alpha1.SecretRef{Secret: missing}}
+		}), wantMsg: `key "no-such-key"`},
+		{name: "load balancer group key", upstreams: tcp(func(s *frpv1alpha1.UpstreamSpec_TCP) {
+			s.LoadBalancer = &frpv1alpha1.LoadBalancer{Group: "g", GroupKey: &frpv1alpha1.SecretRef{Secret: absent}}
+		}), wantMsg: "no-such-secret"},
+		{name: "stcp secret key", upstreams: []frpv1alpha1.Upstream{{ObjectMeta: metav1.ObjectMeta{Name: "u", Namespace: "default"}, Spec: frpv1alpha1.UpstreamSpec{
+			Client: "test-client", STCP: &frpv1alpha1.UpstreamSpec_STCP{Host: "svc", Port: 22, SecretKey: frpv1alpha1.UpstreamSpec_STCP_SecretKey{Secret: missing}},
+		}}}, wantMsg: `key "no-such-key"`},
+		{name: "xtcp secret key", upstreams: []frpv1alpha1.Upstream{{ObjectMeta: metav1.ObjectMeta{Name: "u", Namespace: "default"}, Spec: frpv1alpha1.UpstreamSpec{
+			Client: "test-client", XTCP: &frpv1alpha1.UpstreamSpec_XTCP{Host: "svc", Port: 22, SecretKey: frpv1alpha1.UpstreamSpec_XTCP_SecretKey{Secret: missing}},
+		}}}, wantMsg: `key "no-such-key"`},
+		{name: "stcp visitor secret key", visitors: []frpv1alpha1.Visitor{{ObjectMeta: metav1.ObjectMeta{Name: "v", Namespace: "default"}, Spec: frpv1alpha1.VisitorSpec{
+			Client: "test-client", STCP: &frpv1alpha1.VisitorSpec_STCP{Host: "0.0.0.0", Port: 6000, ServerName: "s", ServerSecretKey: frpv1alpha1.VisitorSpec_STCP_ServerSecretKey{Secret: missing}},
+		}}}, wantMsg: `key "no-such-key"`},
+		{name: "xtcp visitor secret key", visitors: []frpv1alpha1.Visitor{{ObjectMeta: metav1.ObjectMeta{Name: "v", Namespace: "default"}, Spec: frpv1alpha1.VisitorSpec{
+			Client: "test-client", XTCP: &frpv1alpha1.VisitorSpec_XTCP{Host: "0.0.0.0", Port: 6000, ServerName: "s", ServerSecretKey: frpv1alpha1.VisitorSpec_XTCP_ServerSecretKey{Secret: missing}},
+		}}}, wantMsg: `key "no-such-key"`},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fakeClient := createFakeClient(createDefaultTokenSecret("default")).Build()
+			clientObj := createBasicClient("default", "test-client", "frp.example.com", 7000)
+			if tt.mutate != nil {
+				tt.mutate(clientObj)
+			}
+
+			_, err := NewConfig(fakeClient, clientObj, tt.upstreams, tt.visitors)
+			if err == nil {
+				t.Fatal("NewConfig() error = nil, want an error for the missing secret")
+			}
+			if !strings.Contains(err.Error(), tt.wantMsg) {
+				t.Errorf("NewConfig() error = %q, want it to mention %q", err, tt.wantMsg)
+			}
+		})
+	}
+}

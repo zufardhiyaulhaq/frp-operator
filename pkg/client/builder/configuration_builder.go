@@ -25,7 +25,7 @@ func (n *ConfigurationBuilder) SetConfig(config models.Config) *ConfigurationBui
 func (n *ConfigurationBuilder) Build() (string, error) {
 	var configurationBuffer bytes.Buffer
 
-	templateEngine, err := template.New("frpc").Parse(utils.CLIENT_TEMPLATE)
+	templateEngine, err := template.New("frpc").Funcs(utils.TemplateFuncs).Parse(utils.CLIENT_TEMPLATE)
 	if err != nil {
 		return "", err
 	}

@@ -221,7 +221,7 @@ type testVisitorFallback struct {
 func renderTemplate(t *testing.T, config testConfig) string {
 	t.Helper()
 	var buf bytes.Buffer
-	tmpl, err := template.New("frpc").Parse(CLIENT_TEMPLATE)
+	tmpl, err := template.New("frpc").Funcs(TemplateFuncs).Parse(CLIENT_TEMPLATE)
 	if err != nil {
 		t.Fatalf("Failed to parse template: %v", err)
 	}
@@ -249,7 +249,7 @@ func assertNotContains(t *testing.T, output, unexpected string) {
 }
 
 func TestTemplateParseValid(t *testing.T) {
-	_, err := template.New("frpc").Parse(CLIENT_TEMPLATE)
+	_, err := template.New("frpc").Funcs(TemplateFuncs).Parse(CLIENT_TEMPLATE)
 	if err != nil {
 		t.Fatalf("CLIENT_TEMPLATE should parse without error: %v", err)
 	}
@@ -913,7 +913,7 @@ func TestTemplateHTTPUpstreamWithRequestHeaders(t *testing.T) {
 
 	output := renderTemplate(t, config)
 
-	assertContains(t, output, `requestHeaders.set.X-Custom-Header = "custom-value"`)
+	assertContains(t, output, `requestHeaders.set."X-Custom-Header" = "custom-value"`)
 }
 
 func TestTemplateHTTPUpstreamWithResponseHeaders(t *testing.T) {
@@ -943,7 +943,7 @@ func TestTemplateHTTPUpstreamWithResponseHeaders(t *testing.T) {
 
 	output := renderTemplate(t, config)
 
-	assertContains(t, output, `responseHeaders.set.X-Server = "frp-operator"`)
+	assertContains(t, output, `responseHeaders.set."X-Server" = "frp-operator"`)
 }
 
 func TestTemplateHTTPUpstreamWithAuth(t *testing.T) {
@@ -1485,8 +1485,8 @@ func TestTemplateHTTPUpstreamFull(t *testing.T) {
 	assertContains(t, output, `customDomains = ["api.example.com", "api2.example.com"]`)
 	assertContains(t, output, `locations = ["/v1", "/v2"]`)
 	assertContains(t, output, `hostHeaderRewrite = "backend.internal"`)
-	assertContains(t, output, `requestHeaders.set.X-Forwarded-Proto = "https"`)
-	assertContains(t, output, `responseHeaders.set.X-Powered-By = "frp"`)
+	assertContains(t, output, `requestHeaders.set."X-Forwarded-Proto" = "https"`)
+	assertContains(t, output, `responseHeaders.set."X-Powered-By" = "frp"`)
 	assertContains(t, output, `httpUser = "apiuser"`)
 	assertContains(t, output, `httpPassword = "apipass"`)
 	assertContains(t, output, `healthCheck.type = "http"`)

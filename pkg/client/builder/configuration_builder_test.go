@@ -1239,8 +1239,8 @@ func TestConfigurationBuilder_Build(t *testing.T) {
 				`subdomain = "api"`,
 				`locations = ["/v1", "/v2"]`,
 				`hostHeaderRewrite = "internal-api.local"`,
-				`requestHeaders.set.X-Forwarded-By = "frp-operator"`,
-				`responseHeaders.set.X-Frame-Options = "DENY"`,
+				`requestHeaders.set."X-Forwarded-By" = "frp-operator"`,
+				`responseHeaders.set."X-Frame-Options" = "DENY"`,
 			},
 		},
 		{
