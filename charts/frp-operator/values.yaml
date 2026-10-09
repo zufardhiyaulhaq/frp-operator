@@ -1,6 +1,6 @@
 operator:
   image: "ghcr.io/zufardhiyaulhaq/frp-operator"
-  tag: "v0.12.0"
+  tag: "v0.12.1"
   replica: 1
 
 resources:
