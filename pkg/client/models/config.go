@@ -3,8 +3,10 @@ package models
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -76,6 +78,7 @@ type ServerAuthentication struct {
 	OIDCTokenURL     string
 	OIDCAudience     string
 	OIDCScope        string
+	OIDCProxyURL     string
 }
 
 type VisitorType int64
@@ -326,6 +329,46 @@ func durationSeconds(field, value string) (int64, error) {
 		return 0, errors.NewBadRequest(fmt.Sprintf("%s %q must be a duration in whole seconds (e.g. \"15s\", \"1m\", \"-1s\")", field, value))
 	}
 	return int64(d / time.Second), nil
+}
+
+// resolveProxyURL validates transport.proxyURL and adds proxyCredentials from Secrets as the
+// URL's (escaped) userinfo, producing the proxy URL frpc expects.
+func resolveProxyURL(k8sclient client.Client, namespace, protocol string, transport *frpv1alpha1.ClientSpec_Server_Transport) (string, error) {
+	if transport.ProxyURL == "" {
+		if transport.ProxyCredentials != nil {
+			return "", errors.NewBadRequest("transport.proxyCredentials requires transport.proxyURL")
+		}
+		return "", nil
+	}
+
+	proxyURL, err := url.Parse(transport.ProxyURL)
+	if err != nil || proxyURL.Host == "" {
+		return "", errors.NewBadRequest(fmt.Sprintf("transport.proxyURL %q must look like scheme://host:port", transport.ProxyURL))
+	}
+	switch proxyURL.Scheme {
+	case "http", "https", "socks5", "ntlm":
+	default:
+		return "", errors.NewBadRequest(fmt.Sprintf("transport.proxyURL %q: scheme must be http, https, socks5 or ntlm", transport.ProxyURL))
+	}
+	if protocol == "kcp" || protocol == "quic" {
+		return "", errors.NewBadRequest(fmt.Sprintf("transport.proxyURL cannot be used with protocol %q: kcp and quic are UDP and frpc dials them directly, bypassing the proxy", protocol))
+	}
+
+	if transport.ProxyCredentials != nil {
+		if proxyURL.User != nil {
+			return "", errors.NewBadRequest("set proxy credentials in transport.proxyURL or transport.proxyCredentials, not both")
+		}
+		username, err := secretValue(k8sclient, namespace, transport.ProxyCredentials.Username.Secret)
+		if err != nil {
+			return "", err
+		}
+		password, err := secretValue(k8sclient, namespace, transport.ProxyCredentials.Password.Secret)
+		if err != nil {
+			return "", err
+		}
+		proxyURL.User = url.UserPassword(username, password)
+	}
+	return proxyURL.String(), nil
 }
 
 // newProxyTransport maps the CRD transport shared by TCP, STCP, XTCP, HTTP, HTTPS and TCPMUX
@@ -663,6 +706,10 @@ func NewConfig(k8sclient client.Client,
 		if err != nil {
 			return config, err
 		}
+		proxyURL, err := resolveProxyURL(k8sclient, clientObject.Namespace, config.Common.ServerProtocol, clientObject.Spec.Server.Transport)
+		if err != nil {
+			return config, err
+		}
 
 		config.Common.Transport = &TransportConfig{
 			PoolCount:            clientObject.Spec.Server.Transport.PoolCount,
@@ -670,13 +717,20 @@ func NewConfig(k8sclient client.Client,
 			DialServerKeepalive:  dialServerKeepalive,
 			ConnectServerLocalIP: clientObject.Spec.Server.Transport.ConnectServerLocalIP,
 			WireProtocol:         clientObject.Spec.Server.Transport.WireProtocol,
-			ProxyURL:             clientObject.Spec.Server.Transport.ProxyURL,
+			ProxyURL:             proxyURL,
 		}
 
 		if clientObject.Spec.Server.Transport.TCPMux != nil {
 			config.Common.Transport.TCPMux = *clientObject.Spec.Server.Transport.TCPMux
 		} else {
 			config.Common.Transport.TCPMux = true // default
+		}
+
+		// Behind an egress proxy the OIDC token endpoint must be reached through it too: frpc's
+		// OIDC client ignores transport.proxyURL and the http_proxy env var. That client (Go's
+		// net/http) supports http, https and socks5 proxies, but not ntlm.
+		if config.Common.ServerAuthentication.Type == OIDCAuth && proxyURL != "" && !strings.HasPrefix(proxyURL, "ntlm://") {
+			config.Common.ServerAuthentication.OIDCProxyURL = proxyURL
 		}
 	}
 

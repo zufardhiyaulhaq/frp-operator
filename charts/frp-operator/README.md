@@ -27,7 +27,7 @@ Expose your service in Kubernetes to the Internet with open source FRP!
 
 **Advanced traffic features**
 - FRP plugins on `Upstream` (e.g. static_file, unix_domain_socket, http_proxy, socks5, https2http, etc.)
-- Transport tuning on `Client` (protocol: tcp/kcp/quic/websocket/wss, pool count, multiplexing, dial timeout/keepalive, outbound `proxyURL`) and per `Upstream` (encryption, compression, bandwidth limits)
+- Transport tuning on `Client` (protocol: tcp/kcp/quic/websocket/wss, pool count, multiplexing, dial timeout/keepalive, egress proxy via `proxyURL` with Secret-sourced `proxyCredentials`, also used for the OIDC token request) and per `Upstream` (encryption, compression, bandwidth limits)
 - Load balancing across TCP, HTTP, and HTTPS upstreams via FRP groups (HTTPS groups need frps >= v0.66.0)
 - Group-level health checks
 

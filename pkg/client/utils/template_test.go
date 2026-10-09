@@ -56,6 +56,7 @@ type testServerAuthentication struct {
 	OIDCTokenURL     string
 	OIDCAudience     string
 	OIDCScope        string
+	OIDCProxyURL     string
 }
 
 type testUpstream struct {
@@ -325,6 +326,32 @@ func TestTemplateCommonServerProtocolOmittedForTCP(t *testing.T) {
 			assertNotContains(t, output, "transport.protocol")
 		})
 	}
+}
+
+func TestTemplateOIDCProxyURL(t *testing.T) {
+	config := testConfig{
+		Common: testCommon{
+			ServerAddress: "frp.example.com",
+			ServerPort:    7000,
+			AdminAddress:  "0.0.0.0",
+			AdminPort:     7400,
+			AdminUsername: "admin",
+			AdminPassword: "secret",
+			ServerAuthentication: testServerAuthentication{
+				Type:             2,
+				OIDCClientID:     "frpc",
+				OIDCClientSecret: "s3cret",
+				OIDCTokenURL:     "https://idp.example.com/token",
+				OIDCProxyURL:     "http://svc-frp:p%40ss@egress-proxy.corp:3128",
+			},
+			Transport: &testTransportConfig{TCPMux: true, ProxyURL: "http://svc-frp:p%40ss@egress-proxy.corp:3128"},
+		},
+	}
+
+	output := renderTemplate(t, config)
+
+	assertContains(t, output, `auth.oidc.proxyURL = "http://svc-frp:p%40ss@egress-proxy.corp:3128"`)
+	assertContains(t, output, `transport.proxyURL = "http://svc-frp:p%40ss@egress-proxy.corp:3128"`)
 }
 
 func TestTemplateCommonWithTokenAuth(t *testing.T) {
@@ -1824,4 +1851,23 @@ func TestTemplateOIDCAuthWithoutOptionalFields(t *testing.T) {
 	assertContains(t, output, `auth.oidc.clientID = "my-client-id"`)
 	assertNotContains(t, output, `auth.oidc.audience`)
 	assertNotContains(t, output, `auth.oidc.scope`)
+}
+
+func TestTemplateTransportPoolCountOmittedWhenUnset(t *testing.T) {
+	config := testConfig{
+		Common: testCommon{
+			ServerAddress: "frp.example.com",
+			ServerPort:    7000,
+			AdminAddress:  "0.0.0.0",
+			AdminPort:     7400,
+			AdminUsername: "admin",
+			AdminPassword: "secret",
+			Transport:     &testTransportConfig{TCPMux: true, ProxyURL: "http://egress-proxy.corp:3128"},
+		},
+	}
+
+	output := renderTemplate(t, config)
+
+	assertNotContains(t, output, "transport.poolCount")
+	assertContains(t, output, "transport.tcpMux = true")
 }

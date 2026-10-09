@@ -1,0 +1,34 @@
+# Same egress proxy with OIDC authentication: the operator also routes the OIDC token request
+# (auth.oidc.proxyURL) through the proxy, since frpc's OIDC client does not use transport.proxyURL.
+apiVersion: frp.zufardhiyaulhaq.com/v1alpha1
+kind: Client
+metadata:
+  name: egress-oidc-client
+  namespace: default
+spec:
+  server:
+    host: frps.example.com
+    port: 7000
+    authentication:
+      oidc:
+        clientID:
+          secret:
+            name: oidc-creds
+            key: client-id
+        clientSecret:
+          secret:
+            name: oidc-creds
+            key: client-secret
+        tokenEndpointURL: "https://idp.example.com/oauth2/token"
+        audience: "frps"
+    transport:
+      proxyURL: "http://egress-proxy.corp.internal:3128"
+      proxyCredentials:
+        username:
+          secret:
+            name: egress-proxy-credentials
+            key: username
+        password:
+          secret:
+            name: egress-proxy-credentials
+            key: password

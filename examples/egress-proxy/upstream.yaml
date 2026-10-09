@@ -1,0 +1,27 @@
+# Expose an in-cluster service through each client. Upstreams need nothing proxy-specific:
+# the egress proxy only carries frpc's connection to frps.
+apiVersion: frp.zufardhiyaulhaq.com/v1alpha1
+kind: Upstream
+metadata:
+  name: web
+  namespace: default
+spec:
+  client: egress-client
+  tcp:
+    host: nginx.default.svc.cluster.local
+    port: 80
+    server:
+      port: 8080
+---
+apiVersion: frp.zufardhiyaulhaq.com/v1alpha1
+kind: Upstream
+metadata:
+  name: web-oidc
+  namespace: default
+spec:
+  client: egress-oidc-client
+  tcp:
+    host: nginx.default.svc.cluster.local
+    port: 80
+    server:
+      port: 8081

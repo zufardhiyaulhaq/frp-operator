@@ -82,9 +82,24 @@ type ClientSpec_Server_Transport struct {
 	// control channel and requires frps >= v0.69.0. Defaults to frpc's default ("v1").
 	WireProtocol string `json:"wireProtocol,omitempty"`
 	// +optional
-	// ProxyURL dials the FRP server through an HTTP, SOCKS5 or NTLM proxy,
-	// e.g. "http://user:pass@proxy:8080" or "socks5://proxy:1080".
+	// +kubebuilder:validation:Pattern=`^(http|https|socks5|ntlm)://`
+	// ProxyURL dials the FRP server through an outbound (egress) proxy, e.g.
+	// "http://egress-proxy.corp:3128" or "socks5://egress-proxy.corp:1080". Supported schemes are
+	// http, https, socks5 and ntlm, with the tcp, websocket and wss protocols only (kcp and quic
+	// are UDP and cannot be proxied). With OIDC authentication the token endpoint is reached
+	// through the same proxy, except ntlm, which the OIDC client does not support.
+	// Prefer proxyCredentials over embedding a username and password in the URL.
 	ProxyURL string `json:"proxyURL,omitempty"`
+	// +optional
+	// ProxyCredentials authenticates to the proxy with a username and password read from Secrets.
+	// Requires proxyURL, which must then not contain credentials itself.
+	ProxyCredentials *ClientSpec_Server_Transport_ProxyCredentials `json:"proxyCredentials,omitempty"`
+}
+
+// ClientSpec_Server_Transport_ProxyCredentials references the egress proxy's username and password.
+type ClientSpec_Server_Transport_ProxyCredentials struct {
+	Username SecretRef `json:"username"`
+	Password SecretRef `json:"password"`
 }
 
 type ClientSpec_Server_TLS struct {

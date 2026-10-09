@@ -2326,3 +2326,100 @@ func TestNewConfig_UserAndVisitorServerUser(t *testing.T) {
 		t.Errorf("visitor 1 fallback secret = %q, want stcp-key", got)
 	}
 }
+
+func TestNewConfig_EgressProxy(t *testing.T) {
+	proxySecret := createSecret("default", "egress-proxy", map[string][]byte{
+		"username": []byte("svc-frp"), "password": []byte("p@ss:w/rd"),
+	})
+	credentials := &frpv1alpha1.ClientSpec_Server_Transport_ProxyCredentials{
+		Username: frpv1alpha1.SecretRef{Secret: frpv1alpha1.Secret{Name: "egress-proxy", Key: "username"}},
+		Password: frpv1alpha1.SecretRef{Secret: frpv1alpha1.Secret{Name: "egress-proxy", Key: "password"}},
+	}
+
+	tests := []struct {
+		name        string
+		protocol    string
+		proxyURL    string
+		credentials *frpv1alpha1.ClientSpec_Server_Transport_ProxyCredentials
+		want        string
+		wantErr     string
+	}{
+		{name: "plain http proxy", proxyURL: "http://egress-proxy.corp:3128", want: "http://egress-proxy.corp:3128"},
+		{name: "socks5 proxy", proxyURL: "socks5://egress-proxy.corp:1080", want: "socks5://egress-proxy.corp:1080"},
+		{name: "credentials from secrets are escaped into the url", proxyURL: "http://egress-proxy.corp:3128", credentials: credentials,
+			want: "http://svc-frp:p%40ss%3Aw%2Frd@egress-proxy.corp:3128"},
+		{name: "websocket can be proxied", protocol: "websocket", proxyURL: "https://egress-proxy.corp:3129", want: "https://egress-proxy.corp:3129"},
+		{name: "kcp cannot be proxied", protocol: "kcp", proxyURL: "http://egress-proxy.corp:3128", wantErr: `protocol "kcp"`},
+		{name: "quic cannot be proxied", protocol: "quic", proxyURL: "http://egress-proxy.corp:3128", wantErr: `protocol "quic"`},
+		{name: "credentials need a proxy url", credentials: credentials, wantErr: "proxyCredentials requires transport.proxyURL"},
+		{name: "credentials in url and secret", proxyURL: "http://a:b@egress-proxy.corp:3128", credentials: credentials, wantErr: "not both"},
+		{name: "unsupported scheme", proxyURL: "ftp://egress-proxy.corp:21", wantErr: "http, https, socks5 or ntlm"},
+		{name: "missing host", proxyURL: "egress-proxy.corp:3128", wantErr: "scheme://host:port"},
+		{name: "missing credentials secret", proxyURL: "http://egress-proxy.corp:3128", credentials: &frpv1alpha1.ClientSpec_Server_Transport_ProxyCredentials{
+			Username: frpv1alpha1.SecretRef{Secret: frpv1alpha1.Secret{Name: "no-such-secret", Key: "username"}},
+			Password: frpv1alpha1.SecretRef{Secret: frpv1alpha1.Secret{Name: "egress-proxy", Key: "password"}},
+		}, wantErr: "no-such-secret"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fakeClient := createFakeClient(createDefaultTokenSecret("default"), proxySecret).Build()
+			clientObj := createBasicClient("default", "test-client", "frp.example.com", 7000)
+			if tt.protocol != "" {
+				clientObj.Spec.Server.Protocol = stringPtr(tt.protocol)
+			}
+			clientObj.Spec.Server.Transport = &frpv1alpha1.ClientSpec_Server_Transport{ProxyURL: tt.proxyURL, ProxyCredentials: tt.credentials}
+
+			config, err := NewConfig(fakeClient, clientObj, []frpv1alpha1.Upstream{}, []frpv1alpha1.Visitor{})
+			if tt.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+					t.Fatalf("NewConfig() error = %v, want it to contain %q", err, tt.wantErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("NewConfig() unexpected error = %v", err)
+			}
+			if config.Common.Transport.ProxyURL != tt.want {
+				t.Errorf("Transport.ProxyURL = %q, want %q", config.Common.Transport.ProxyURL, tt.want)
+			}
+			if config.Common.ServerAuthentication.OIDCProxyURL != "" {
+				t.Errorf("OIDCProxyURL = %q, want empty for token auth", config.Common.ServerAuthentication.OIDCProxyURL)
+			}
+		})
+	}
+}
+
+func TestNewConfig_OIDCUsesEgressProxy(t *testing.T) {
+	tests := []struct {
+		name     string
+		proxyURL string
+		want     string
+	}{
+		{name: "http proxy", proxyURL: "http://egress-proxy.corp:3128", want: "http://egress-proxy.corp:3128"},
+		{name: "socks5 proxy", proxyURL: "socks5://egress-proxy.corp:1080", want: "socks5://egress-proxy.corp:1080"},
+		{name: "ntlm is not supported by the OIDC client", proxyURL: "ntlm://egress-proxy.corp:3128", want: ""},
+		{name: "no proxy", proxyURL: "", want: ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fakeClient := createFakeClient(createSecret("default", "oidc", map[string][]byte{"id": []byte("frpc"), "secret": []byte("s3cret")})).Build()
+			clientObj := createBasicClient("default", "test-client", "frp.example.com", 7000)
+			clientObj.Spec.Server.Authentication = frpv1alpha1.ClientSpec_Server_Authentication{OIDC: &frpv1alpha1.ClientSpec_Server_Authentication_OIDC{
+				ClientID:         frpv1alpha1.SecretRef{Secret: frpv1alpha1.Secret{Name: "oidc", Key: "id"}},
+				ClientSecret:     frpv1alpha1.SecretRef{Secret: frpv1alpha1.Secret{Name: "oidc", Key: "secret"}},
+				TokenEndpointURL: "https://idp.example.com/token",
+			}}
+			clientObj.Spec.Server.Transport = &frpv1alpha1.ClientSpec_Server_Transport{ProxyURL: tt.proxyURL}
+
+			config, err := NewConfig(fakeClient, clientObj, []frpv1alpha1.Upstream{}, []frpv1alpha1.Visitor{})
+			if err != nil {
+				t.Fatalf("NewConfig() unexpected error = %v", err)
+			}
+			if config.Common.ServerAuthentication.OIDCProxyURL != tt.want {
+				t.Errorf("OIDCProxyURL = %q, want %q", config.Common.ServerAuthentication.OIDCProxyURL, tt.want)
+			}
+		})
+	}
+}

@@ -4,7 +4,8 @@
 // path through the real CR → model → template pipeline, then validates each file with the
 // real frpc binary (`frpc verify`, strict mode) from the image the operator deploys.
 //
-// Run with: make test-frpc-config (requires Docker).
+// Run with: make test-frpc-config (requires Docker). Set FRPC_CONFIG_DIR to keep the rendered
+// files for inspection.
 package frpcconfig
 
 import (
@@ -54,6 +55,16 @@ func TestGeneratedConfigsPassFrpcVerify(t *testing.T) {
 	all = append(all, renderServerPool(t, examples["loadbalancer"])...)
 
 	dir := t.TempDir()
+	if keep := os.Getenv("FRPC_CONFIG_DIR"); keep != "" {
+		abs, err := filepath.Abs(keep)
+		if err == nil {
+			err = os.MkdirAll(abs, 0o755)
+		}
+		if err != nil {
+			t.Fatalf("FRPC_CONFIG_DIR %q: %v", keep, err)
+		}
+		dir = abs
+	}
 	for _, r := range all {
 		for _, want := range r.expect {
 			if !strings.Contains(r.config, want) {
@@ -146,6 +157,8 @@ var creds = map[string]string{
 	"stcp-key":    "STCP-KEY-VAL",
 	"xtcp-key":    "XTCP-KEY-VAL",
 	"special":     `pa"ss\w0rd`,
+	"proxy-user":  "svc-frp",
+	"proxy-pass":  "p@ss:w/rd",
 }
 
 func credsSecret() *corev1.Secret {
@@ -183,6 +196,10 @@ func visitor(name string, spec v1.VisitorSpec) v1.Visitor {
 
 func tcpBase() *v1.UpstreamSpec_TCP {
 	return &v1.UpstreamSpec_TCP{Host: "svc.ns.svc", Port: 8080, Server: v1.UpstreamSpec_TCP_Server{Port: 18080}}
+}
+
+func proxyCredentials() *v1.ClientSpec_Server_Transport_ProxyCredentials {
+	return &v1.ClientSpec_Server_Transport_ProxyCredentials{Username: *sref("proxy-user"), Password: *sref("proxy-pass")}
 }
 
 func healthCheck() *v1.UpstreamSpec_TCP_HealthCheck {
@@ -259,6 +276,15 @@ func featureCases() []featureCase {
 	c = baseClient()
 	c.Spec.Server.Transport = &v1.ClientSpec_Server_Transport{ProxyURL: "socks5://user:pass@proxy.local:1080"}
 	add(featureCase{name: "client_transport_proxy_url", client: c, expect: []string{`transport.proxyURL = "socks5://user:pass@proxy.local:1080"`}})
+	c = baseClient()
+	c.Spec.Server.Authentication = v1.ClientSpec_Server_Authentication{OIDC: &v1.ClientSpec_Server_Authentication_OIDC{
+		ClientID: *sref("oidc-id"), ClientSecret: *sref("oidc-secret"), TokenEndpointURL: "https://idp.example.com/token",
+	}}
+	c.Spec.Server.Transport = &v1.ClientSpec_Server_Transport{ProxyURL: "http://egress-proxy.corp:3128", ProxyCredentials: proxyCredentials()}
+	add(featureCase{name: "client_oidc_egress_proxy_credentials", client: c, expect: []string{
+		`transport.proxyURL = "http://svc-frp:p%40ss%3Aw%2Frd@egress-proxy.corp:3128"`,
+		`auth.oidc.proxyURL = "http://svc-frp:p%40ss%3Aw%2Frd@egress-proxy.corp:3128"`,
+	}})
 
 	for _, proto := range []string{"tcp", "kcp", "quic", "websocket", "wss"} {
 		c = baseClient()
@@ -559,9 +585,10 @@ func renderServerPool(t *testing.T, set *exampleSet) []rendered {
 	variants := map[string]func(*v1.ServerPoolServer){
 		"example": func(*v1.ServerPoolServer) {},
 		"maximal": func(s *v1.ServerPoolServer) {
-			s.TransportProtocol = ptr("quic")
+			s.TransportProtocol = ptr("websocket")
 			s.TLS = &v1.ClientSpec_Server_TLS{Enable: true}
-			s.Transport = &v1.ClientSpec_Server_Transport{PoolCount: 2, TCPMux: ptr(false), DialServerTimeout: "10s", WireProtocol: "v2"}
+			s.Transport = &v1.ClientSpec_Server_Transport{PoolCount: 2, TCPMux: ptr(false), DialServerTimeout: "10s", WireProtocol: "v2",
+				ProxyURL: "socks5://egress-proxy.corp:1080", ProxyCredentials: proxyCredentials()}
 		},
 	}
 
@@ -580,7 +607,9 @@ func renderServerPool(t *testing.T, set *exampleSet) []rendered {
 				ups = append(ups, *loadbalancer.BuildUpstream(pool, svc, port, ref))
 			}
 			name := fmt.Sprintf("serverpool_%s_%s", variant, svc.Name)
-			config, err := render(t, set.objects, c, ups, nil)
+			poolCreds := credsSecret()
+			poolCreds.Namespace = pool.Namespace // generated Clients live in the pool's namespace
+			config, err := render(t, append([]client.Object{poolCreds}, set.objects...), c, ups, nil)
 			if err != nil {
 				t.Errorf("%s: %v", name, err)
 				continue

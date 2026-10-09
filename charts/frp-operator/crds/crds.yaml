@@ -1665,10 +1665,54 @@ spec:
                         description: PoolCount is the number of pre-established connections
                           to the server
                         type: integer
+                      proxyCredentials:
+                        description: |-
+                          ProxyCredentials authenticates to the proxy with a username and password read from Secrets.
+                          Requires proxyURL, which must then not contain credentials itself.
+                        properties:
+                          password:
+                            properties:
+                              secret:
+                                properties:
+                                  key:
+                                    type: string
+                                  name:
+                                    type: string
+                                required:
+                                - key
+                                - name
+                                type: object
+                            required:
+                            - secret
+                            type: object
+                          username:
+                            properties:
+                              secret:
+                                properties:
+                                  key:
+                                    type: string
+                                  name:
+                                    type: string
+                                required:
+                                - key
+                                - name
+                                type: object
+                            required:
+                            - secret
+                            type: object
+                        required:
+                        - password
+                        - username
+                        type: object
                       proxyURL:
                         description: |-
-                          ProxyURL dials the FRP server through an HTTP, SOCKS5 or NTLM proxy,
-                          e.g. "http://user:pass@proxy:8080" or "socks5://proxy:1080".
+                          ProxyURL dials the FRP server through an outbound (egress) proxy, e.g.
+                          "http://egress-proxy.corp:3128" or "socks5://egress-proxy.corp:1080". Supported schemes are
+                          http, https, socks5 and ntlm, with the tcp, websocket and wss protocols only (kcp and quic
+                          are UDP and cannot be proxied). With OIDC authentication the token endpoint is reached
+                          through the same proxy, except ntlm, which the OIDC client does not support.
+                          Prefer proxyCredentials over embedding a username and password in the URL.
+                        pattern: ^(http|https|socks5|ntlm)://
                         type: string
                       tcpMux:
                         description: TCPMux enables TCP stream multiplexing to reduce
@@ -4425,10 +4469,54 @@ spec:
                           description: PoolCount is the number of pre-established
                             connections to the server
                           type: integer
+                        proxyCredentials:
+                          description: |-
+                            ProxyCredentials authenticates to the proxy with a username and password read from Secrets.
+                            Requires proxyURL, which must then not contain credentials itself.
+                          properties:
+                            password:
+                              properties:
+                                secret:
+                                  properties:
+                                    key:
+                                      type: string
+                                    name:
+                                      type: string
+                                  required:
+                                  - key
+                                  - name
+                                  type: object
+                              required:
+                              - secret
+                              type: object
+                            username:
+                              properties:
+                                secret:
+                                  properties:
+                                    key:
+                                      type: string
+                                    name:
+                                      type: string
+                                  required:
+                                  - key
+                                  - name
+                                  type: object
+                              required:
+                              - secret
+                              type: object
+                          required:
+                          - password
+                          - username
+                          type: object
                         proxyURL:
                           description: |-
-                            ProxyURL dials the FRP server through an HTTP, SOCKS5 or NTLM proxy,
-                            e.g. "http://user:pass@proxy:8080" or "socks5://proxy:1080".
+                            ProxyURL dials the FRP server through an outbound (egress) proxy, e.g.
+                            "http://egress-proxy.corp:3128" or "socks5://egress-proxy.corp:1080". Supported schemes are
+                            http, https, socks5 and ntlm, with the tcp, websocket and wss protocols only (kcp and quic
+                            are UDP and cannot be proxied). With OIDC authentication the token endpoint is reached
+                            through the same proxy, except ntlm, which the OIDC client does not support.
+                            Prefer proxyCredentials over embedding a username and password in the URL.
+                          pattern: ^(http|https|socks5|ntlm)://
                           type: string
                         tcpMux:
                           description: TCPMux enables TCP stream multiplexing to reduce

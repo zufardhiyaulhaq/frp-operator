@@ -31,6 +31,9 @@ auth.oidc.audience = {{ quote .Common.ServerAuthentication.OIDCAudience }}
 {{ if .Common.ServerAuthentication.OIDCScope }}
 auth.oidc.scope = {{ quote .Common.ServerAuthentication.OIDCScope }}
 {{ end }}
+{{ if .Common.ServerAuthentication.OIDCProxyURL }}
+auth.oidc.proxyURL = {{ quote .Common.ServerAuthentication.OIDCProxyURL }}
+{{ end }}
 {{ end }}
 
 webServer.addr = {{ quote .Common.AdminAddress }}
@@ -59,7 +62,9 @@ transport.tls.trustedCaFile = {{ quote .Common.TLS.TrustedCAFile }}
 {{ end }}
 
 {{ if .Common.Transport }}
+{{ if .Common.Transport.PoolCount }}
 transport.poolCount = {{ .Common.Transport.PoolCount }}
+{{ end }}
 transport.tcpMux = {{ .Common.Transport.TCPMux }}
 {{ if .Common.Transport.DialServerTimeout }}
 transport.dialServerTimeout = {{ .Common.Transport.DialServerTimeout }}

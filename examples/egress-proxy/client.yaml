@@ -1,0 +1,28 @@
+# frpc reaches frps only through the corporate egress proxy.
+apiVersion: frp.zufardhiyaulhaq.com/v1alpha1
+kind: Client
+metadata:
+  name: egress-client
+  namespace: default
+spec:
+  server:
+    host: frps.example.com
+    port: 7000
+    # protocol must be tcp (default), websocket or wss: kcp and quic are UDP and cannot be proxied.
+    authentication:
+      token:
+        secret:
+          name: frp-token
+          key: token
+    transport:
+      # http://, https://, socks5:// or ntlm:// — host and port only; credentials come from Secrets.
+      proxyURL: "http://egress-proxy.corp.internal:3128"
+      proxyCredentials:
+        username:
+          secret:
+            name: egress-proxy-credentials
+            key: username
+        password:
+          secret:
+            name: egress-proxy-credentials
+            key: password
