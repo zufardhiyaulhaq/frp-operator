@@ -8,6 +8,10 @@ serverPort = {{ .Common.ServerPort }}
 clientID = "{{ .Common.ClientID }}"
 {{ end }}
 
+{{ if and .Common.ServerProtocol (ne .Common.ServerProtocol "tcp") }}
+transport.protocol = "{{ .Common.ServerProtocol }}"
+{{ end }}
+
 {{ if eq .Common.ServerAuthentication.Type 1 }}
 auth.method = "token"
 auth.token = "{{ .Common.ServerAuthentication.Token }}"

@@ -1642,6 +1642,57 @@ func TestConfigurationBuilder_Build(t *testing.T) {
 			},
 		},
 		{
+			name: "server protocol rendered when set to kcp",
+			config: models.Config{
+				Common: models.Common{
+					ServerAddress:  "frp.example.com",
+					ServerPort:     7000,
+					ServerProtocol: "kcp",
+					AdminAddress:   "0.0.0.0",
+					AdminPort:      7400,
+					AdminUsername:  "admin",
+					AdminPassword:  "secret",
+				},
+			},
+			wantContains: []string{
+				`transport.protocol = "kcp"`,
+			},
+		},
+		{
+			name: "server protocol rendered when set to quic",
+			config: models.Config{
+				Common: models.Common{
+					ServerAddress:  "frp.example.com",
+					ServerPort:     7000,
+					ServerProtocol: "quic",
+					AdminAddress:   "0.0.0.0",
+					AdminPort:      7400,
+					AdminUsername:  "admin",
+					AdminPassword:  "secret",
+				},
+			},
+			wantContains: []string{
+				`transport.protocol = "quic"`,
+			},
+		},
+		{
+			name: "server protocol omitted when tcp",
+			config: models.Config{
+				Common: models.Common{
+					ServerAddress:  "frp.example.com",
+					ServerPort:     7000,
+					ServerProtocol: "tcp",
+					AdminAddress:   "0.0.0.0",
+					AdminPort:      7400,
+					AdminUsername:  "admin",
+					AdminPassword:  "secret",
+				},
+			},
+			wantNotContain: []string{
+				`transport.protocol`,
+			},
+		},
+		{
 			name: "disabled upstream renders enabled = false",
 			config: models.Config{
 				Common: models.Common{ServerAddress: "frp.example.com", ServerPort: 7000, AdminAddress: "0.0.0.0", AdminPort: 7400, AdminUsername: "admin", AdminPassword: "secret"},

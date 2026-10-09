@@ -496,7 +496,7 @@ func NewConfig(k8sclient client.Client,
 		Common: Common{
 			ServerAddress:  clientObject.Spec.Server.Host,
 			ServerPort:     clientObject.Spec.Server.Port,
-			ServerProtocol: "TCP",
+			ServerProtocol: "tcp",
 			ClientID:       clientObject.Namespace + "/" + clientObject.Name,
 			AdminAddress:   DEFAULT_ADMIN_ADDRESS,
 			AdminPort:      DEFAULT_ADMIN_PORT,

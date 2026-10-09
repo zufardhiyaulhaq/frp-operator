@@ -277,6 +277,52 @@ func TestTemplateCommonSection(t *testing.T) {
 	assertContains(t, output, `webServer.password = "secret"`)
 }
 
+func TestTemplateCommonWithServerProtocol(t *testing.T) {
+	protocols := []string{"kcp", "quic", "websocket", "wss"}
+	for _, protocol := range protocols {
+		t.Run(protocol, func(t *testing.T) {
+			config := testConfig{
+				Common: testCommon{
+					ServerAddress:  "frp.example.com",
+					ServerPort:     7000,
+					ServerProtocol: protocol,
+					AdminAddress:   "0.0.0.0",
+					AdminPort:      7400,
+					AdminUsername:  "admin",
+					AdminPassword:  "secret",
+				},
+			}
+
+			output := renderTemplate(t, config)
+
+			assertContains(t, output, `transport.protocol = "`+protocol+`"`)
+		})
+	}
+}
+
+func TestTemplateCommonServerProtocolOmittedForTCP(t *testing.T) {
+	// "tcp" is frpc's default transport, so transport.protocol is only emitted for others.
+	for _, protocol := range []string{"tcp", ""} {
+		t.Run(protocol, func(t *testing.T) {
+			config := testConfig{
+				Common: testCommon{
+					ServerAddress:  "frp.example.com",
+					ServerPort:     7000,
+					ServerProtocol: protocol,
+					AdminAddress:   "0.0.0.0",
+					AdminPort:      7400,
+					AdminUsername:  "admin",
+					AdminPassword:  "secret",
+				},
+			}
+
+			output := renderTemplate(t, config)
+
+			assertNotContains(t, output, "transport.protocol")
+		})
+	}
+}
+
 func TestTemplateCommonWithTokenAuth(t *testing.T) {
 	config := testConfig{
 		Common: testCommon{

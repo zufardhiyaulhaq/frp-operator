@@ -595,8 +595,8 @@ func TestNewConfig_BasicClient(t *testing.T) {
 	if config.Common.ServerPort != 7000 {
 		t.Errorf("NewConfig() ServerPort = %v, want %v", config.Common.ServerPort, 7000)
 	}
-	if config.Common.ServerProtocol != "TCP" {
-		t.Errorf("NewConfig() ServerProtocol = %v, want %v", config.Common.ServerProtocol, "TCP")
+	if config.Common.ServerProtocol != "tcp" {
+		t.Errorf("NewConfig() ServerProtocol = %v, want %v", config.Common.ServerProtocol, "tcp")
 	}
 	if config.Common.AdminAddress != DEFAULT_ADMIN_ADDRESS {
 		t.Errorf("NewConfig() AdminAddress = %v, want %v", config.Common.AdminAddress, DEFAULT_ADMIN_ADDRESS)
