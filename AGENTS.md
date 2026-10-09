@@ -15,6 +15,7 @@ make docker-build       # Build container image
 
 # Test
 make test               # Run tests with coverage (output/coverage.html)
+make test-frpc-config   # Render every feature/example/ServerPool config and validate it with the real frpc (needs Docker)
 
 # Lint & Format
 make fmt                # Format code with go fmt
@@ -105,5 +106,6 @@ pkg/loadbalancer/   # LB allocator, naming, builders
 config/             # Kustomize manifests (CRDs, RBAC, manager), mostly not being used. fix the RBAC & CRDs under charts instead
 charts/             # Helm chart
 dashboards/         # Grafana dashboard JSON
-examples/           # Usage examples (simple, tcp-full, p2p, loadbalancer)
+examples/           # Usage examples (simple, tcp-full, p2p, loadbalancer); every Client here is validated by test/frpcconfig
+test/frpcconfig/    # frpc verify integration test (build tag frpcverify)
 ```

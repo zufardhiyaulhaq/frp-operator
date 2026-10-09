@@ -14,7 +14,7 @@
 **Upstream protocols**
 - `TCP` and `UDP` — straightforward port forwarding with optional health checks and bandwidth limits
 - `STCP` — secret-key TCP, private to clients that share the key (with `allowUsers`)
-- `XTCP` — encrypted peer-to-peer with NAT traversal, including the `enableAssistedAddrs` toggle for STUN-only or full address discovery
+- `XTCP` — encrypted peer-to-peer with NAT traversal, including the `enableAssistedAddrs` toggle for STUN-only or full address discovery, and an STCP fallback visitor
 - `HTTP` / `HTTPS` — virtual-host routing, custom headers, locations, basic auth, and per-route health checks
 - `TCPMUX` — multiplexed TCP for sharing a single server port across upstreams
 
@@ -22,11 +22,11 @@
 - Token authentication (sourced from Kubernetes `Secret`)
 - OIDC authentication
 - TLS to the FRP server, including mutual TLS verification
-- STCP/XTCP secret keys and `allowUsers` (sourced from Kubernetes `Secret`)
+- STCP/XTCP secret keys (sourced from Kubernetes `Secret`) and `allowUsers`, with `user` on `Client` and `serverUser` on `Visitor` for cross-user access
 
 **Advanced traffic features**
 - FRP plugins on `Upstream` (e.g. static_file, unix_domain_socket, http_proxy, socks5, https2http, etc.)
-- Transport tuning per `Upstream` (protocol, pool count, multiplex, bandwidth limits)
+- Transport tuning on `Client` (protocol: tcp/kcp/quic/websocket/wss, pool count, multiplexing, dial timeout/keepalive, outbound `proxyURL`) and per `Upstream` (encryption, compression, bandwidth limits)
 - Load balancing across TCP, HTTP, and HTTPS upstreams via FRP groups (HTTPS groups need frps >= v0.66.0)
 - Group-level health checks
 
@@ -36,7 +36,7 @@
 - Wire protocol v2 (`transport.wireProtocol`) on `Client` for an AEAD-encrypted control channel (frps >= v0.69.0)
 - Each `Client` reports a `clientID` of `<namespace>/<name>` in the frps dashboard (frps >= v0.67.0; set `spec.clientID: ""` to omit) — frps allows only one online client per clientID
 - Reliable, restart-free config reload — operator `exec`s into the pod and verifies `/frp/config.toml` matches the expected state, and runs `frpc verify` on the rendered config before triggering the reload
-- Validation for duplicate `Upstream` server ports and duplicate `Visitor` ports, surfaced via descriptive errors
+- Validation for duplicate `Upstream` server ports (per protocol, so 53/TCP and 53/UDP can coexist), duplicate `Visitor` ports, and missing Secrets/keys, surfaced via descriptive errors
 - Expose `Service type=LoadBalancer` through a pool of frps servers (`ServerPool` + `loadBalancerClass: frp.zufardhiyaulhaq.com/frp`)
 - Helm chart with native CRDs and RBAC
 - Prometheus metrics for every `Client` and proxy (`frp_client_ready`, `frp_client_config_synced`, `frp_proxy_status`, ...) plus controller-runtime metrics, served on `:8080` (or `:8443` with Kubernetes token authentication when `metrics.secure=true`)
