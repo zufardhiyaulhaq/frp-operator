@@ -2,9 +2,12 @@ package controllers
 
 import (
 	"context"
+	"strings"
 	"testing"
+	"time"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -158,5 +161,101 @@ func TestReconcile_PodNotRunningPrunesProxyMetrics(t *testing.T) {
 	}
 	if n := countFamily(t, "frp_proxy_info"); n != 0 {
 		t.Errorf("frp_proxy_info = %d after pod-not-running reconcile, want 0 (stale series must be pruned)", n)
+	}
+}
+
+// An invalid spec (here: a Secret key that does not exist) must not leave the Client looking
+// synced: the last good config keeps running, but ConfigSynced and frp_client_config_synced
+// have to report that the current spec is not applied.
+func TestReconcile_InvalidConfigMarksConfigNotSynced(t *testing.T) {
+	scheme := runtime.NewScheme()
+	if err := frpv1alpha1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	if err := corev1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+
+	ns, name := "ns3", "broken"
+	t.Cleanup(func() { metrics.DeleteClient(ns, name) })
+
+	c := &frpv1alpha1.Client{
+		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: ns},
+		Spec: frpv1alpha1.ClientSpec{
+			Server: frpv1alpha1.ClientSpec_Server{
+				Host: "example.com",
+				Port: 7000,
+				Authentication: frpv1alpha1.ClientSpec_Server_Authentication{
+					Token: &frpv1alpha1.ClientSpec_Server_Authentication_Token{
+						Secret: frpv1alpha1.Secret{Name: "frp-token", Key: "no-such-key"},
+					},
+				},
+			},
+		},
+		Status: frpv1alpha1.ClientStatus{
+			Phase: "Running",
+			Conditions: []metav1.Condition{{
+				Type: "ConfigSynced", Status: metav1.ConditionTrue, Reason: "ConfigReloaded",
+				Message: "Configuration synchronized", LastTransitionTime: metav1.Now(),
+			}},
+		},
+	}
+	secret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{Name: "frp-token", Namespace: ns},
+		Data:       map[string][]byte{"token": []byte("shh")},
+	}
+	recorder := record.NewFakeRecorder(10)
+	k8s := fake.NewClientBuilder().WithScheme(scheme).WithObjects(c, secret).WithStatusSubresource(c).Build()
+	r := &ClientReconciler{Client: k8s, Scheme: scheme, Recorder: recorder}
+
+	// Simulate the previous, healthy reconcile.
+	metrics.RecordClient(c, ns+"/"+name, frpcImage)
+	if v, ok := gaugeValue(t, "frp_client_config_synced", map[string]string{"namespace": ns, "client": name}); !ok || v != 1 {
+		t.Fatalf("precondition: config_synced = %v (ok=%v), want 1", v, ok)
+	}
+
+	_, err := r.Reconcile(context.Background(), ctrl.Request{NamespacedName: types.NamespacedName{Namespace: ns, Name: name}})
+	if err == nil {
+		t.Fatal("reconcile error = nil, want the invalid config error so the request is retried")
+	}
+
+	got := &frpv1alpha1.Client{}
+	if err := k8s.Get(context.Background(), types.NamespacedName{Namespace: ns, Name: name}, got); err != nil {
+		t.Fatal(err)
+	}
+	cond := meta.FindStatusCondition(got.Status.Conditions, "ConfigSynced")
+	if cond == nil || cond.Status != metav1.ConditionFalse || cond.Reason != "InvalidConfig" || !strings.Contains(cond.Message, `key "no-such-key"`) {
+		t.Errorf("ConfigSynced = %+v, want False/InvalidConfig mentioning the missing key", cond)
+	}
+	if v, ok := gaugeValue(t, "frp_client_config_synced", map[string]string{"namespace": ns, "client": name}); !ok || v != 0 {
+		t.Errorf("config_synced = %v (ok=%v), want 0", v, ok)
+	}
+	select {
+	case event := <-recorder.Events:
+		if !strings.HasPrefix(event, "Warning InvalidConfig") {
+			t.Errorf("event = %q, want a Warning InvalidConfig event", event)
+		}
+	default:
+		t.Error("no event recorded, want a Warning InvalidConfig event")
+	}
+}
+
+func TestSetCondition_KeepsTransitionTimeWhenStatusUnchanged(t *testing.T) {
+	r := &ClientReconciler{}
+	earlier := metav1.NewTime(time.Now().Add(-time.Hour).Truncate(time.Second))
+	c := &frpv1alpha1.Client{Status: frpv1alpha1.ClientStatus{Conditions: []metav1.Condition{{
+		Type: "ConfigSynced", Status: metav1.ConditionFalse, Reason: "InvalidConfig", Message: "old", LastTransitionTime: earlier,
+	}}}}
+
+	r.setCondition(c, "ConfigSynced", metav1.ConditionFalse, "InvalidConfig", "new")
+	cond := meta.FindStatusCondition(c.Status.Conditions, "ConfigSynced")
+	if !cond.LastTransitionTime.Equal(&earlier) || cond.Message != "new" {
+		t.Errorf("unchanged status: LastTransitionTime = %v, Message = %q; want %v and %q", cond.LastTransitionTime, cond.Message, earlier, "new")
+	}
+
+	r.setCondition(c, "ConfigSynced", metav1.ConditionTrue, "ConfigReloaded", "ok")
+	cond = meta.FindStatusCondition(c.Status.Conditions, "ConfigSynced")
+	if cond.LastTransitionTime.Equal(&earlier) {
+		t.Error("status changed but LastTransitionTime was not updated")
 	}
 }

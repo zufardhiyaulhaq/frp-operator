@@ -26,6 +26,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -54,6 +55,7 @@ const (
 	EventReasonConfigReloaded     = "ConfigReloaded"
 	EventReasonConfigReloadFailed = "ConfigReloadFailed"
 	EventReasonPodImageUpdated    = "PodImageUpdated"
+	EventReasonInvalidConfig      = "InvalidConfig"
 )
 
 // frpcImage is the frpc container image managed by the operator.
@@ -157,6 +159,19 @@ func (r *ClientReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 	config, err := models.NewConfig(r.Client, client, filteredUpstreams, filteredVisitors)
 	if err != nil {
+		// The last good ConfigMap keeps running, but the current spec cannot be applied: say so
+		// on the Client (and in frp_client_config_synced) instead of only in the operator log.
+		msg := fmt.Sprintf("invalid configuration: %v", err)
+		log.Error(err, "invalid client configuration")
+		r.Recorder.Event(client, corev1.EventTypeWarning, EventReasonInvalidConfig, msg)
+		r.setCondition(client, status.ConditionTypeConfigSync, metav1.ConditionFalse, status.ReasonInvalidConfig, msg)
+		phase := client.Status.Phase
+		if phase == "" {
+			phase = status.ClientPhasePending
+		}
+		if statusErr := r.updateClientStatus(ctx, client, phase, msg, len(filteredUpstreams), len(filteredVisitors)); statusErr != nil {
+			log.Error(statusErr, "failed to update client status")
+		}
 		return ctrl.Result{}, err
 	}
 
@@ -483,24 +498,15 @@ func (r *ClientReconciler) updateClientStatus(ctx context.Context, client *frpv1
 	return r.Status().Update(ctx, client)
 }
 
-// setCondition sets or updates a condition on the Client status
+// setCondition sets or updates a condition on the Client status. LastTransitionTime only moves
+// when the condition's status changes, so repeated reconciles do not rewrite an unchanged status.
 func (r *ClientReconciler) setCondition(client *frpv1alpha1.Client,
 	conditionType string, conditionStatus metav1.ConditionStatus, reason, message string) {
 
-	condition := metav1.Condition{
-		Type:               conditionType,
-		Status:             conditionStatus,
-		LastTransitionTime: metav1.Now(),
-		Reason:             reason,
-		Message:            message,
-	}
-
-	// Find and update or append
-	for i, c := range client.Status.Conditions {
-		if c.Type == conditionType {
-			client.Status.Conditions[i] = condition
-			return
-		}
-	}
-	client.Status.Conditions = append(client.Status.Conditions, condition)
+	meta.SetStatusCondition(&client.Status.Conditions, metav1.Condition{
+		Type:    conditionType,
+		Status:  conditionStatus,
+		Reason:  reason,
+		Message: message,
+	})
 }

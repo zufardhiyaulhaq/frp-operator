@@ -204,7 +204,7 @@ The operator exposes Prometheus metrics on the `<release>-controller-manager-met
 |---|---|---|
 | `frp_client_info` | `namespace`, `client`, `server_address`, `server_port`, `client_id`, `frpc_image` | Always 1 |
 | `frp_client_ready` | `namespace`, `client` | 1 when the `Ready` condition is True |
-| `frp_client_config_synced` | `namespace`, `client` | 1 when the `ConfigSynced` condition is True |
+| `frp_client_config_synced` | `namespace`, `client` | 1 when the `ConfigSynced` condition is True; 0 when the reload failed (`ConfigReloadFailed`) or the spec is invalid, e.g. a missing Secret (`InvalidConfig`, also emitted as a Warning event) |
 | `frp_client_upstreams` / `frp_client_visitors` | `namespace`, `client` | Attached resource counts |
 | `frp_client_admin_up` | `namespace`, `client` | 1 when the frpc admin API answered `/api/status` |
 | `frp_client_last_reconcile_timestamp_seconds` | `namespace`, `client` | Unix time of the last reconcile |
