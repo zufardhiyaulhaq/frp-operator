@@ -227,10 +227,10 @@ type UpstreamSpec_TCP_Transport struct {
 	// +kubebuilder:default=false
 	UseCompression bool `json:"useCompression"`
 	// +optional
-	BandwdithLimit *UpstreamSpec_TCP_Transport_BandwdithLimit `json:"bandwidthLimit"`
+	BandwidthLimit *UpstreamSpec_TCP_Transport_BandwidthLimit `json:"bandwidthLimit"`
 }
 
-type UpstreamSpec_TCP_Transport_BandwdithLimit struct {
+type UpstreamSpec_TCP_Transport_BandwidthLimit struct {
 	// +kubebuilder:default=false
 	Enabled bool `json:"enabled"`
 	Limit   int  `json:"limit"`

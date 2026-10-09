@@ -294,7 +294,7 @@ func TestConfigurationBuilder_Build(t *testing.T) {
 							Host:       "127.0.0.1",
 							Port:       8080,
 							ServerPort: 18080,
-							Transport: &models.Upstream_TCP_Transport{
+							Transport: &models.ProxyTransport{
 								UseEncryption:  true,
 								UseCompression: true,
 							},
@@ -321,10 +321,10 @@ func TestConfigurationBuilder_Build(t *testing.T) {
 							Host:       "127.0.0.1",
 							Port:       8080,
 							ServerPort: 18080,
-							Transport: &models.Upstream_TCP_Transport{
+							Transport: &models.ProxyTransport{
 								UseEncryption:  false,
 								UseCompression: false,
-								BandwdithLimit: &models.Upstream_TCP_Transport_BandwidthLimit{
+								BandwidthLimit: &models.BandwidthLimit{
 									Enabled: true,
 									Limit:   100,
 									Type:    "MB",
@@ -353,10 +353,10 @@ func TestConfigurationBuilder_Build(t *testing.T) {
 							Host:       "127.0.0.1",
 							Port:       8080,
 							ServerPort: 18080,
-							Transport: &models.Upstream_TCP_Transport{
+							Transport: &models.ProxyTransport{
 								UseEncryption:  false,
 								UseCompression: false,
-								BandwdithLimit: &models.Upstream_TCP_Transport_BandwidthLimit{
+								BandwidthLimit: &models.BandwidthLimit{
 									Enabled: false,
 									Limit:   100,
 									Type:    "MB",
@@ -404,10 +404,10 @@ func TestConfigurationBuilder_Build(t *testing.T) {
 								MaxFailed:       5,
 								IntervalSeconds: 15,
 							},
-							Transport: &models.Upstream_TCP_Transport{
+							Transport: &models.ProxyTransport{
 								UseEncryption:  true,
 								UseCompression: true,
-								BandwdithLimit: &models.Upstream_TCP_Transport_BandwidthLimit{
+								BandwidthLimit: &models.BandwidthLimit{
 									Enabled: true,
 									Limit:   50,
 									Type:    "KB",
@@ -497,10 +497,10 @@ func TestConfigurationBuilder_Build(t *testing.T) {
 							Host:       "127.0.0.1",
 							Port:       53,
 							ServerPort: 5353,
-							Transport: &models.Upstream_UDP_Transport{
+							Transport: &models.ProxyTransport{
 								UseEncryption:  true,
 								UseCompression: true,
-								BandwidthLimit: &models.Upstream_UDP_Transport_BandwidthLimit{
+								BandwidthLimit: &models.BandwidthLimit{
 									Enabled: true,
 									Limit:   100,
 									Type:    "MB",
@@ -643,10 +643,10 @@ func TestConfigurationBuilder_Build(t *testing.T) {
 							Host:      "127.0.0.1",
 							Port:      22,
 							SecretKey: "secret",
-							Transport: &models.Upstream_TCP_Transport{
+							Transport: &models.ProxyTransport{
 								UseEncryption:  true,
 								UseCompression: true,
-								BandwdithLimit: &models.Upstream_TCP_Transport_BandwidthLimit{
+								BandwidthLimit: &models.BandwidthLimit{
 									Enabled: true,
 									Limit:   200,
 									Type:    "KB",
@@ -804,10 +804,10 @@ func TestConfigurationBuilder_Build(t *testing.T) {
 							Host:      "127.0.0.1",
 							Port:      3389,
 							SecretKey: "secret",
-							Transport: &models.Upstream_TCP_Transport{
+							Transport: &models.ProxyTransport{
 								UseEncryption:  true,
 								UseCompression: false,
-								BandwdithLimit: &models.Upstream_TCP_Transport_BandwidthLimit{
+								BandwidthLimit: &models.BandwidthLimit{
 									Enabled: true,
 									Limit:   500,
 									Type:    "MB",
@@ -1511,7 +1511,7 @@ func TestConfigurationBuilder_Build(t *testing.T) {
 							Port:          8080,
 							Multiplexer:   "httpconnect",
 							CustomDomains: []string{"mux.example.com"},
-							Transport: &models.Upstream_TCP_Transport{
+							Transport: &models.ProxyTransport{
 								UseEncryption:  true,
 								UseCompression: true,
 							},
@@ -1864,4 +1864,35 @@ func basicCommon() models.Common {
 
 func stringPtr(s string) *string {
 	return &s
+}
+
+// The template branches on numeric upstream/visitor types; this pins the model constants to
+// those branches so the two cannot drift apart.
+func TestConfigurationBuilder_TypeConstantsMatchTemplate(t *testing.T) {
+	upstreams := map[models.UpstreamType]string{
+		models.TCP: "tcp", models.UDP: "udp", models.STCP: "stcp", models.XTCP: "xtcp",
+		models.HTTP: "http", models.HTTPS: "https", models.TCPMUX: "tcpmux",
+	}
+	for upstreamType, want := range upstreams {
+		config := models.Config{Common: basicCommon(), Upstreams: models.Upstreams{{Name: "u", Type: upstreamType}}}
+		got, err := NewConfigurationBuilder().SetConfig(config).Build()
+		if err != nil {
+			t.Fatalf("Build() type %d: %v", upstreamType, err)
+		}
+		if !strings.Contains(got, `type = "`+want+`"`) {
+			t.Errorf("upstream type %d rendered without type = %q:\n%s", upstreamType, want, got)
+		}
+	}
+
+	visitors := map[models.VisitorType]string{models.STCPVisitor: "stcp", models.XTCPVisitor: "xtcp"}
+	for visitorType, want := range visitors {
+		config := models.Config{Common: basicCommon(), Visitors: models.Visitors{{Name: "v", Type: visitorType}}}
+		got, err := NewConfigurationBuilder().SetConfig(config).Build()
+		if err != nil {
+			t.Fatalf("Build() visitor type %d: %v", visitorType, err)
+		}
+		if !strings.Contains(got, `type = "`+want+`"`) {
+			t.Errorf("visitor type %d rendered without type = %q:\n%s", visitorType, want, got)
+		}
+	}
 }

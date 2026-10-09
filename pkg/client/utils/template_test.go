@@ -179,7 +179,7 @@ type testHTTPHealthCheck struct {
 type testTransport struct {
 	UseCompression bool
 	UseEncryption  bool
-	BandwdithLimit *testBandwidthLimit
+	BandwidthLimit *testBandwidthLimit
 }
 
 type testBandwidthLimit struct {
@@ -506,7 +506,7 @@ func TestTemplateTCPUpstreamWithTransport(t *testing.T) {
 					Transport: &testTransport{
 						UseEncryption:  true,
 						UseCompression: true,
-						BandwdithLimit: &testBandwidthLimit{
+						BandwidthLimit: &testBandwidthLimit{
 							Enabled: true,
 							Limit:   10,
 							Type:    "MB",
@@ -690,7 +690,7 @@ func TestTemplateSTCPUpstreamWithAllOptions(t *testing.T) {
 					Transport: &testTransport{
 						UseEncryption:  false,
 						UseCompression: true,
-						BandwdithLimit: &testBandwidthLimit{
+						BandwidthLimit: &testBandwidthLimit{
 							Enabled: true,
 							Limit:   5,
 							Type:    "KB",
@@ -1134,7 +1134,7 @@ func TestTemplateHTTPSUpstreamWithTransport(t *testing.T) {
 					Transport: &testTransport{
 						UseEncryption:  true,
 						UseCompression: false,
-						BandwdithLimit: &testBandwidthLimit{
+						BandwidthLimit: &testBandwidthLimit{
 							Enabled: true,
 							Limit:   100,
 							Type:    "MB",
@@ -1468,7 +1468,7 @@ func TestTemplateHTTPUpstreamFull(t *testing.T) {
 					Transport: &testTransport{
 						UseEncryption:  true,
 						UseCompression: true,
-						BandwdithLimit: &testBandwidthLimit{
+						BandwidthLimit: &testBandwidthLimit{
 							Enabled: true,
 							Limit:   50,
 							Type:    "MB",
@@ -1521,7 +1521,7 @@ func TestTemplateBandwidthLimitDisabled(t *testing.T) {
 					Transport: &testTransport{
 						UseEncryption:  true,
 						UseCompression: false,
-						BandwdithLimit: &testBandwidthLimit{
+						BandwidthLimit: &testBandwidthLimit{
 							Enabled: false,
 							Limit:   10,
 							Type:    "MB",

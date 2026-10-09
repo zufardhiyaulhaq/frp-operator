@@ -194,7 +194,7 @@ var healthCheckExpect = []string{`healthCheck.type = "tcp"`, "healthCheck.timeou
 func proxyTransport() *v1.UpstreamSpec_TCP_Transport {
 	return &v1.UpstreamSpec_TCP_Transport{
 		UseEncryption: true, UseCompression: true,
-		BandwdithLimit: &v1.UpstreamSpec_TCP_Transport_BandwdithLimit{Enabled: true, Limit: 10, Type: "MB"},
+		BandwidthLimit: &v1.UpstreamSpec_TCP_Transport_BandwidthLimit{Enabled: true, Limit: 10, Type: "MB"},
 	}
 }
 

@@ -155,23 +155,9 @@ plugin.localAddr = {{ quote $upstream.TCP.Plugin.LocalAddr }}
 transport.proxyProtocolVersion = {{ quote $upstream.TCP.ProxyProtocol }}
 {{ end }}
 
-{{ if $upstream.TCP.HealthCheck }}
-healthCheck.type = "tcp"
-healthCheck.timeoutSeconds = {{ $upstream.TCP.HealthCheck.TimeoutSeconds }}
-healthCheck.maxFailed = {{ $upstream.TCP.HealthCheck.MaxFailed }}
-healthCheck.intervalSeconds = {{ $upstream.TCP.HealthCheck.IntervalSeconds }}
-{{ end }}
+{{ template "tcpHealthCheck" $upstream.TCP.HealthCheck }}
 
-{{ if $upstream.TCP.Transport }}
-transport.useEncryption = {{ $upstream.TCP.Transport.UseEncryption }}
-transport.useCompression = {{ $upstream.TCP.Transport.UseCompression }}
-{{ if $upstream.TCP.Transport.BandwdithLimit }}
-{{ if $upstream.TCP.Transport.BandwdithLimit.Enabled }}
-transport.bandwidthLimit = "{{ $upstream.TCP.Transport.BandwdithLimit.Limit }}{{ $upstream.TCP.Transport.BandwdithLimit.Type }}"
-transport.bandwidthLimitMode = "client"
-{{ end }}
-{{ end }}
-{{ end }}
+{{ template "proxyTransport" $upstream.TCP.Transport }}
 
 {{ if $upstream.TCP.LoadBalancer }}
 loadBalancer.group = {{ quote $upstream.TCP.LoadBalancer.Group }}
@@ -195,16 +181,7 @@ remotePort = {{ $upstream.UDP.ServerPort }}
 transport.proxyProtocolVersion = {{ quote $upstream.UDP.ProxyProtocol }}
 {{ end }}
 
-{{ if $upstream.UDP.Transport }}
-transport.useEncryption = {{ $upstream.UDP.Transport.UseEncryption }}
-transport.useCompression = {{ $upstream.UDP.Transport.UseCompression }}
-{{ if $upstream.UDP.Transport.BandwidthLimit }}
-{{ if $upstream.UDP.Transport.BandwidthLimit.Enabled }}
-transport.bandwidthLimit = "{{ $upstream.UDP.Transport.BandwidthLimit.Limit }}{{ $upstream.UDP.Transport.BandwidthLimit.Type }}"
-transport.bandwidthLimitMode = "client"
-{{ end }}
-{{ end }}
-{{ end }}
+{{ template "proxyTransport" $upstream.UDP.Transport }}
 {{ end }}
 
 {{ if eq $upstream.Type 3 }}
@@ -221,23 +198,9 @@ secretKey = {{ quote $upstream.STCP.SecretKey }}
 transport.proxyProtocolVersion = {{ quote $upstream.STCP.ProxyProtocol }}
 {{ end }}
 
-{{ if $upstream.STCP.HealthCheck }}
-healthCheck.type = "tcp"
-healthCheck.timeoutSeconds = {{ $upstream.STCP.HealthCheck.TimeoutSeconds }}
-healthCheck.maxFailed = {{ $upstream.STCP.HealthCheck.MaxFailed }}
-healthCheck.intervalSeconds = {{ $upstream.STCP.HealthCheck.IntervalSeconds }}
-{{ end }}
+{{ template "tcpHealthCheck" $upstream.STCP.HealthCheck }}
 
-{{ if $upstream.STCP.Transport }}
-transport.useEncryption = {{ $upstream.STCP.Transport.UseEncryption }}
-transport.useCompression = {{ $upstream.STCP.Transport.UseCompression }}
-{{ if $upstream.STCP.Transport.BandwdithLimit }}
-{{ if $upstream.STCP.Transport.BandwdithLimit.Enabled }}
-transport.bandwidthLimit = "{{ $upstream.STCP.Transport.BandwdithLimit.Limit }}{{ $upstream.STCP.Transport.BandwdithLimit.Type }}"
-transport.bandwidthLimitMode = "client"
-{{ end }}
-{{ end }}
-{{ end }}
+{{ template "proxyTransport" $upstream.STCP.Transport }}
 
 {{ if $upstream.STCP.AllowUsers }}
 allowUsers = [{{ range $i, $u := $upstream.STCP.AllowUsers }}{{ if $i }}, {{ end }}{{ quote $u }}{{ end }}]
@@ -258,23 +221,9 @@ secretKey = {{ quote $upstream.XTCP.SecretKey }}
 transport.proxyProtocolVersion = {{ quote $upstream.XTCP.ProxyProtocol }}
 {{ end }}
 
-{{ if $upstream.XTCP.HealthCheck }}
-healthCheck.type = "tcp"
-healthCheck.timeoutSeconds = {{ $upstream.XTCP.HealthCheck.TimeoutSeconds }}
-healthCheck.maxFailed = {{ $upstream.XTCP.HealthCheck.MaxFailed }}
-healthCheck.intervalSeconds = {{ $upstream.XTCP.HealthCheck.IntervalSeconds }}
-{{ end }}
+{{ template "tcpHealthCheck" $upstream.XTCP.HealthCheck }}
 
-{{ if $upstream.XTCP.Transport }}
-transport.useEncryption = {{ $upstream.XTCP.Transport.UseEncryption }}
-transport.useCompression = {{ $upstream.XTCP.Transport.UseCompression }}
-{{ if $upstream.XTCP.Transport.BandwdithLimit }}
-{{ if $upstream.XTCP.Transport.BandwdithLimit.Enabled }}
-transport.bandwidthLimit = "{{ $upstream.XTCP.Transport.BandwdithLimit.Limit }}{{ $upstream.XTCP.Transport.BandwdithLimit.Type }}"
-transport.bandwidthLimitMode = "client"
-{{ end }}
-{{ end }}
-{{ end }}
+{{ template "proxyTransport" $upstream.XTCP.Transport }}
 
 {{ if $upstream.XTCP.AllowUsers }}
 allowUsers = [{{ range $i, $u := $upstream.XTCP.AllowUsers }}{{ if $i }}, {{ end }}{{ quote $u }}{{ end }}]
@@ -333,16 +282,7 @@ healthCheck.maxFailed = {{ $upstream.HTTP.HealthCheck.MaxFailed }}
 healthCheck.intervalSeconds = {{ $upstream.HTTP.HealthCheck.IntervalSeconds }}
 {{ end }}
 
-{{ if $upstream.HTTP.Transport }}
-transport.useEncryption = {{ $upstream.HTTP.Transport.UseEncryption }}
-transport.useCompression = {{ $upstream.HTTP.Transport.UseCompression }}
-{{ if $upstream.HTTP.Transport.BandwdithLimit }}
-{{ if $upstream.HTTP.Transport.BandwdithLimit.Enabled }}
-transport.bandwidthLimit = "{{ $upstream.HTTP.Transport.BandwdithLimit.Limit }}{{ $upstream.HTTP.Transport.BandwdithLimit.Type }}"
-transport.bandwidthLimitMode = "client"
-{{ end }}
-{{ end }}
-{{ end }}
+{{ template "proxyTransport" $upstream.HTTP.Transport }}
 
 {{ if $upstream.HTTP.LoadBalancer }}
 loadBalancer.group = {{ quote $upstream.HTTP.LoadBalancer.Group }}
@@ -369,16 +309,7 @@ customDomains = [{{ range $i, $d := $upstream.HTTPS.CustomDomains }}{{ if $i }},
 transport.proxyProtocolVersion = {{ quote $upstream.HTTPS.ProxyProtocol }}
 {{ end }}
 
-{{ if $upstream.HTTPS.Transport }}
-transport.useEncryption = {{ $upstream.HTTPS.Transport.UseEncryption }}
-transport.useCompression = {{ $upstream.HTTPS.Transport.UseCompression }}
-{{ if $upstream.HTTPS.Transport.BandwdithLimit }}
-{{ if $upstream.HTTPS.Transport.BandwdithLimit.Enabled }}
-transport.bandwidthLimit = "{{ $upstream.HTTPS.Transport.BandwdithLimit.Limit }}{{ $upstream.HTTPS.Transport.BandwdithLimit.Type }}"
-transport.bandwidthLimitMode = "client"
-{{ end }}
-{{ end }}
-{{ end }}
+{{ template "proxyTransport" $upstream.HTTPS.Transport }}
 
 {{ if $upstream.HTTPS.LoadBalancer }}
 loadBalancer.group = {{ quote $upstream.HTTPS.LoadBalancer.Group }}
@@ -402,16 +333,7 @@ localPort = {{ $upstream.TCPMUX.Port }}
 customDomains = [{{ range $i, $d := $upstream.TCPMUX.CustomDomains }}{{ if $i }}, {{ end }}{{ quote $d }}{{ end }}]
 {{ end }}
 
-{{ if $upstream.TCPMUX.Transport }}
-transport.useEncryption = {{ $upstream.TCPMUX.Transport.UseEncryption }}
-transport.useCompression = {{ $upstream.TCPMUX.Transport.UseCompression }}
-{{ if $upstream.TCPMUX.Transport.BandwdithLimit }}
-{{ if $upstream.TCPMUX.Transport.BandwdithLimit.Enabled }}
-transport.bandwidthLimit = "{{ $upstream.TCPMUX.Transport.BandwdithLimit.Limit }}{{ $upstream.TCPMUX.Transport.BandwdithLimit.Type }}"
-transport.bandwidthLimitMode = "client"
-{{ end }}
-{{ end }}
-{{ end }}
+{{ template "proxyTransport" $upstream.TCPMUX.Transport }}
 {{ end }}
 
 {{ end }}
@@ -470,5 +392,27 @@ bindPort = -1
 {{ end }}
 {{ end }}
 
+{{ end }}
+
+{{ define "proxyTransport" }}
+{{ if . }}
+transport.useEncryption = {{ .UseEncryption }}
+transport.useCompression = {{ .UseCompression }}
+{{ if .BandwidthLimit }}
+{{ if .BandwidthLimit.Enabled }}
+transport.bandwidthLimit = {{ quote (printf "%d%s" .BandwidthLimit.Limit .BandwidthLimit.Type) }}
+transport.bandwidthLimitMode = "client"
+{{ end }}
+{{ end }}
+{{ end }}
+{{ end }}
+
+{{ define "tcpHealthCheck" }}
+{{ if . }}
+healthCheck.type = "tcp"
+healthCheck.timeoutSeconds = {{ .TimeoutSeconds }}
+healthCheck.maxFailed = {{ .MaxFailed }}
+healthCheck.intervalSeconds = {{ .IntervalSeconds }}
+{{ end }}
 {{ end }}
 `

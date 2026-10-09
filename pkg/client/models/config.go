@@ -80,9 +80,11 @@ type ServerAuthentication struct {
 
 type VisitorType int64
 
+// Visitor types. Values start at 1 and must match the `eq $visitor.Type N` branches in
+// CLIENT_TEMPLATE.
 const (
-	STCPVisitor VisitorType = iota
-	XTCPVisitor VisitorType = iota
+	STCPVisitor VisitorType = iota + 1
+	XTCPVisitor
 )
 
 type Visitor struct {
@@ -132,14 +134,16 @@ type Visitor_XTCP_Fallback struct {
 
 type UpstreamType int64
 
+// Upstream types. Values start at 1 and must match the `eq $upstream.Type N` branches in
+// CLIENT_TEMPLATE.
 const (
-	TCP    UpstreamType = iota
-	UDP    UpstreamType = iota
-	STCP   UpstreamType = iota
-	XTCP   UpstreamType = iota
-	HTTP   UpstreamType = iota
-	HTTPS  UpstreamType = iota
-	TCPMUX UpstreamType = iota
+	TCP UpstreamType = iota + 1
+	UDP
+	STCP
+	XTCP
+	HTTP
+	HTTPS
+	TCPMUX
 )
 
 type Upstream_TCPMUX struct {
@@ -147,7 +151,7 @@ type Upstream_TCPMUX struct {
 	Port          int
 	Multiplexer   string
 	CustomDomains []string
-	Transport     *Upstream_TCP_Transport
+	Transport     *ProxyTransport
 }
 
 type Upstream struct {
@@ -181,17 +185,7 @@ type Upstream_STCP struct {
 	SecretKey     string
 	ProxyProtocol *string
 	HealthCheck   *Upstream_TCP_HealthCheck
-	Transport     *Upstream_TCP_Transport
-	AllowUsers    []string
-}
-
-type Upstream_XTCP struct {
-	Host          string
-	Port          int
-	SecretKey     string
-	ProxyProtocol *string
-	HealthCheck   *Upstream_TCP_HealthCheck
-	Transport     *Upstream_TCP_Transport
+	Transport     *ProxyTransport
 	AllowUsers    []string
 }
 
@@ -253,7 +247,7 @@ type Upstream_TCP struct {
 	ServerPort    int
 	ProxyProtocol *string
 	HealthCheck   *Upstream_TCP_HealthCheck
-	Transport     *Upstream_TCP_Transport
+	Transport     *ProxyTransport
 	LoadBalancer  *LoadBalancerConfig
 	Plugin        *PluginConfig
 }
@@ -264,13 +258,14 @@ type Upstream_TCP_HealthCheck struct {
 	IntervalSeconds int
 }
 
-type Upstream_TCP_Transport struct {
+// ProxyTransport is the per-proxy transport block shared by every proxy type.
+type ProxyTransport struct {
 	UseCompression bool
 	UseEncryption  bool
-	BandwdithLimit *Upstream_TCP_Transport_BandwidthLimit
+	BandwidthLimit *BandwidthLimit
 }
 
-type Upstream_TCP_Transport_BandwidthLimit struct {
+type BandwidthLimit struct {
 	Enabled bool
 	Limit   int
 	Type    string
@@ -281,19 +276,7 @@ type Upstream_UDP struct {
 	Port          int
 	ServerPort    int
 	ProxyProtocol *string
-	Transport     *Upstream_UDP_Transport
-}
-
-type Upstream_UDP_Transport struct {
-	UseCompression bool
-	UseEncryption  bool
-	BandwidthLimit *Upstream_UDP_Transport_BandwidthLimit
-}
-
-type Upstream_UDP_Transport_BandwidthLimit struct {
-	Enabled bool
-	Limit   int
-	Type    string
+	Transport     *ProxyTransport
 }
 
 type Upstream_HTTP struct {
@@ -308,7 +291,7 @@ type Upstream_HTTP struct {
 	HTTPUser          string
 	HTTPPassword      string
 	HealthCheck       *Upstream_HTTP_HealthCheck
-	Transport         *Upstream_TCP_Transport
+	Transport         *ProxyTransport
 	LoadBalancer      *LoadBalancerConfig
 }
 
@@ -325,7 +308,7 @@ type Upstream_HTTPS struct {
 	Port          int
 	CustomDomains []string
 	ProxyProtocol *string
-	Transport     *Upstream_TCP_Transport
+	Transport     *ProxyTransport
 	LoadBalancer  *LoadBalancerConfig
 }
 
@@ -343,6 +326,38 @@ func durationSeconds(field, value string) (int64, error) {
 		return 0, errors.NewBadRequest(fmt.Sprintf("%s %q must be a duration in whole seconds (e.g. \"15s\", \"1m\", \"-1s\")", field, value))
 	}
 	return int64(d / time.Second), nil
+}
+
+// newProxyTransport maps the CRD transport shared by TCP, STCP, XTCP, HTTP, HTTPS and TCPMUX
+// upstreams into the model.
+func newProxyTransport(t *frpv1alpha1.UpstreamSpec_TCP_Transport) *ProxyTransport {
+	if t == nil {
+		return nil
+	}
+	return &ProxyTransport{UseCompression: t.UseCompression, UseEncryption: t.UseEncryption, BandwidthLimit: newBandwidthLimit(t.BandwidthLimit)}
+}
+
+// newUDPProxyTransport maps the UDP upstream transport, which has the same shape.
+func newUDPProxyTransport(t *frpv1alpha1.UpstreamSpec_UDP_Transport) *ProxyTransport {
+	if t == nil {
+		return nil
+	}
+	limit := (*frpv1alpha1.UpstreamSpec_TCP_Transport_BandwidthLimit)(t.BandwidthLimit)
+	return &ProxyTransport{UseCompression: t.UseCompression, UseEncryption: t.UseEncryption, BandwidthLimit: newBandwidthLimit(limit)}
+}
+
+func newBandwidthLimit(l *frpv1alpha1.UpstreamSpec_TCP_Transport_BandwidthLimit) *BandwidthLimit {
+	if l == nil {
+		return nil
+	}
+	return &BandwidthLimit{Enabled: l.Enabled, Limit: l.Limit, Type: l.Type}
+}
+
+func newTCPHealthCheck(h *frpv1alpha1.UpstreamSpec_TCP_HealthCheck) *Upstream_TCP_HealthCheck {
+	if h == nil {
+		return nil
+	}
+	return &Upstream_TCP_HealthCheck{TimeoutSeconds: h.TimeoutSeconds, MaxFailed: h.MaxFailed, IntervalSeconds: h.IntervalSeconds}
 }
 
 // isEnabled interprets the optional CRD enabled flag: nil or true means enabled.
@@ -672,31 +687,17 @@ func NewConfig(k8sclient client.Client,
 			Disabled: !isEnabled(upstreamObject.Spec.Enabled),
 		}
 
-		if upstreamObject.Spec.TCP == nil && upstreamObject.Spec.UDP == nil && upstreamObject.Spec.STCP == nil && upstreamObject.Spec.XTCP == nil && upstreamObject.Spec.HTTP == nil && upstreamObject.Spec.HTTPS == nil && upstreamObject.Spec.TCPMUX == nil {
-			return config, errors.NewBadRequest("TCP, UDP, STCP, XTCP, HTTP, HTTPS, or TCPMUX upstream is required")
-		}
-
 		protocolCount := 0
-		if upstreamObject.Spec.TCP != nil {
-			protocolCount++
+		for _, set := range []bool{
+			upstreamObject.Spec.TCP != nil, upstreamObject.Spec.UDP != nil, upstreamObject.Spec.STCP != nil, upstreamObject.Spec.XTCP != nil,
+			upstreamObject.Spec.HTTP != nil, upstreamObject.Spec.HTTPS != nil, upstreamObject.Spec.TCPMUX != nil,
+		} {
+			if set {
+				protocolCount++
+			}
 		}
-		if upstreamObject.Spec.UDP != nil {
-			protocolCount++
-		}
-		if upstreamObject.Spec.STCP != nil {
-			protocolCount++
-		}
-		if upstreamObject.Spec.XTCP != nil {
-			protocolCount++
-		}
-		if upstreamObject.Spec.HTTP != nil {
-			protocolCount++
-		}
-		if upstreamObject.Spec.HTTPS != nil {
-			protocolCount++
-		}
-		if upstreamObject.Spec.TCPMUX != nil {
-			protocolCount++
+		if protocolCount == 0 {
+			return config, errors.NewBadRequest("TCP, UDP, STCP, XTCP, HTTP, HTTPS, or TCPMUX upstream is required")
 		}
 		if protocolCount > 1 {
 			return config, errors.NewBadRequest("Multiple protocol on the same Upstream object")
@@ -706,7 +707,7 @@ func NewConfig(k8sclient client.Client,
 			if upstreamObject.Spec.TCP.Plugin == nil && upstreamObject.Spec.TCP.Port == 0 {
 				return config, errors.NewBadRequest(fmt.Sprintf("TCP upstream %q needs either port or plugin", upstreamObject.Name))
 			}
-			upstream.Type = 1
+			upstream.Type = TCP
 			upstream.TCP.Host = upstreamObject.Spec.TCP.Host
 			upstream.TCP.Port = upstreamObject.Spec.TCP.Port
 			upstream.TCP.ServerPort = upstreamObject.Spec.TCP.Server.Port
@@ -715,28 +716,9 @@ func NewConfig(k8sclient client.Client,
 				upstream.TCP.ProxyProtocol = upstreamObject.Spec.TCP.ProxyProtocol
 			}
 
-			if upstreamObject.Spec.TCP.HealthCheck != nil {
-				upstream.TCP.HealthCheck = &Upstream_TCP_HealthCheck{
-					TimeoutSeconds:  upstreamObject.Spec.TCP.HealthCheck.TimeoutSeconds,
-					MaxFailed:       upstreamObject.Spec.TCP.HealthCheck.MaxFailed,
-					IntervalSeconds: upstreamObject.Spec.TCP.HealthCheck.IntervalSeconds,
-				}
-			}
+			upstream.TCP.HealthCheck = newTCPHealthCheck(upstreamObject.Spec.TCP.HealthCheck)
 
-			if upstreamObject.Spec.TCP.Transport != nil {
-				upstream.TCP.Transport = &Upstream_TCP_Transport{
-					UseCompression: upstreamObject.Spec.TCP.Transport.UseCompression,
-					UseEncryption:  upstreamObject.Spec.TCP.Transport.UseEncryption,
-				}
-
-				if upstreamObject.Spec.TCP.Transport.BandwdithLimit != nil {
-					upstream.TCP.Transport.BandwdithLimit = &Upstream_TCP_Transport_BandwidthLimit{
-						Enabled: upstreamObject.Spec.TCP.Transport.BandwdithLimit.Enabled,
-						Limit:   upstreamObject.Spec.TCP.Transport.BandwdithLimit.Limit,
-						Type:    upstreamObject.Spec.TCP.Transport.BandwdithLimit.Type,
-					}
-				}
-			}
+			upstream.TCP.Transport = newProxyTransport(upstreamObject.Spec.TCP.Transport)
 
 			// Handle LoadBalancer
 			loadBalancer, err := resolveLoadBalancer(k8sclient, clientObject.Namespace, upstreamObject.Spec.TCP.LoadBalancer)
@@ -785,7 +767,7 @@ func NewConfig(k8sclient client.Client,
 		}
 
 		if upstreamObject.Spec.UDP != nil {
-			upstream.Type = 2
+			upstream.Type = UDP
 			upstream.UDP.Host = upstreamObject.Spec.UDP.Host
 			upstream.UDP.Port = upstreamObject.Spec.UDP.Port
 			upstream.UDP.ServerPort = upstreamObject.Spec.UDP.Server.Port
@@ -794,24 +776,11 @@ func NewConfig(k8sclient client.Client,
 				upstream.UDP.ProxyProtocol = upstreamObject.Spec.UDP.ProxyProtocol
 			}
 
-			if upstreamObject.Spec.UDP.Transport != nil {
-				upstream.UDP.Transport = &Upstream_UDP_Transport{
-					UseCompression: upstreamObject.Spec.UDP.Transport.UseCompression,
-					UseEncryption:  upstreamObject.Spec.UDP.Transport.UseEncryption,
-				}
-
-				if upstreamObject.Spec.UDP.Transport.BandwidthLimit != nil {
-					upstream.UDP.Transport.BandwidthLimit = &Upstream_UDP_Transport_BandwidthLimit{
-						Enabled: upstreamObject.Spec.UDP.Transport.BandwidthLimit.Enabled,
-						Limit:   upstreamObject.Spec.UDP.Transport.BandwidthLimit.Limit,
-						Type:    upstreamObject.Spec.UDP.Transport.BandwidthLimit.Type,
-					}
-				}
-			}
+			upstream.UDP.Transport = newUDPProxyTransport(upstreamObject.Spec.UDP.Transport)
 		}
 
 		if upstreamObject.Spec.STCP != nil {
-			upstream.Type = 3
+			upstream.Type = STCP
 			upstream.STCP.Host = upstreamObject.Spec.STCP.Host
 			upstream.STCP.Port = upstreamObject.Spec.STCP.Port
 
@@ -825,28 +794,9 @@ func NewConfig(k8sclient client.Client,
 				upstream.STCP.ProxyProtocol = upstreamObject.Spec.STCP.ProxyProtocol
 			}
 
-			if upstreamObject.Spec.STCP.HealthCheck != nil {
-				upstream.STCP.HealthCheck = &Upstream_TCP_HealthCheck{
-					TimeoutSeconds:  upstreamObject.Spec.STCP.HealthCheck.TimeoutSeconds,
-					MaxFailed:       upstreamObject.Spec.STCP.HealthCheck.MaxFailed,
-					IntervalSeconds: upstreamObject.Spec.STCP.HealthCheck.IntervalSeconds,
-				}
-			}
+			upstream.STCP.HealthCheck = newTCPHealthCheck(upstreamObject.Spec.STCP.HealthCheck)
 
-			if upstreamObject.Spec.STCP.Transport != nil {
-				upstream.STCP.Transport = &Upstream_TCP_Transport{
-					UseCompression: upstreamObject.Spec.STCP.Transport.UseCompression,
-					UseEncryption:  upstreamObject.Spec.STCP.Transport.UseEncryption,
-				}
-
-				if upstreamObject.Spec.STCP.Transport.BandwdithLimit != nil {
-					upstream.STCP.Transport.BandwdithLimit = &Upstream_TCP_Transport_BandwidthLimit{
-						Enabled: upstreamObject.Spec.STCP.Transport.BandwdithLimit.Enabled,
-						Limit:   upstreamObject.Spec.STCP.Transport.BandwdithLimit.Limit,
-						Type:    upstreamObject.Spec.STCP.Transport.BandwdithLimit.Type,
-					}
-				}
-			}
+			upstream.STCP.Transport = newProxyTransport(upstreamObject.Spec.STCP.Transport)
 
 			if len(upstreamObject.Spec.STCP.AllowUsers) > 0 {
 				upstream.STCP.AllowUsers = upstreamObject.Spec.STCP.AllowUsers
@@ -854,7 +804,7 @@ func NewConfig(k8sclient client.Client,
 		}
 
 		if upstreamObject.Spec.XTCP != nil {
-			upstream.Type = 4
+			upstream.Type = XTCP
 			upstream.XTCP.Host = upstreamObject.Spec.XTCP.Host
 			upstream.XTCP.Port = upstreamObject.Spec.XTCP.Port
 
@@ -868,28 +818,9 @@ func NewConfig(k8sclient client.Client,
 				upstream.XTCP.ProxyProtocol = upstreamObject.Spec.XTCP.ProxyProtocol
 			}
 
-			if upstreamObject.Spec.XTCP.HealthCheck != nil {
-				upstream.XTCP.HealthCheck = &Upstream_TCP_HealthCheck{
-					TimeoutSeconds:  upstreamObject.Spec.XTCP.HealthCheck.TimeoutSeconds,
-					MaxFailed:       upstreamObject.Spec.XTCP.HealthCheck.MaxFailed,
-					IntervalSeconds: upstreamObject.Spec.XTCP.HealthCheck.IntervalSeconds,
-				}
-			}
+			upstream.XTCP.HealthCheck = newTCPHealthCheck(upstreamObject.Spec.XTCP.HealthCheck)
 
-			if upstreamObject.Spec.XTCP.Transport != nil {
-				upstream.XTCP.Transport = &Upstream_TCP_Transport{
-					UseCompression: upstreamObject.Spec.XTCP.Transport.UseCompression,
-					UseEncryption:  upstreamObject.Spec.XTCP.Transport.UseEncryption,
-				}
-
-				if upstreamObject.Spec.XTCP.Transport.BandwdithLimit != nil {
-					upstream.XTCP.Transport.BandwdithLimit = &Upstream_TCP_Transport_BandwidthLimit{
-						Enabled: upstreamObject.Spec.XTCP.Transport.BandwdithLimit.Enabled,
-						Limit:   upstreamObject.Spec.XTCP.Transport.BandwdithLimit.Limit,
-						Type:    upstreamObject.Spec.XTCP.Transport.BandwdithLimit.Type,
-					}
-				}
-			}
+			upstream.XTCP.Transport = newProxyTransport(upstreamObject.Spec.XTCP.Transport)
 
 			if len(upstreamObject.Spec.XTCP.AllowUsers) > 0 {
 				upstream.XTCP.AllowUsers = upstreamObject.Spec.XTCP.AllowUsers
@@ -897,7 +828,7 @@ func NewConfig(k8sclient client.Client,
 		}
 
 		if upstreamObject.Spec.HTTP != nil {
-			upstream.Type = 5
+			upstream.Type = HTTP
 			upstream.HTTP.Host = upstreamObject.Spec.HTTP.Host
 			upstream.HTTP.Port = upstreamObject.Spec.HTTP.Port
 
@@ -951,20 +882,7 @@ func NewConfig(k8sclient client.Client,
 				}
 			}
 
-			if upstreamObject.Spec.HTTP.Transport != nil {
-				upstream.HTTP.Transport = &Upstream_TCP_Transport{
-					UseCompression: upstreamObject.Spec.HTTP.Transport.UseCompression,
-					UseEncryption:  upstreamObject.Spec.HTTP.Transport.UseEncryption,
-				}
-
-				if upstreamObject.Spec.HTTP.Transport.BandwdithLimit != nil {
-					upstream.HTTP.Transport.BandwdithLimit = &Upstream_TCP_Transport_BandwidthLimit{
-						Enabled: upstreamObject.Spec.HTTP.Transport.BandwdithLimit.Enabled,
-						Limit:   upstreamObject.Spec.HTTP.Transport.BandwdithLimit.Limit,
-						Type:    upstreamObject.Spec.HTTP.Transport.BandwdithLimit.Type,
-					}
-				}
-			}
+			upstream.HTTP.Transport = newProxyTransport(upstreamObject.Spec.HTTP.Transport)
 
 			loadBalancer, err := resolveLoadBalancer(k8sclient, clientObject.Namespace, upstreamObject.Spec.HTTP.LoadBalancer)
 			if err != nil {
@@ -974,7 +892,7 @@ func NewConfig(k8sclient client.Client,
 		}
 
 		if upstreamObject.Spec.HTTPS != nil {
-			upstream.Type = 6
+			upstream.Type = HTTPS
 			upstream.HTTPS.Host = upstreamObject.Spec.HTTPS.Host
 			upstream.HTTPS.Port = upstreamObject.Spec.HTTPS.Port
 			upstream.HTTPS.CustomDomains = upstreamObject.Spec.HTTPS.CustomDomains
@@ -983,20 +901,7 @@ func NewConfig(k8sclient client.Client,
 				upstream.HTTPS.ProxyProtocol = upstreamObject.Spec.HTTPS.ProxyProtocol
 			}
 
-			if upstreamObject.Spec.HTTPS.Transport != nil {
-				upstream.HTTPS.Transport = &Upstream_TCP_Transport{
-					UseCompression: upstreamObject.Spec.HTTPS.Transport.UseCompression,
-					UseEncryption:  upstreamObject.Spec.HTTPS.Transport.UseEncryption,
-				}
-
-				if upstreamObject.Spec.HTTPS.Transport.BandwdithLimit != nil {
-					upstream.HTTPS.Transport.BandwdithLimit = &Upstream_TCP_Transport_BandwidthLimit{
-						Enabled: upstreamObject.Spec.HTTPS.Transport.BandwdithLimit.Enabled,
-						Limit:   upstreamObject.Spec.HTTPS.Transport.BandwdithLimit.Limit,
-						Type:    upstreamObject.Spec.HTTPS.Transport.BandwdithLimit.Type,
-					}
-				}
-			}
+			upstream.HTTPS.Transport = newProxyTransport(upstreamObject.Spec.HTTPS.Transport)
 
 			loadBalancer, err := resolveLoadBalancer(k8sclient, clientObject.Namespace, upstreamObject.Spec.HTTPS.LoadBalancer)
 			if err != nil {
@@ -1006,26 +911,13 @@ func NewConfig(k8sclient client.Client,
 		}
 
 		if upstreamObject.Spec.TCPMUX != nil {
-			upstream.Type = 7
+			upstream.Type = TCPMUX
 			upstream.TCPMUX.Host = upstreamObject.Spec.TCPMUX.Host
 			upstream.TCPMUX.Port = upstreamObject.Spec.TCPMUX.Port
 			upstream.TCPMUX.Multiplexer = upstreamObject.Spec.TCPMUX.Multiplexer
 			upstream.TCPMUX.CustomDomains = upstreamObject.Spec.TCPMUX.CustomDomains
 
-			if upstreamObject.Spec.TCPMUX.Transport != nil {
-				upstream.TCPMUX.Transport = &Upstream_TCP_Transport{
-					UseCompression: upstreamObject.Spec.TCPMUX.Transport.UseCompression,
-					UseEncryption:  upstreamObject.Spec.TCPMUX.Transport.UseEncryption,
-				}
-
-				if upstreamObject.Spec.TCPMUX.Transport.BandwdithLimit != nil {
-					upstream.TCPMUX.Transport.BandwdithLimit = &Upstream_TCP_Transport_BandwidthLimit{
-						Enabled: upstreamObject.Spec.TCPMUX.Transport.BandwdithLimit.Enabled,
-						Limit:   upstreamObject.Spec.TCPMUX.Transport.BandwdithLimit.Limit,
-						Type:    upstreamObject.Spec.TCPMUX.Transport.BandwdithLimit.Type,
-					}
-				}
-			}
+			upstream.TCPMUX.Transport = newProxyTransport(upstreamObject.Spec.TCPMUX.Transport)
 		}
 
 		upstreams = append(upstreams, upstream)
@@ -1047,7 +939,7 @@ func NewConfig(k8sclient client.Client,
 		}
 
 		if visitorObject.Spec.STCP != nil {
-			visitor.Type = 1
+			visitor.Type = STCPVisitor
 			visitor.STCP.Host = visitorObject.Spec.STCP.Host
 			visitor.STCP.Port = visitorObject.Spec.STCP.Port
 			visitor.STCP.ServerUser = visitorObject.Spec.STCP.ServerUser
@@ -1061,7 +953,7 @@ func NewConfig(k8sclient client.Client,
 		}
 
 		if visitorObject.Spec.XTCP != nil {
-			visitor.Type = 2
+			visitor.Type = XTCPVisitor
 			visitor.XTCP.Host = visitorObject.Spec.XTCP.Host
 			visitor.XTCP.Port = visitorObject.Spec.XTCP.Port
 			visitor.XTCP.ServerUser = visitorObject.Spec.XTCP.ServerUser

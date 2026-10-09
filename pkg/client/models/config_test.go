@@ -797,7 +797,7 @@ func TestNewConfig_TCPUpstreamWithAllOptions(t *testing.T) {
 					Transport: &frpv1alpha1.UpstreamSpec_TCP_Transport{
 						UseEncryption:  true,
 						UseCompression: true,
-						BandwdithLimit: &frpv1alpha1.UpstreamSpec_TCP_Transport_BandwdithLimit{
+						BandwidthLimit: &frpv1alpha1.UpstreamSpec_TCP_Transport_BandwidthLimit{
 							Enabled: true,
 							Limit:   100,
 							Type:    "MB",
@@ -835,11 +835,11 @@ func TestNewConfig_TCPUpstreamWithAllOptions(t *testing.T) {
 	if !upstream.TCP.Transport.UseCompression {
 		t.Error("NewConfig() Transport.UseCompression should be true")
 	}
-	if upstream.TCP.Transport.BandwdithLimit == nil || !upstream.TCP.Transport.BandwdithLimit.Enabled {
-		t.Error("NewConfig() Transport.BandwdithLimit should be enabled")
+	if upstream.TCP.Transport.BandwidthLimit == nil || !upstream.TCP.Transport.BandwidthLimit.Enabled {
+		t.Error("NewConfig() Transport.BandwidthLimit should be enabled")
 	}
-	if upstream.TCP.Transport.BandwdithLimit.Limit != 100 {
-		t.Errorf("NewConfig() BandwdithLimit.Limit = %v, want 100", upstream.TCP.Transport.BandwdithLimit.Limit)
+	if upstream.TCP.Transport.BandwidthLimit.Limit != 100 {
+		t.Errorf("NewConfig() BandwidthLimit.Limit = %v, want 100", upstream.TCP.Transport.BandwidthLimit.Limit)
 	}
 }
 
@@ -1157,7 +1157,7 @@ func TestNewConfig_XTCPUpstreamWithOptions(t *testing.T) {
 					Transport: &frpv1alpha1.UpstreamSpec_TCP_Transport{
 						UseEncryption:  true,
 						UseCompression: true,
-						BandwdithLimit: &frpv1alpha1.UpstreamSpec_TCP_Transport_BandwdithLimit{
+						BandwidthLimit: &frpv1alpha1.UpstreamSpec_TCP_Transport_BandwidthLimit{
 							Enabled: true,
 							Limit:   500,
 							Type:    "KB",
@@ -1183,11 +1183,11 @@ func TestNewConfig_XTCPUpstreamWithOptions(t *testing.T) {
 	if upstream.XTCP.Transport == nil {
 		t.Fatal("NewConfig() upstream.XTCP.Transport is nil")
 	}
-	if upstream.XTCP.Transport.BandwdithLimit == nil {
-		t.Fatal("NewConfig() upstream.XTCP.Transport.BandwdithLimit is nil")
+	if upstream.XTCP.Transport.BandwidthLimit == nil {
+		t.Fatal("NewConfig() upstream.XTCP.Transport.BandwidthLimit is nil")
 	}
-	if upstream.XTCP.Transport.BandwdithLimit.Limit != 500 {
-		t.Errorf("NewConfig() BandwdithLimit.Limit = %v, want 500", upstream.XTCP.Transport.BandwdithLimit.Limit)
+	if upstream.XTCP.Transport.BandwidthLimit.Limit != 500 {
+		t.Errorf("NewConfig() BandwidthLimit.Limit = %v, want 500", upstream.XTCP.Transport.BandwidthLimit.Limit)
 	}
 }
 
@@ -2281,16 +2281,16 @@ func TestNewConfig_TCPMUXBandwidthLimit(t *testing.T) {
 	clientObj := createBasicClient("default", "test-client", "frp.example.com", 7000)
 	upstreams := []frpv1alpha1.Upstream{{ObjectMeta: metav1.ObjectMeta{Name: "mux", Namespace: "default"}, Spec: frpv1alpha1.UpstreamSpec{
 		Client: "test-client", TCPMUX: &frpv1alpha1.UpstreamSpec_TCPMUX{Host: "svc", Port: 22, Multiplexer: "httpconnect", CustomDomains: []string{"mux.example.com"},
-			Transport: &frpv1alpha1.UpstreamSpec_TCP_Transport{BandwdithLimit: &frpv1alpha1.UpstreamSpec_TCP_Transport_BandwdithLimit{Enabled: true, Limit: 5, Type: "MB"}}},
+			Transport: &frpv1alpha1.UpstreamSpec_TCP_Transport{BandwidthLimit: &frpv1alpha1.UpstreamSpec_TCP_Transport_BandwidthLimit{Enabled: true, Limit: 5, Type: "MB"}}},
 	}}}
 
 	config, err := NewConfig(fakeClient, clientObj, upstreams, []frpv1alpha1.Visitor{})
 	if err != nil {
 		t.Fatalf("NewConfig() unexpected error = %v", err)
 	}
-	limit := config.Upstreams[0].TCPMUX.Transport.BandwdithLimit
+	limit := config.Upstreams[0].TCPMUX.Transport.BandwidthLimit
 	if limit == nil || !limit.Enabled || limit.Limit != 5 || limit.Type != "MB" {
-		t.Errorf("TCPMUX BandwdithLimit = %+v, want enabled 5MB", limit)
+		t.Errorf("TCPMUX BandwidthLimit = %+v, want enabled 5MB", limit)
 	}
 }
 
