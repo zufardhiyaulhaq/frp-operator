@@ -5,7 +5,7 @@ metadata:
   name: dns
   namespace: default
 spec:
-  client: client-01
+  client: advanced-client
   udp:
     host: dns-service.default.svc.cluster.local
     port: 53

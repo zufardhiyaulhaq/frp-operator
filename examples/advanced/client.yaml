@@ -1,0 +1,16 @@
+# Client used by the other examples in this directory (plugins, load balancing, TCPMUX, UDP).
+# It authenticates with the frp-token Secret defined in client-transport.yaml.
+---
+apiVersion: frp.zufardhiyaulhaq.com/v1alpha1
+kind: Client
+metadata:
+  name: advanced-client
+spec:
+  server:
+    host: frp.example.com
+    port: 7000
+    authentication:
+      token:
+        secret:
+          name: frp-token
+          key: token

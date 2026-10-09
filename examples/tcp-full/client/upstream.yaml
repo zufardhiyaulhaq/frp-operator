@@ -14,7 +14,7 @@ spec:
     proxyProtocol: v2
     healthCheck:
       timeoutSeconds: 5
-      maxFaileds: 3
+      maxFailed: 3
       intervalSeconds: 10
     transport:
       useEncryption: true

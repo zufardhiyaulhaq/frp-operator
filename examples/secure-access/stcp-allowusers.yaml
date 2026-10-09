@@ -1,3 +1,26 @@
+# STCP with allowUsers: only visitors running as frp user "alice" or "bob" may connect.
+#
+# frps namespaces proxies by the owning client's `user`, so a cross-user setup needs:
+#   - the publishing Client to set `user` (here: api-team),
+#   - the visiting Client to set its own `user` (one listed in allowUsers),
+#   - the Visitor to name the owner with `serverUser`.
+# Both Clients use the frp-token Secret defined in client-tls.yaml.
+---
+apiVersion: frp.zufardhiyaulhaq.com/v1alpha1
+kind: Client
+metadata:
+  name: secure-client
+spec:
+  user: api-team
+  server:
+    host: frp.example.com
+    port: 7000
+    authentication:
+      token:
+        secret:
+          name: frp-token
+          key: token
+---
 apiVersion: frp.zufardhiyaulhaq.com/v1alpha1
 kind: Upstream
 metadata:
@@ -14,6 +37,37 @@ spec:
     allowUsers:
       - "alice"
       - "bob"
+---
+apiVersion: frp.zufardhiyaulhaq.com/v1alpha1
+kind: Client
+metadata:
+  name: alice-client
+spec:
+  user: alice
+  server:
+    host: frp.example.com
+    port: 7000
+    authentication:
+      token:
+        secret:
+          name: frp-token
+          key: token
+---
+apiVersion: frp.zufardhiyaulhaq.com/v1alpha1
+kind: Visitor
+metadata:
+  name: private-api-visitor
+spec:
+  client: alice-client
+  stcp:
+    host: 0.0.0.0
+    port: 8080
+    serverUser: api-team
+    serverName: private-api
+    serverSecretKey:
+      secret:
+        name: stcp-secret
+        key: secretKey
 ---
 apiVersion: v1
 kind: Secret
