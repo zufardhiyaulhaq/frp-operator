@@ -1,6 +1,8 @@
 operator:
   image: "ghcr.io/zufardhiyaulhaq/frp-operator"
   tag: "v0.12.1"
+  # -- Image pull policy for the operator. `Always` keeps moving tags such as `main` fresh; use `IfNotPresent` for a locally imported image (the e2e suite does).
+  imagePullPolicy: Always
   replica: 1
 
 resources:
