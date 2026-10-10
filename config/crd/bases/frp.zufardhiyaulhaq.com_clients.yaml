@@ -1566,6 +1566,10 @@ spec:
                   port:
                     type: integer
                   protocol:
+                    description: |-
+                      Protocol is how frpc connects to frps: tcp (default), kcp, quic, websocket or wss.
+                      frps itself only accepts ws, so wss needs a TLS terminator (for example nginx or a cloud
+                      load balancer) in front of frps that forwards plain websocket to frps's bindPort.
                     enum:
                     - tcp
                     - kcp

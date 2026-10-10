@@ -44,6 +44,9 @@ type ClientSpec_Server struct {
 	Port int    `json:"port"`
 	// +kubebuilder:validation:Enum=tcp;kcp;quic;websocket;wss
 	// +optional
+	// Protocol is how frpc connects to frps: tcp (default), kcp, quic, websocket or wss.
+	// frps itself only accepts ws, so wss needs a TLS terminator (for example nginx or a cloud
+	// load balancer) in front of frps that forwards plain websocket to frps's bindPort.
 	Protocol       *string                          `json:"protocol,omitempty"`
 	Authentication ClientSpec_Server_Authentication `json:"authentication"`
 	AdminServer    *ClientSpec_Server_AdminServer   `json:"adminServer,omitempty"`
