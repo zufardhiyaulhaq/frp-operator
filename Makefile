@@ -147,6 +147,11 @@ e2e-up: e2e-image ## Create the k3d e2e cluster and install the operator from th
 	$(E2E_KUBECTL) -n frp-operator rollout restart deployment/frp-operator-controller-manager
 	$(E2E_KUBECTL) -n frp-operator rollout status deployment/frp-operator-controller-manager --timeout 2m
 
+.PHONY: test-e2e
+test-e2e: e2e-up ## Run the end-to-end suite on the k3d e2e cluster (needs Docker, k3d, helm).
+	E2E_KUBECONFIG=$(abspath $(E2E_KUBECONFIG)) E2E_ARTIFACTS_DIR=$(abspath $(E2E_ARTIFACTS_DIR)) \
+		go test -tags e2e -count=1 -parallel 4 -timeout 15m -v ./test/e2e/...
+
 .PHONY: e2e-down
 e2e-down: ## Delete the k3d e2e cluster and its kubeconfig.
 	k3d cluster delete $(E2E_CLUSTER)
