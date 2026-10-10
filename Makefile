@@ -116,6 +116,42 @@ FRPC_IMAGE ?= $(shell sed -n 's/^const frpcImage = "\(.*\)"$$/\1/p' controllers/
 test-frpc-config: ## Validate generated frpc.toml for every feature and example with the real frpc (requires Docker).
 	FRPC_IMAGE=$(FRPC_IMAGE) go test -tags frpcverify -count=1 ./test/frpcconfig/...
 
+##@ E2E
+
+E2E_CLUSTER ?= frp-operator-e2e
+E2E_K3S_IMAGE ?= rancher/k3s:v1.33.7-k3s1
+E2E_IMG ?= frp-operator:e2e
+E2E_KUBECONFIG ?= $(OUT_DIR)/e2e-kubeconfig
+E2E_ARTIFACTS_DIR ?= $(OUT_DIR)/e2e-artifacts
+E2E_KUBECTL = kubectl --kubeconfig $(E2E_KUBECONFIG)
+
+.PHONY: e2e-image
+e2e-image: ## Build the operator image for the e2e cluster (skipped when E2E_SKIP_IMAGE_BUILD is set, as in CI).
+ifndef E2E_SKIP_IMAGE_BUILD
+	docker build -t $(E2E_IMG) .
+endif
+
+.PHONY: e2e-up
+e2e-up: e2e-image ## Create the k3d e2e cluster and install the operator from the Helm chart. Never touches ~/.kube/config.
+	@k3d cluster get $(E2E_CLUSTER) >/dev/null 2>&1 || k3d cluster create $(E2E_CLUSTER) \
+		--image $(E2E_K3S_IMAGE) --no-lb --wait \
+		--kubeconfig-update-default=false --kubeconfig-switch-context=false \
+		--k3s-arg "--disable=traefik@server:0" --k3s-arg "--disable=servicelb@server:0"
+	k3d kubeconfig get $(E2E_CLUSTER) > $(E2E_KUBECONFIG)
+	k3d image import $(E2E_IMG) --cluster $(E2E_CLUSTER)
+	$(E2E_KUBECTL) apply --server-side -f charts/frp-operator/crds/crds.yaml
+	helm upgrade --install frp-operator ./charts/frp-operator --kubeconfig $(E2E_KUBECONFIG) \
+		--namespace frp-operator --create-namespace \
+		--set operator.image=frp-operator --set operator.tag=e2e --set operator.imagePullPolicy=IfNotPresent \
+		--wait --timeout 3m
+	$(E2E_KUBECTL) -n frp-operator rollout restart deployment/frp-operator-controller-manager
+	$(E2E_KUBECTL) -n frp-operator rollout status deployment/frp-operator-controller-manager --timeout 2m
+
+.PHONY: e2e-down
+e2e-down: ## Delete the k3d e2e cluster and its kubeconfig.
+	k3d cluster delete $(E2E_CLUSTER)
+	rm -f $(E2E_KUBECONFIG)
+
 ##@ Build
 
 .PHONY: build
