@@ -59,11 +59,23 @@ func (c *Case) Secret(name string, data map[string][]byte) {
 	must(c.t, env.Kube.Create(context.Background(), &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: c.NS}, Data: data}))
 }
 
-// Client creates a Client for frps-main with token auth; mutate adjusts its server spec.
-func (c *Case) Client(name string, mutate func(*frpv1alpha1.ClientSpec_Server)) *frpv1alpha1.Client {
+// clientName is the real name of the case's Client `short`. The operator matches Upstreams and
+// Visitors to Clients by name across all namespaces, so Client names must be unique in the
+// whole cluster, not only in the case namespace.
+func (c *Case) clientName(short string) string { return c.NS + "-" + short }
+
+// clientService is the DNS name of the Service the operator creates for the Client `short`
+// (it exposes the admin API and every visitor bind port).
+func (c *Case) clientService(short string) string {
+	return fmt.Sprintf("%s-frpc.%s.svc.cluster.local", c.clientName(short), c.NS)
+}
+
+// Client creates the Client `short` (named <ns>-<short>) for frps-main with token auth; mutate
+// adjusts its server spec.
+func (c *Case) Client(short string, mutate func(*frpv1alpha1.ClientSpec_Server)) *frpv1alpha1.Client {
 	c.t.Helper()
 	cl := &frpv1alpha1.Client{
-		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: c.NS},
+		ObjectMeta: metav1.ObjectMeta{Name: c.clientName(short), Namespace: c.NS},
 		Spec: frpv1alpha1.ClientSpec{Server: frpv1alpha1.ClientSpec_Server{
 			Host: frpsMainHost,
 			Port: 7000,
@@ -81,19 +93,19 @@ func (c *Case) Client(name string, mutate func(*frpv1alpha1.ClientSpec_Server)) 
 
 // Upstream creates an Upstream named <ns>-<short> and returns that name, which is also the frps
 // proxy name. frps proxy names are global, so the namespace prefix keeps parallel cases apart.
-func (c *Case) Upstream(clientName, short string, spec frpv1alpha1.UpstreamSpec) string {
+func (c *Case) Upstream(clientShort, short string, spec frpv1alpha1.UpstreamSpec) string {
 	c.t.Helper()
 	name := c.NS + "-" + short
-	spec.Client = clientName
+	spec.Client = c.clientName(clientShort)
 	must(c.t, env.Kube.Create(context.Background(), &frpv1alpha1.Upstream{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: c.NS}, Spec: spec}))
 	return name
 }
 
 // Visitor creates a Visitor named <ns>-<short> and returns that name.
-func (c *Case) Visitor(clientName, short string, spec frpv1alpha1.VisitorSpec) string {
+func (c *Case) Visitor(clientShort, short string, spec frpv1alpha1.VisitorSpec) string {
 	c.t.Helper()
 	name := c.NS + "-" + short
-	spec.Client = clientName
+	spec.Client = c.clientName(clientShort)
 	must(c.t, env.Kube.Create(context.Background(), &frpv1alpha1.Visitor{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: c.NS}, Spec: spec}))
 	return name
 }
@@ -118,7 +130,7 @@ func (c *Case) waitCondition(clientName, condType string, status metav1.Conditio
 	var got *metav1.Condition
 	eventually(c.t, 3*time.Minute, fmt.Sprintf("Client %s/%s %s=%s %s", c.NS, clientName, condType, status, reason), func(ctx context.Context) error {
 		cl := &frpv1alpha1.Client{}
-		if err := env.Kube.Get(ctx, client.ObjectKey{Namespace: c.NS, Name: clientName}, cl); err != nil {
+		if err := env.Kube.Get(ctx, client.ObjectKey{Namespace: c.NS, Name: c.clientName(clientName)}, cl); err != nil {
 			return err
 		}
 		cond := meta.FindStatusCondition(cl.Status.Conditions, condType)
@@ -158,14 +170,14 @@ func (c *Case) waitMetric(name string, labels map[string]string, want float64) {
 // waitProxyRunning waits until frpc reports proxy as running, through the operator's metrics.
 func (c *Case) waitProxyRunning(clientName, proxy string) {
 	c.t.Helper()
-	c.waitMetric("frp_proxy_status", map[string]string{"namespace": c.NS, "client": clientName, "proxy": proxy, "status": "running"}, 1)
+	c.waitMetric("frp_proxy_status", map[string]string{"namespace": c.NS, "client": c.clientName(clientName), "proxy": proxy, "status": "running"}, 1)
 }
 
 // waitFrpcLog waits until the frpc pod of clientName logs a line containing substr.
 func (c *Case) waitFrpcLog(clientName, substr string) {
 	c.t.Helper()
 	eventually(c.t, 3*time.Minute, fmt.Sprintf("frpc %s logs %q", clientName, substr), func(ctx context.Context) error {
-		out, err := env.logs(ctx, c.NS, clientName+"-frpc", "frpc")
+		out, err := env.logs(ctx, c.NS, c.clientName(clientName)+"-frpc", "frpc")
 		if err != nil {
 			return err
 		}
@@ -176,9 +188,10 @@ func (c *Case) waitFrpcLog(clientName, substr string) {
 	})
 }
 
-// waitEvent waits for a Warning event with reason on objectName.
-func (c *Case) waitEvent(objectName, reason string) {
+// waitEvent waits for a Warning event with reason on the Client `clientShort`.
+func (c *Case) waitEvent(clientShort, reason string) {
 	c.t.Helper()
+	objectName := c.clientName(clientShort)
 	eventually(c.t, 90*time.Second, fmt.Sprintf("Warning %s event on %s", reason, objectName), func(ctx context.Context) error {
 		events, err := env.Clientset.CoreV1().Events(c.NS).List(ctx, metav1.ListOptions{
 			FieldSelector: "involvedObject.name=" + objectName + ",reason=" + reason + ",type=Warning",
@@ -197,6 +210,6 @@ func (c *Case) waitEvent(objectName, reason string) {
 func (c *Case) pod(clientName string) *corev1.Pod {
 	c.t.Helper()
 	p := &corev1.Pod{}
-	must(c.t, env.Kube.Get(context.Background(), client.ObjectKey{Namespace: c.NS, Name: clientName + "-frpc"}, p))
+	must(c.t, env.Kube.Get(context.Background(), client.ObjectKey{Namespace: c.NS, Name: c.clientName(clientName) + "-frpc"}, p))
 	return p
 }
