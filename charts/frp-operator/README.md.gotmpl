@@ -10,7 +10,7 @@
 - `Upstream` — a Kubernetes Service/port exposed through FRP
 - `Visitor` — inbound tunnel that consumes another client's STCP/XTCP `Upstream` (for P2P scenarios)
 - `ServerPool` — a pool of frps servers that backs `Service type=LoadBalancer` (see [LoadBalancer Controller](#loadbalancer-controller))
-- `Server` — frps itself, run by the operator in a public cluster for private clusters to connect to (see [Server (frps)](#server-frps))
+- `Server` (alpha) — frps itself, run by the operator in a public cluster for private clusters to connect to (see [Server (frps)](#server-frps))
 
 **Upstream protocols**
 - `TCP` and `UDP` — straightforward port forwarding with optional health checks and bandwidth limits
@@ -198,6 +198,8 @@ The operator matches `Upstream` objects to `Client` objects by name, across name
 See [`examples/loadbalancer`](https://github.com/zufardhiyaulhaq/frp-operator/tree/main/examples/loadbalancer).
 
 ## Server (frps)
+
+> **Alpha.** `Server` is new in v0.13.0. Its API (`frp.zufardhiyaulhaq.com/v1alpha1`, kind `Server`) and behaviour may change in a later release without a migration path; try it before relying on it in production.
 
 The operator can also run **frps** itself. A `Server` becomes one frps pod behind a public Service (`LoadBalancer` by default), and private clusters connect ordinary `Client`s or `ServerPool` servers to it. The Service exposes the bind ports, the vhost ports and every port in `allowPorts`, each with its own protocol.
 

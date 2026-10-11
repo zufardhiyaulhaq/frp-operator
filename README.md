@@ -2,7 +2,7 @@
 
 Expose your service in Kubernetes to the Internet with open source FRP!
 
-![Version: 1.10.1](https://img.shields.io/badge/Version-1.10.1-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 0.12.1](https://img.shields.io/badge/AppVersion-0.12.1-informational?style=flat-square) [![made with Go](https://img.shields.io/badge/made%20with-Go-brightgreen)](http://golang.org) [![Github main branch build](https://img.shields.io/github/workflow/status/zufardhiyaulhaq/frp-operator/Main)](https://github.com/zufardhiyaulhaq/frp-operator/actions/workflows/main.yml) [![GitHub issues](https://img.shields.io/github/issues/zufardhiyaulhaq/frp-operator)](https://github.com/zufardhiyaulhaq/frp-operator/issues) [![GitHub pull requests](https://img.shields.io/github/issues-pr/zufardhiyaulhaq/frp-operator)](https://github.com/zufardhiyaulhaq/frp-operator/pulls)[![Artifact Hub](https://img.shields.io/endpoint?url=https://artifacthub.io/badge/repository/frp-operator)](https://artifacthub.io/packages/search?repo=frp-operator)
+![Version: 1.11.0](https://img.shields.io/badge/Version-1.11.0-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 0.13.0](https://img.shields.io/badge/AppVersion-0.13.0-informational?style=flat-square) [![made with Go](https://img.shields.io/badge/made%20with-Go-brightgreen)](http://golang.org) [![Github main branch build](https://img.shields.io/github/workflow/status/zufardhiyaulhaq/frp-operator/Main)](https://github.com/zufardhiyaulhaq/frp-operator/actions/workflows/main.yml) [![GitHub issues](https://img.shields.io/github/issues/zufardhiyaulhaq/frp-operator)](https://github.com/zufardhiyaulhaq/frp-operator/issues) [![GitHub pull requests](https://img.shields.io/github/issues-pr/zufardhiyaulhaq/frp-operator)](https://github.com/zufardhiyaulhaq/frp-operator/pulls)[![Artifact Hub](https://img.shields.io/endpoint?url=https://artifacthub.io/badge/repository/frp-operator)](https://artifacthub.io/packages/search?repo=frp-operator)
 
 ## Features
 
@@ -11,7 +11,7 @@ Expose your service in Kubernetes to the Internet with open source FRP!
 - `Upstream` — a Kubernetes Service/port exposed through FRP
 - `Visitor` — inbound tunnel that consumes another client's STCP/XTCP `Upstream` (for P2P scenarios)
 - `ServerPool` — a pool of frps servers that backs `Service type=LoadBalancer` (see [LoadBalancer Controller](#loadbalancer-controller))
-- `Server` — frps itself, run by the operator in a public cluster for private clusters to connect to (see [Server (frps)](#server-frps))
+- `Server` (alpha) — frps itself, run by the operator in a public cluster for private clusters to connect to (see [Server (frps)](#server-frps))
 
 **Upstream protocols**
 - `TCP` and `UDP` — straightforward port forwarding with optional health checks and bandwidth limits
@@ -200,6 +200,8 @@ See [`examples/loadbalancer`](https://github.com/zufardhiyaulhaq/frp-operator/tr
 
 ## Server (frps)
 
+> **Alpha.** `Server` is new in v0.13.0. Its API (`frp.zufardhiyaulhaq.com/v1alpha1`, kind `Server`) and behaviour may change in a later release without a migration path; try it before relying on it in production.
+
 The operator can also run **frps** itself. A `Server` becomes one frps pod behind a public Service (`LoadBalancer` by default), and private clusters connect ordinary `Client`s or `ServerPool` servers to it. The Service exposes the bind ports, the vhost ports and every port in `allowPorts`, each with its own protocol.
 
 ```yaml
@@ -289,7 +291,7 @@ A Grafana dashboard lives at [`dashboards/frp-operator.json`](https://github.com
 | operator.image | string | `"ghcr.io/zufardhiyaulhaq/frp-operator"` |  |
 | operator.imagePullPolicy | string | `"Always"` | Image pull policy for the operator. `Always` keeps moving tags such as `main` fresh; use `IfNotPresent` for a locally imported image (the e2e suite does). |
 | operator.replica | int | `1` |  |
-| operator.tag | string | `"v0.12.1"` |  |
+| operator.tag | string | `"v0.13.0"` |  |
 | resources.limits.cpu | string | `"200m"` |  |
 | resources.limits.memory | string | `"100Mi"` |  |
 | resources.requests.cpu | string | `"100m"` |  |

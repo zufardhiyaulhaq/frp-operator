@@ -1,5 +1,7 @@
 # Server (frps)
 
+> **Alpha.** `Server` is new in v0.13.0; its API and behaviour may still change.
+
 This example runs **frps** in a public cluster with a `Server` resource, and connects a private
 cluster to it with an ordinary `Client` and `Upstream`. The operator runs one frps pod per
 `Server`, behind a `LoadBalancer` Service that exposes the bind port, the vhost ports and every
