@@ -42,7 +42,9 @@ func TestTLSServerVerification(t *testing.T) {
 // without one is rejected.
 func TestMutualTLS(t *testing.T) {
 	c := newCase(t, "mtls")
-	c.Secret("client-tls", map[string][]byte{"tls.crt": env.Certs.ClientCert, "tls.key": env.Certs.ClientKey, "ca.crt": env.Certs.CA})
+	// Like cert-manager, the client certificate's Secret carries the CA that issued the *client*
+	// certificate, not the CA that signed frps's. frpc must trust frps-ca, from its own Secret.
+	c.Secret("client-tls", map[string][]byte{"tls.crt": env.Certs.ClientCert, "tls.key": env.Certs.ClientKey, "ca.crt": env.Certs.OtherCA})
 	c.Secret("frps-ca", map[string][]byte{"ca.crt": env.Certs.CA})
 	ref := func(key string) *frpv1alpha1.SecretRef {
 		return &frpv1alpha1.SecretRef{Secret: frpv1alpha1.Secret{Name: "client-tls", Key: key}}
@@ -50,7 +52,7 @@ func TestMutualTLS(t *testing.T) {
 
 	c.Client("with-cert", func(s *frpv1alpha1.ClientSpec_Server) {
 		s.Host = frpsMTLSHost
-		s.TLS = trustCA("client-tls")
+		s.TLS = trustCA("frps-ca")
 		s.TLS.CertFile, s.TLS.KeyFile = ref("tls.crt"), ref("tls.key")
 	})
 	proxy := c.Upstream("with-cert", "echo", tcpEcho(portMTLS))
