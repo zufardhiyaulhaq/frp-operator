@@ -59,6 +59,9 @@ transport.tls.keyFile = {{ quote .Common.TLS.KeyFile }}
 {{ if .Common.TLS.TrustedCAFile }}
 transport.tls.trustedCaFile = {{ quote .Common.TLS.TrustedCAFile }}
 {{ end }}
+{{ if .Common.TLS.ServerName }}
+transport.tls.serverName = {{ quote .Common.TLS.ServerName }}
+{{ end }}
 {{ end }}
 
 {{ if .Common.Transport }}

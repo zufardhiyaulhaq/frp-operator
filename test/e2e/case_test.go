@@ -5,6 +5,7 @@ package e2e
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -12,6 +13,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	frpv1alpha1 "github.com/zufardhiyaulhaq/frp-operator/api/v1alpha1"
@@ -191,7 +193,12 @@ func (c *Case) waitFrpcLog(clientName, substr string) {
 // waitEvent waits for a Warning event with reason on the Client `clientShort`.
 func (c *Case) waitEvent(clientShort, reason string) {
 	c.t.Helper()
-	objectName := c.clientName(clientShort)
+	c.waitObjectEvent(c.clientName(clientShort), reason)
+}
+
+// waitObjectEvent waits for a Warning event with reason on the object named objectName.
+func (c *Case) waitObjectEvent(objectName, reason string) {
+	c.t.Helper()
 	eventually(c.t, 90*time.Second, fmt.Sprintf("Warning %s event on %s", reason, objectName), func(ctx context.Context) error {
 		events, err := env.Clientset.CoreV1().Events(c.NS).List(ctx, metav1.ListOptions{
 			FieldSelector: "involvedObject.name=" + objectName + ",reason=" + reason + ",type=Warning",
@@ -212,4 +219,68 @@ func (c *Case) pod(clientName string) *corev1.Pod {
 	p := &corev1.Pod{}
 	must(c.t, env.Kube.Get(context.Background(), client.ObjectKey{Namespace: c.NS, Name: c.clientName(clientName) + "-frpc"}, p))
 	return p
+}
+
+func portRange(p int) frpv1alpha1.PortRange { return frpv1alpha1.PortRange(strconv.Itoa(p)) }
+
+// Server creates the Server `name` in the case namespace with a ClusterIP Service (the e2e
+// cluster has no cloud load balancer). Server names are namespaced, so they need no prefix.
+func (c *Case) Server(name string, mutate func(*frpv1alpha1.ServerSpec)) {
+	c.t.Helper()
+	s := &frpv1alpha1.Server{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: c.NS}, Spec: frpv1alpha1.ServerSpec{
+		Bind:    frpv1alpha1.ServerSpec_Bind{Port: 7000},
+		Service: &frpv1alpha1.ServerSpec_Service{Type: "ClusterIP"},
+	}}
+	if mutate != nil {
+		mutate(&s.Spec)
+	}
+	must(c.t, env.Kube.Create(context.Background(), s))
+}
+
+// waitServer waits for a Server condition (reason "" matches any) and returns the Server.
+func (c *Case) waitServer(name, condType string, status metav1.ConditionStatus, reason string) *frpv1alpha1.Server {
+	c.t.Helper()
+	var got *frpv1alpha1.Server
+	eventually(c.t, 3*time.Minute, fmt.Sprintf("Server %s/%s %s=%s %s", c.NS, name, condType, status, reason), func(ctx context.Context) error {
+		s := &frpv1alpha1.Server{}
+		if err := env.Kube.Get(ctx, client.ObjectKey{Namespace: c.NS, Name: name}, s); err != nil {
+			return err
+		}
+		cond := meta.FindStatusCondition(s.Status.Conditions, condType)
+		if cond == nil || cond.Status != status || (reason != "" && cond.Reason != reason) {
+			return fmt.Errorf("condition is %+v", cond)
+		}
+		got = s
+		return nil
+	})
+	return got
+}
+
+// updateServer re-reads the Server and applies mutate, retrying on conflicts.
+func (c *Case) updateServer(name string, mutate func(*frpv1alpha1.ServerSpec)) {
+	c.t.Helper()
+	must(c.t, retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		s := &frpv1alpha1.Server{}
+		if err := env.Kube.Get(context.Background(), client.ObjectKey{Namespace: c.NS, Name: name}, s); err != nil {
+			return err
+		}
+		mutate(&s.Spec)
+		return env.Kube.Update(context.Background(), s)
+	}))
+}
+
+// serverPod returns the frps pod of the Server `name`.
+func (c *Case) serverPod(name string) *corev1.Pod {
+	c.t.Helper()
+	p := &corev1.Pod{}
+	must(c.t, env.Kube.Get(context.Background(), client.ObjectKey{Namespace: c.NS, Name: name + "-frps"}, p))
+	return p
+}
+
+// secretValue reads one key of a Secret in the case namespace.
+func (c *Case) secretValue(name, key string) string {
+	c.t.Helper()
+	s := &corev1.Secret{}
+	must(c.t, env.Kube.Get(context.Background(), client.ObjectKey{Namespace: c.NS, Name: name}, s))
+	return string(s.Data[key])
 }

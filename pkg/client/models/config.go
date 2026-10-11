@@ -68,6 +68,7 @@ type TLSConfig struct {
 	CertFile      string
 	KeyFile       string
 	TrustedCAFile string
+	ServerName    string
 }
 
 type ServerAuthentication struct {
@@ -217,6 +218,21 @@ func optionalSecretValue(k8sclient client.Client, namespace string, ref *frpv1al
 		return "", nil
 	}
 	return secretValue(k8sclient, namespace, ref.Secret)
+}
+
+// configMapValue reads one key of a ConfigMap. A missing ConfigMap or key is an error.
+func configMapValue(k8sclient client.Client, namespace string, ref frpv1alpha1.ConfigMapRef) (string, error) {
+	cm := &corev1.ConfigMap{}
+	if err := k8sclient.Get(context.TODO(), types.NamespacedName{Name: ref.Name, Namespace: namespace}, cm); err != nil {
+		return "", err
+	}
+	if value, ok := cm.Data[ref.Key]; ok {
+		return value, nil
+	}
+	if value, ok := cm.BinaryData[ref.Key]; ok {
+		return string(value), nil
+	}
+	return "", errors.NewBadRequest(fmt.Sprintf("key %q not found in configmap %s/%s", ref.Key, namespace, ref.Name))
 }
 
 // resolveLoadBalancer converts a CRD LoadBalancer into the model, reading groupKey from its
@@ -674,24 +690,35 @@ func NewConfig(k8sclient client.Client,
 		config.Common.ServerAuthentication.OIDCScope = clientObject.Spec.Server.Authentication.OIDC.Scope
 	}
 
-	// Handle TLS configuration
-	if clientObject.Spec.Server.TLS != nil {
-		config.Common.TLS = &TLSConfig{
-			Enable: clientObject.Spec.Server.TLS.Enable,
-		}
+	// Handle TLS configuration. The files are mounted key by key (see PodBuilder.SetTLS), so check
+	// the keys here: a wrong key is an InvalidConfig, not a pod stuck in ContainerCreating.
+	if t := clientObject.Spec.Server.TLS; t != nil {
+		namespace := clientObject.Namespace
+		config.Common.TLS = &TLSConfig{Enable: t.Enable, ServerName: t.ServerName}
 
-		// Set cert file path if configured
-		if clientObject.Spec.Server.TLS.CertFile != nil {
+		if t.CertFile != nil {
+			if _, err := secretValue(k8sclient, namespace, t.CertFile.Secret); err != nil {
+				return config, err
+			}
 			config.Common.TLS.CertFile = "/etc/frp/tls/tls.crt"
 		}
-
-		// Set key file path if configured
-		if clientObject.Spec.Server.TLS.KeyFile != nil {
+		if t.KeyFile != nil {
+			if _, err := secretValue(k8sclient, namespace, t.KeyFile.Secret); err != nil {
+				return config, err
+			}
 			config.Common.TLS.KeyFile = "/etc/frp/tls/tls.key"
 		}
-
-		// Set CA file path if configured
-		if clientObject.Spec.Server.TLS.TrustedCAFile != nil {
+		if ca := t.TrustedCAFile; ca != nil {
+			var err error
+			switch {
+			case ca.Secret != nil:
+				_, err = secretValue(k8sclient, namespace, *ca.Secret)
+			case ca.ConfigMap != nil:
+				_, err = configMapValue(k8sclient, namespace, *ca.ConfigMap)
+			}
+			if err != nil {
+				return config, err
+			}
 			config.Common.TLS.TrustedCAFile = "/etc/frp/tls/ca.crt"
 		}
 	}

@@ -46,6 +46,7 @@ type testTLSConfig struct {
 	CertFile      string
 	KeyFile       string
 	TrustedCAFile string
+	ServerName    string
 }
 
 type testServerAuthentication struct {
@@ -1751,6 +1752,7 @@ func TestTemplateTLSEnabled(t *testing.T) {
 	assertNotContains(t, output, `transport.tls.certFile`)
 	assertNotContains(t, output, `transport.tls.keyFile`)
 	assertNotContains(t, output, `transport.tls.trustedCaFile`)
+	assertNotContains(t, output, `transport.tls.serverName`)
 }
 
 func TestTemplateTLSWithCertificates(t *testing.T) {
@@ -1870,4 +1872,26 @@ func TestTemplateTransportPoolCountOmittedWhenUnset(t *testing.T) {
 
 	assertNotContains(t, output, "transport.poolCount")
 	assertContains(t, output, "transport.tcpMux = true")
+}
+
+func TestTemplateTLSServerName(t *testing.T) {
+	config := testConfig{
+		Common: testCommon{
+			ServerAddress: "203.0.113.10",
+			ServerPort:    7000,
+			AdminAddress:  "0.0.0.0",
+			AdminPort:     7400,
+			AdminUsername: "admin",
+			AdminPassword: "secret",
+			TLS: &testTLSConfig{
+				Enable:        true,
+				TrustedCAFile: "/etc/frp/tls/ca.crt",
+				ServerName:    "frps.example.com",
+			},
+		},
+	}
+
+	output := renderTemplate(t, config)
+
+	assertContains(t, output, `transport.tls.serverName = "frps.example.com"`)
 }

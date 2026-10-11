@@ -15,7 +15,7 @@ make docker-build       # Build container image
 
 # Test
 make test               # Run tests with coverage (output/coverage.html)
-make test-frpc-config   # Render every feature/example/ServerPool config and validate it with the real frpc (needs Docker)
+make test-frpc-config   # Render every feature/example/ServerPool frpc config and every Server frps config, and validate them with the real frpc/frps (needs Docker)
 make test-e2e           # End-to-end on a private k3d cluster (frps in-cluster, real traffic); needs Docker, k3d, helm
 make e2e-down           # Delete the e2e k3d cluster
 
@@ -47,12 +47,15 @@ make helm.create.releases. # create a new helm charts version
 - **Upstream**: Service/port to expose through FRP (supports TCP, UDP, STCP, XTCP protocols)
 - **Visitor**: Inbound tunnel to access another client's Upstreams (for P2P scenarios)
 - **ServerPool**: pool of frps servers used to back `Service type=LoadBalancer` (loadBalancerClass `frp.zufardhiyaulhaq.com/frp`)
+- **Server**: frps run by the operator (one pod, a public Service, an optional dashboard Service); private clusters connect Clients to it
 
 ### Controllers (controllers/)
 
 **ClientReconciler** is the primary active controller. Upstream and Visitor controllers are stubs - changes to those CRs are detected by ClientReconciler through list/watch.
 
 **ServiceReconciler** binds claimed LoadBalancer Services to ServerPool servers and generates Client/Upstream CRs in the operator namespace (pure selection logic in `pkg/loadbalancer/`).
+
+**ServerReconciler** renders frps.toml (`pkg/frps`), runs one frps pod per Server and restarts it when the config hash changes (frps cannot reload). It writes `<server>-frps-config`, `<server>-connection` and `<server>-dashboard` Secrets, the `<server>-frps` and `<server>-frps-web` Services, and reports `Ready`/`ConfigSynced`.
 
 Reconciliation flow:
 1. Fetch Client resource
@@ -73,6 +76,13 @@ Reconciliation flow:
 - **handler/status.go**: Reads proxy status from the FRP admin API (`/api/status`) for metrics
 - **utils/template.go**: FRP TOML configuration template
 
+### frps (pkg/frps/)
+
+- `Validate`: port layout (protocol split, overlap, `--server-max-ports`, Service type)
+- `Resolve`: reads every referenced Secret, generates the token / dashboard login, renders `frps.toml` (`FRPS_TEMPLATE`)
+- `objects.go`: pod (non-root, sysctl for ports < 1024), Services, Secrets, ServiceMonitor (unstructured), `ConfigHash`
+- `pkg/podtemplate`: applies `ClientSpec_PodTemplate` to Client and Server pods
+
 ### Metrics (pkg/metrics/)
 
 FRP-specific Prometheus gauges (`frp_client_*`, `frp_proxy_*`) registered on the controller-runtime registry. Written only by `ClientReconciler`; series are removed when a Client is deleted. Grafana dashboard JSON is hand-maintained at `dashboards/frp-operator.json`.
@@ -80,6 +90,7 @@ FRP-specific Prometheus gauges (`frp_client_*`, `frp_proxy_*`) registered on the
 ### Key Constants
 
 - FRP image: `fatedier/frpc:v0.71.0`
+- frps image: `fatedier/frps:v0.71.0` (`pkg/frps.Image`; same release as frpc)
 - Admin port: 7400
 - Default credentials: frpc-user / frpc-password (configurable via Secrets)
 
@@ -105,6 +116,8 @@ api/v1alpha1/       # CRD type definitions
 controllers/        # Reconciliation logic
 pkg/client/         # Core business logic (builders, models, handlers)
 pkg/loadbalancer/   # LB allocator, naming, builders
+pkg/frps/           # Server: validation, frps.toml, pod/Service builders
+pkg/podtemplate/    # pod template merging shared by Client and Server
 config/             # Kustomize manifests (CRDs, RBAC, manager), mostly not being used. fix the RBAC & CRDs under charts instead
 charts/             # Helm chart
 dashboards/         # Grafana dashboard JSON

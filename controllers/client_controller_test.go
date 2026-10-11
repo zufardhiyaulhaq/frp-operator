@@ -259,3 +259,67 @@ func TestSetCondition_KeepsTransitionTimeWhenStatusUnchanged(t *testing.T) {
 		t.Error("status changed but LastTransitionTime was not updated")
 	}
 }
+
+// A Client pod started with other TLS settings (for example by an operator that mounted one whole
+// Secret at /etc/frp/tls) must be recreated: TLS files and serverName are only read at start.
+func TestReconcile_TLSChangeRecreatesPod(t *testing.T) {
+	scheme := runtime.NewScheme()
+	if err := frpv1alpha1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	if err := corev1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	ns, name := "ns-tls", "tls"
+	t.Cleanup(func() { metrics.DeleteClient(ns, name) })
+
+	c := &frpv1alpha1.Client{
+		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: ns},
+		Spec: frpv1alpha1.ClientSpec{Server: frpv1alpha1.ClientSpec_Server{
+			Host: "example.com", Port: 7000,
+			Authentication: frpv1alpha1.ClientSpec_Server_Authentication{
+				Token: &frpv1alpha1.ClientSpec_Server_Authentication_Token{Secret: frpv1alpha1.Secret{Name: "frp-token", Key: "token"}},
+			},
+			TLS: &frpv1alpha1.ClientSpec_Server_TLS{
+				Enable:        true,
+				ServerName:    "frps.example.com",
+				TrustedCAFile: &frpv1alpha1.ConfigMapOrSecretRef{Secret: &frpv1alpha1.Secret{Name: "frps-ca", Key: "ca.crt"}},
+			},
+		}},
+	}
+	token := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: "frp-token", Namespace: ns}, Data: map[string][]byte{"token": []byte("shh")}}
+	ca := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: "frps-ca", Namespace: ns}, Data: map[string][]byte{"ca.crt": []byte("CA")}}
+	// A pod from before: same image, no record of the TLS settings it was started with.
+	old := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Name: name + "-frpc", Namespace: ns},
+		Spec:       corev1.PodSpec{Containers: []corev1.Container{{Name: "frpc", Image: frpcImage}}},
+		Status:     corev1.PodStatus{Phase: corev1.PodPending},
+	}
+	k8s := fake.NewClientBuilder().WithScheme(scheme).WithObjects(c, token, ca, old).WithStatusSubresource(&frpv1alpha1.Client{}).Build()
+	r := &ClientReconciler{Client: k8s, Scheme: scheme, Recorder: record.NewFakeRecorder(10)}
+	req := ctrl.Request{NamespacedName: types.NamespacedName{Namespace: ns, Name: name}}
+
+	if _, err := r.Reconcile(context.Background(), req); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+	if err := k8s.Get(context.Background(), types.NamespacedName{Namespace: ns, Name: name + "-frpc"}, &corev1.Pod{}); err == nil {
+		t.Fatal("the pod started with other TLS settings was kept")
+	}
+
+	// The recreated pod records its TLS settings and is left alone afterwards.
+	if _, err := r.Reconcile(context.Background(), req); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+	created := &corev1.Pod{}
+	if err := k8s.Get(context.Background(), types.NamespacedName{Namespace: ns, Name: name + "-frpc"}, created); err != nil {
+		t.Fatalf("pod not recreated: %v", err)
+	}
+	uid := created.UID
+	if _, err := r.Reconcile(context.Background(), req); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+	again := &corev1.Pod{}
+	if err := k8s.Get(context.Background(), types.NamespacedName{Namespace: ns, Name: name + "-frpc"}, again); err != nil || again.UID != uid {
+		t.Errorf("the pod was recreated again although TLS did not change (err=%v)", err)
+	}
+}

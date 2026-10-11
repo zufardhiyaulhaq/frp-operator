@@ -1,0 +1,21 @@
+# Private cluster: a normal Client pointed at the Server.
+apiVersion: frp.zufardhiyaulhaq.com/v1alpha1
+kind: Client
+metadata:
+  name: to-public-01
+spec:
+  server:
+    host: 203.0.113.10        # Server status.address
+    port: 7000                # Server spec.bind.port
+    authentication:
+      token:
+        secret:
+          name: public-01-connection
+          key: token
+    tls:
+      enable: true
+      serverName: frps.example.com   # one of Server status.tls.serverNames
+      trustedCaFile:
+        secret:
+          name: public-01-connection
+          key: ca.crt

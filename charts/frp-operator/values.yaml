@@ -23,3 +23,7 @@ metrics:
 loadBalancer:
   # -- Bind `Service type=LoadBalancer` with `loadBalancerClass: frp.zufardhiyaulhaq.com/frp` to `ServerPool` servers
   enabled: true
+
+server:
+  # -- Maximum number of ports on a Server's public Service (bind, vhost and allowPorts). Cloud load balancers limit listeners.
+  maxPorts: 50

@@ -2423,3 +2423,59 @@ func TestNewConfig_OIDCUsesEgressProxy(t *testing.T) {
 		})
 	}
 }
+
+func TestNewConfig_TLSServerName(t *testing.T) {
+	fakeClient := createFakeClient(
+		createDefaultTokenSecret("default"),
+		createSecret("default", "server-ca", map[string][]byte{"ca.crt": []byte("CA")}),
+	).Build()
+	clientObj := createBasicClient("default", "c", "203.0.113.10", 7000)
+	clientObj.Spec.Server.TLS = &frpv1alpha1.ClientSpec_Server_TLS{
+		Enable:        true,
+		ServerName:    "frps.example.com",
+		TrustedCAFile: &frpv1alpha1.ConfigMapOrSecretRef{Secret: &frpv1alpha1.Secret{Name: "server-ca", Key: "ca.crt"}},
+	}
+
+	config, err := NewConfig(fakeClient, clientObj, nil, nil)
+	if err != nil {
+		t.Fatalf("NewConfig() error = %v", err)
+	}
+	if config.Common.TLS.ServerName != "frps.example.com" {
+		t.Errorf("ServerName = %q, want frps.example.com", config.Common.TLS.ServerName)
+	}
+	if config.Common.TLS.TrustedCAFile != "/etc/frp/tls/ca.crt" {
+		t.Errorf("TrustedCAFile = %q", config.Common.TLS.TrustedCAFile)
+	}
+}
+
+// The TLS files are mounted key by key, so a wrong key must be an InvalidConfig error instead of
+// a pod stuck in ContainerCreating.
+func TestNewConfig_TLSMissingKeyIsAnError(t *testing.T) {
+	missing := frpv1alpha1.Secret{Name: "client-cert", Key: "missing"}
+	cases := map[string]*frpv1alpha1.ClientSpec_Server_TLS{
+		"certFile":             {Enable: true, CertFile: &frpv1alpha1.SecretRef{Secret: missing}},
+		"keyFile":              {Enable: true, KeyFile: &frpv1alpha1.SecretRef{Secret: missing}},
+		"trustedCaFile secret": {Enable: true, TrustedCAFile: &frpv1alpha1.ConfigMapOrSecretRef{Secret: &missing}},
+		"trustedCaFile configMap": {Enable: true, TrustedCAFile: &frpv1alpha1.ConfigMapOrSecretRef{
+			ConfigMap: &frpv1alpha1.ConfigMapRef{Name: "server-ca", Key: "missing"},
+		}},
+	}
+	for name, tls := range cases {
+		t.Run(name, func(t *testing.T) {
+			fakeClient := createFakeClient(
+				createDefaultTokenSecret("default"),
+				createSecret("default", "client-cert", map[string][]byte{"tls.crt": []byte("C"), "tls.key": []byte("K")}),
+			).WithObjects(&corev1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{Name: "server-ca", Namespace: "default"},
+				Data:       map[string]string{"ca.crt": "CA"},
+			}).Build()
+			clientObj := createBasicClient("default", "c", "frps.example.com", 7000)
+			clientObj.Spec.Server.TLS = tls
+
+			_, err := NewConfig(fakeClient, clientObj, nil, nil)
+			if err == nil || !strings.Contains(err.Error(), `"missing"`) {
+				t.Fatalf("NewConfig() error = %v, want it to name the missing key", err)
+			}
+		})
+	}
+}

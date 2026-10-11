@@ -1,0 +1,46 @@
+# Public cluster: frps behind a cloud load balancer.
+# cert-manager issues frps-cert (tls.crt, tls.key, ca.crt) for frps.example.com; any Secret with
+# those keys works.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: frps-cert
+spec:
+  secretName: frps-cert
+  dnsNames:
+  - frps.example.com
+  issuerRef:
+    name: frps-ca
+    kind: Issuer
+---
+apiVersion: frp.zufardhiyaulhaq.com/v1alpha1
+kind: Server
+metadata:
+  name: public-01
+spec:
+  bind:
+    port: 7000
+    tls:
+      certificate:
+        secret:
+          name: frps-cert
+  allowPorts:
+    tcp: ["8000-8010"]
+    udp: ["5353"]
+  vhost:
+    httpPort: 80
+    httpsPort: 443
+    subdomainHost: example.com
+  service:
+    type: LoadBalancer
+    annotations:
+      # A static IP keeps private clusters' host stable. The annotation depends on your cloud:
+      #   AWS:     service.beta.kubernetes.io/aws-load-balancer-eip-allocations
+      #   GKE:     networking.gke.io/load-balancer-ip-addresses
+      #   Azure:   service.beta.kubernetes.io/azure-load-balancer-ipv4
+      #   MetalLB: metallb.universe.tf/loadBalancerIPs
+      metallb.universe.tf/loadBalancerIPs: 203.0.113.10
+  dashboard:
+    enabled: true
+  metrics:
+    enabled: true

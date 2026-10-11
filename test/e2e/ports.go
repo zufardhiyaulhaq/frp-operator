@@ -18,7 +18,10 @@ const (
 	portReloadFirst  = 20031
 	portReloadSecond = 20032
 	portInvalid      = 20041
-	portLoadBalancer = 5353 // TCP and UDP; for LoadBalancer Services the Service port is the remote port
+	portLoadBalancer = 5353  // TCP and UDP; for LoadBalancer Services the Service port is the remote port
+	portServer       = 21001 // on a Server's own frps
+	portServerAdded  = 21002
+	portServerTLS    = 21003
 )
 
 func allPorts() []int {
@@ -26,6 +29,6 @@ func allPorts() []int {
 		portTCP, portUDP, portEnabled, portDisabled,
 		portKCP, portQUIC, portWebsocket, portWSS, portTLS, portMTLS,
 		portProxyHTTP, portProxySOCKS, portReloadFirst, portReloadSecond, portInvalid,
-		portLoadBalancer,
+		portLoadBalancer, portServer, portServerAdded, portServerTLS,
 	}
 }
