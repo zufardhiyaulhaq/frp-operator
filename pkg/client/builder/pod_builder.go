@@ -5,6 +5,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	frpv1alpha1 "github.com/zufardhiyaulhaq/frp-operator/api/v1alpha1"
+	"github.com/zufardhiyaulhaq/frp-operator/pkg/podtemplate"
 )
 
 type PodBuilder struct {
@@ -89,16 +90,6 @@ func (n *PodBuilder) Build() (*corev1.Pod, error) {
 		"injector.nsm.nginx.com/auto-inject":     "false",
 	}
 
-	// Merge PodTemplate labels and annotations
-	if n.PodTemplate != nil {
-		for k, v := range n.PodTemplate.Labels {
-			labels[k] = v
-		}
-		for k, v := range n.PodTemplate.Annotations {
-			annotations[k] = v
-		}
-	}
-
 	// Build container
 	container := corev1.Container{
 		Name:    "frpc",
@@ -113,16 +104,6 @@ func (n *PodBuilder) Build() (*corev1.Pod, error) {
 				MountPath: "/frp",
 			},
 		},
-	}
-
-	// Apply container resources from PodTemplate
-	if n.PodTemplate != nil && n.PodTemplate.Resources != nil {
-		container.Resources = *n.PodTemplate.Resources
-	}
-
-	// Apply container env from PodTemplate
-	if n.PodTemplate != nil && n.PodTemplate.Env != nil {
-		container.Env = n.PodTemplate.Env
 	}
 
 	pod := &corev1.Pod{
@@ -162,30 +143,7 @@ func (n *PodBuilder) Build() (*corev1.Pod, error) {
 		})
 	}
 
-	// Apply PodTemplate fields to pod spec
-	if n.PodTemplate != nil {
-		if n.PodTemplate.NodeSelector != nil {
-			pod.Spec.NodeSelector = n.PodTemplate.NodeSelector
-		}
-		if n.PodTemplate.Tolerations != nil {
-			pod.Spec.Tolerations = n.PodTemplate.Tolerations
-		}
-		if n.PodTemplate.Affinity != nil {
-			pod.Spec.Affinity = n.PodTemplate.Affinity
-		}
-		if n.PodTemplate.ServiceAccountName != "" {
-			pod.Spec.ServiceAccountName = n.PodTemplate.ServiceAccountName
-		}
-		if n.PodTemplate.ImagePullSecrets != nil {
-			pod.Spec.ImagePullSecrets = n.PodTemplate.ImagePullSecrets
-		}
-		if n.PodTemplate.PriorityClassName != "" {
-			pod.Spec.PriorityClassName = n.PodTemplate.PriorityClassName
-		}
-		if n.PodTemplate.SecurityContext != nil {
-			pod.Spec.SecurityContext = n.PodTemplate.SecurityContext
-		}
-	}
+	podtemplate.Apply(pod, n.PodTemplate)
 
 	return pod, nil
 }
