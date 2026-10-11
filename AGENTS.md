@@ -16,6 +16,8 @@ make docker-build       # Build container image
 # Test
 make test               # Run tests with coverage (output/coverage.html)
 make test-frpc-config   # Render every feature/example/ServerPool config and validate it with the real frpc (needs Docker)
+make test-e2e           # End-to-end on a private k3d cluster (frps in-cluster, real traffic); needs Docker, k3d, helm
+make e2e-down           # Delete the e2e k3d cluster
 
 # Lint & Format
 make fmt                # Format code with go fmt
@@ -108,4 +110,5 @@ charts/             # Helm chart
 dashboards/         # Grafana dashboard JSON
 examples/           # Usage examples (simple, tcp-full, p2p, loadbalancer); every Client here is validated by test/frpcconfig
 test/frpcconfig/    # frpc verify integration test (build tag frpcverify)
+test/e2e/           # e2e suite (build tag e2e); untagged helpers are unit-tested by make test
 ```

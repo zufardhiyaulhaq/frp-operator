@@ -93,41 +93,37 @@ jobs:
           platforms: linux/amd64,linux/arm64
   e2e:
     runs-on: ubuntu-latest
-    needs:
-      - image
-    strategy:
-      fail-fast: false
-      matrix:
-        kubernetes: [v1.33.7]
+    timeout-minutes: 20
     steps:
-      - name: Checkout
+      - name: Set up Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: 1.23
+      - name: Check out code
         uses: actions/checkout@v2
-      - name: Setup kubectl
-        uses: azure/setup-kubectl@v1
+      - name: Install k3d
+        run: curl -fsSL https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | TAG=v5.9.0 bash
+      - name: Install helm
+        uses: azure/setup-helm@v4
         with:
-          version: 'v1.29.3'
-      - name: Setup helm
-        uses: azure/setup-helm@v1
+          version: v3.16.4
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@f95db51fddba0c2d1ec667646a06c2ce06100226 # v3.0.0
+      - name: Build operator image
+        uses: docker/build-push-action@0565240e2d4ab88bba5387d719585280857ece09 # v5.0.0
         with:
-          version: 'v3.3.1'
-      - name: install kubernetes
-        uses: nolar/setup-k3d-k3s@v1
+          context: .
+          load: true
+          tags: frp-operator:e2e
+          platforms: linux/amd64
+          cache-from: type=gha,scope=e2e
+          cache-to: type=gha,mode=max,scope=e2e
+      - name: Run e2e suite
+        run: make test-e2e E2E_SKIP_IMAGE_BUILD=1
+      - name: Upload e2e artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
         with:
-          version: "${{ matrix.kubernetes }}"
-          k3d-args: --no-lb
-      - name: deploy charts
-        run: helm install frp-operator ./charts/frp-operator --values ./charts/frp-operator/values.yaml --set operator.tag=main
-      - name: deploy applications
-        run: kubectl apply -f ./examples/simple/deployment
-      - name: deploy frp
-        run: kubectl apply -f ./examples/simple/client
-      - name: waiting frp-operator to start
-        run: sleep 180
-      - name: check client object
-        run: kubectl get client -A
-      - name: check upstream object
-        run: kubectl get upstream -A
-      - name: check pod object
-        run: kubectl get pod -A
-      - name: check configmap object
-        run: kubectl get configmap -A
+          name: e2e-artifacts
+          path: output/e2e-artifacts
+          if-no-files-found: ignore
