@@ -80,6 +80,7 @@ rules:
   - events
   verbs:
   - create
+  - list
   - patch
 - apiGroups:
   - ""
@@ -131,6 +132,44 @@ rules:
   - get
   - patch
   - update
+- apiGroups:
+  - frp.zufardhiyaulhaq.com
+  resources:
+  - servers
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - frp.zufardhiyaulhaq.com
+  resources:
+  - servers/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - frp.zufardhiyaulhaq.com
+  resources:
+  - servers/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - monitoring.coreos.com
+  resources:
+  - servicemonitors
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
 - apiGroups:
   - frp.zufardhiyaulhaq.com
   resources:

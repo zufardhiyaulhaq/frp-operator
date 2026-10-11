@@ -25,6 +25,7 @@ rules:
   - events
   verbs:
   - create
+  - list
   - patch
 - apiGroups:
   - ""
@@ -45,6 +46,7 @@ rules:
   resources:
   - Visitors
   - clients
+  - servers
   - upstreams
   verbs:
   - create
@@ -59,6 +61,7 @@ rules:
   resources:
   - Visitors/finalizers
   - clients/finalizers
+  - servers/finalizers
   - upstreams/finalizers
   verbs:
   - update
@@ -68,6 +71,7 @@ rules:
   - Visitors/status
   - clients/status
   - serverpools/status
+  - servers/status
   - upstreams/status
   verbs:
   - get
@@ -80,4 +84,16 @@ rules:
   verbs:
   - get
   - list
+  - watch
+- apiGroups:
+  - monitoring.coreos.com
+  resources:
+  - servicemonitors
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
   - watch

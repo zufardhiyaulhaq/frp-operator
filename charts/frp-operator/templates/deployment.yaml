@@ -33,6 +33,7 @@ spec:
         {{- end }}
         - --leader-elect
         - --enable-loadbalancer-controller={{ .Values.loadBalancer.enabled }}
+        - --server-max-ports={{ .Values.server.maxPorts }}
         command:
         - /manager
         image: "{{ .Values.operator.image }}:{{ .Values.operator.tag }}"

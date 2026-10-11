@@ -74,6 +74,9 @@ func main() {
 		"Bind Service type=LoadBalancer with loadBalancerClass frp.zufardhiyaulhaq.com/frp to ServerPool servers.")
 	flag.StringVar(&operatorNamespace, "operator-namespace", os.Getenv("POD_NAMESPACE"),
 		"Namespace that holds ServerPools and generated Clients/Upstreams. Defaults to POD_NAMESPACE.")
+	var serverMaxPorts int
+	flag.IntVar(&serverMaxPorts, "server-max-ports", 50,
+		"Maximum number of ports on a Server's public Service (bind, vhost and allowPorts); cloud load balancers limit listeners.")
 	opts := zap.Options{
 		Development: true,
 	}
@@ -124,6 +127,24 @@ func main() {
 		Scheme: mgr.GetScheme(),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Upstream")
+		os.Exit(1)
+	}
+	// Like ServerPool, the Server CRD may be missing from an older CRD bundle; that must not stop
+	// the Client controllers.
+	if _, err := mgr.GetRESTMapper().RESTMapping(
+		schema.GroupKind{Group: "frp.zufardhiyaulhaq.com", Kind: "Server"}, "v1alpha1"); err != nil {
+		if meta.IsNoMatchError(err) {
+			setupLog.Error(err, "Server CRD not installed; Server controller disabled — apply charts/frp-operator/crds/crds.yaml and restart the operator")
+		} else {
+			setupLog.Error(err, "unable to verify Server CRD")
+			os.Exit(1)
+		}
+	} else if err = (&controllers.ServerReconciler{
+		Client:   mgr.GetClient(),
+		Scheme:   mgr.GetScheme(),
+		MaxPorts: serverMaxPorts,
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "Server")
 		os.Exit(1)
 	}
 	if enableLoadBalancer {
