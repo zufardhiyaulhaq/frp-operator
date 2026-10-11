@@ -52,7 +52,7 @@ func newCA(name string) (*x509.Certificate, *ecdsa.PrivateKey, []byte, error) {
 		SerialNumber:          serial(),
 		Subject:               pkix.Name{CommonName: name},
 		NotBefore:             time.Now().Add(-time.Hour),
-		NotAfter:              time.Now().Add(24 * time.Hour),
+		NotAfter:              time.Now().Add(10 * 365 * 24 * time.Hour), // reused for the life of the cluster
 		IsCA:                  true,
 		BasicConstraintsValid: true,
 		KeyUsage:              x509.KeyUsageCertSign | x509.KeyUsageDigitalSignature,
@@ -78,7 +78,7 @@ func newLeaf(ca *x509.Certificate, caKey *ecdsa.PrivateKey, name string, dnsName
 		Subject:      pkix.Name{CommonName: name},
 		DNSNames:     dnsNames,
 		NotBefore:    time.Now().Add(-time.Hour),
-		NotAfter:     time.Now().Add(24 * time.Hour),
+		NotAfter:     time.Now().Add(10 * 365 * 24 * time.Hour),
 		KeyUsage:     x509.KeyUsageDigitalSignature,
 		ExtKeyUsage:  []x509.ExtKeyUsage{usage},
 	}

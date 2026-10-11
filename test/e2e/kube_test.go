@@ -10,9 +10,11 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"time"
 
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -61,6 +63,48 @@ func (e *Env) upsert(ctx context.Context, obj client.Object) error {
 	return e.Kube.Update(ctx, obj)
 }
 
+// ensureSecret creates secret, or updates it when its data differs, and reports whether an
+// existing Secret changed (pods that read it only at startup then need a restart).
+func (e *Env) ensureSecret(ctx context.Context, secret *corev1.Secret) (bool, error) {
+	existing := &corev1.Secret{}
+	err := e.Kube.Get(ctx, client.ObjectKeyFromObject(secret), existing)
+	if apierrors.IsNotFound(err) {
+		return false, e.Kube.Create(ctx, secret)
+	}
+	if err != nil {
+		return false, err
+	}
+	if reflect.DeepEqual(existing.Data, secret.Data) {
+		return false, nil
+	}
+	existing.Data = secret.Data
+	return true, e.Kube.Update(ctx, existing)
+}
+
+// restartDeployment rolls a Deployment's pods and waits until only new, ready pods remain.
+func (e *Env) restartDeployment(ctx context.Context, namespace, name string) error {
+	deploy := &appsv1.Deployment{}
+	if err := e.Kube.Get(ctx, client.ObjectKey{Namespace: namespace, Name: name}, deploy); err != nil {
+		return err
+	}
+	if deploy.Spec.Template.Annotations == nil {
+		deploy.Spec.Template.Annotations = map[string]string{}
+	}
+	deploy.Spec.Template.Annotations["frp-operator-e2e/restartedAt"] = time.Now().Format(time.RFC3339Nano)
+	if err := e.Kube.Update(ctx, deploy); err != nil {
+		return err
+	}
+	return wait.PollUntilContextTimeout(ctx, 2*time.Second, 3*time.Minute, true, func(ctx context.Context) (bool, error) {
+		d := &appsv1.Deployment{}
+		if err := e.Kube.Get(ctx, client.ObjectKey{Namespace: namespace, Name: name}, d); err != nil {
+			return false, nil
+		}
+		want := *d.Spec.Replicas
+		return d.Status.ObservedGeneration >= d.Generation && d.Status.UpdatedReplicas == want &&
+			d.Status.AvailableReplicas == want && d.Status.Replicas == want, nil
+	})
+}
+
 // deleteAndWait deletes obj (if present) and waits until it is gone, finalizers included.
 func (e *Env) deleteAndWait(ctx context.Context, obj client.Object) error {
 	if err := e.Kube.Delete(ctx, obj); err != nil {
@@ -88,6 +132,9 @@ func (e *Env) waitPodsReady(ctx context.Context, namespace string, timeout time.
 			return false, nil
 		}
 		for i := range pods.Items {
+			if pods.Items[i].DeletionTimestamp != nil {
+				continue // a pod on its way out after a restart
+			}
 			if !podReady(&pods.Items[i]) {
 				problem = podProblem(&pods.Items[i])
 				return false, nil
@@ -107,7 +154,7 @@ func (e *Env) podIP(ctx context.Context, namespace, selector string) (string, er
 		return "", err
 	}
 	for i := range pods.Items {
-		if podReady(&pods.Items[i]) && pods.Items[i].Status.PodIP != "" {
+		if pods.Items[i].DeletionTimestamp == nil && podReady(&pods.Items[i]) && pods.Items[i].Status.PodIP != "" {
 			return pods.Items[i].Status.PodIP, nil
 		}
 	}
