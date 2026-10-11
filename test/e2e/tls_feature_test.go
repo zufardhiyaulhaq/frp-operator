@@ -24,7 +24,13 @@ func TestTLSServerVerification(t *testing.T) {
 
 	c.Client("trusted", func(s *frpv1alpha1.ClientSpec_Server) { s.TLS = trustCA("frps-ca") })
 	proxy := c.Upstream("trusted", "echo", tcpEcho(portTLS))
-	c.Client("untrusted", func(s *frpv1alpha1.ClientSpec_Server) { s.TLS = trustCA("wrong-ca") })
+	c.Client("untrusted", func(s *frpv1alpha1.ClientSpec_Server) {
+		s.TLS = trustCA("wrong-ca")
+		// With tcpMux on, frpc runs the TLS handshake inside yamux's goroutines, so a rejected
+		// certificate surfaces either as "x509" or as "session shutdown", depending on timing (seen
+		// on CI). Without tcpMux the login write itself performs the handshake and returns x509.
+		s.Transport = &frpv1alpha1.ClientSpec_Server_Transport{TCPMux: ptr(false)}
+	})
 
 	c.waitClientSynced("trusted")
 	c.waitProxyRunning("trusted", proxy)
