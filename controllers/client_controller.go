@@ -19,6 +19,9 @@ package controllers
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"reflect"
 	"strings"
@@ -56,7 +59,23 @@ const (
 	EventReasonConfigReloadFailed = "ConfigReloadFailed"
 	EventReasonPodImageUpdated    = "PodImageUpdated"
 	EventReasonInvalidConfig      = "InvalidConfig"
+	EventReasonPodTLSUpdated      = "PodTLSUpdated"
 )
+
+// tlsHashAnnotation records the TLS settings a Client pod was started with. frpc reads its TLS
+// files and serverName only at start (a reload does not apply them), so a change recreates the pod.
+const tlsHashAnnotation = "frp.zufardhiyaulhaq.com/tls-hash"
+
+// tlsHash identifies a Client's TLS settings; "" without TLS, so pods of Clients without TLS
+// (which carry no annotation) are never rolled.
+func tlsHash(tls *frpv1alpha1.ClientSpec_Server_TLS) string {
+	if tls == nil {
+		return ""
+	}
+	data, _ := json.Marshal(tls)
+	sum := sha256.Sum256(data)
+	return hex.EncodeToString(sum[:])[:16]
+}
 
 // frpcImage is the frpc container image managed by the operator.
 const frpcImage = "fatedier/frpc:v0.71.0"
@@ -255,6 +274,9 @@ func (r *ClientReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	if err != nil {
 		return ctrl.Result{}, err
 	}
+	if h := tlsHash(client.Spec.Server.TLS); h != "" {
+		pod.Annotations[tlsHashAnnotation] = h
+	}
 
 	log.Info("set reference pod")
 	if err := controllerutil.SetControllerReference(client, pod, r.Scheme); err != nil {
@@ -287,6 +309,25 @@ func (r *ClientReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
 	} else if err != nil {
 		return ctrl.Result{}, err
+	}
+
+	// Roll the pod when the TLS settings changed: frpc reads its TLS files and serverName only at
+	// start. Pods from before this annotation existed are rolled once, which also moves them to the
+	// per-reference TLS mount.
+	if createdPod.Annotations[tlsHashAnnotation] != pod.Annotations[tlsHashAnnotation] {
+		if createdPod.DeletionTimestamp == nil {
+			log.Info("TLS settings changed, deleting pod to recreate it")
+			if err := r.Client.Delete(context.TODO(), createdPod); err != nil && !errors.IsNotFound(err) {
+				return ctrl.Result{}, err
+			}
+			r.Recorder.Event(client, corev1.EventTypeNormal, EventReasonPodTLSUpdated, "Recreating FRP client pod with the current TLS settings")
+		}
+		r.setCondition(client, status.ConditionTypeReady, metav1.ConditionFalse, status.ReasonPodCreated, "Recreating pod with updated TLS settings")
+		if err := r.updateClientStatus(ctx, client, status.ClientPhasePending, "Recreating pod with updated TLS settings", len(filteredUpstreams), len(filteredVisitors)); err != nil {
+			log.Error(err, "failed to update client status")
+		}
+		metrics.RecordProxies(client.Namespace, client.Name, nil, fmt.Errorf("pod being recreated"))
+		return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
 	}
 
 	// Roll the pod when the image has changed (e.g. operator upgrade bumped the frpc version).

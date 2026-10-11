@@ -85,25 +85,29 @@ func (r *ServerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		}
 	}
 
-	svc, err := r.applyService(ctx, srv, frps.BuildService(srv, res.Ports))
+	pod, pending, err := r.reconcilePod(ctx, srv, res)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+
+	// While a Manual restart is pending, frps still listens on its old ports: keep the Services as
+	// they are (only create a missing one) and move them when the new pod starts.
+	svc, err := r.applyService(ctx, srv, frps.BuildService(srv, res.Ports), pending)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
 	webService := frps.BuildWebService(srv)
-	if res.Ports.WebServer {
-		_, err = r.applyService(ctx, srv, webService)
-	} else {
+	switch {
+	case pending:
+	case res.Ports.WebServer:
+		_, err = r.applyService(ctx, srv, webService, false)
+	default:
 		err = r.deleteIfExists(ctx, webService)
 	}
 	if err != nil {
 		return ctrl.Result{}, err
 	}
 	if err := r.reconcileServiceMonitor(ctx, srv, newGeneration); err != nil {
-		return ctrl.Result{}, err
-	}
-
-	pod, pending, err := r.reconcilePod(ctx, srv, res)
-	if err != nil {
 		return ctrl.Result{}, err
 	}
 	if pending && !hasServerReason(srv, status.ConditionTypeConfigSync, frps.ReasonRestartPending) {
@@ -155,6 +159,16 @@ func (r *ServerReconciler) reconcilePod(ctx context.Context, srv *frpv1alpha1.Se
 		return nil, false, err
 	}
 	if current.DeletionTimestamp != nil {
+		return nil, false, nil
+	}
+	// A terminated pod (evicted, node shutdown) is never restarted by the kubelet: replace it,
+	// under either restart policy.
+	if current.Status.Phase == corev1.PodFailed || current.Status.Phase == corev1.PodSucceeded {
+		if err := r.Delete(ctx, current); err != nil && !apierrors.IsNotFound(err) {
+			return nil, false, err
+		}
+		r.Recorder.Eventf(srv, corev1.EventTypeWarning, frps.ReasonPodFailed, "frps pod %s %s (%s %s): starting a new one",
+			current.Name, current.Status.Phase, current.Status.Reason, current.Status.Message)
 		return nil, false, nil
 	}
 	if current.Annotations[frps.ConfigHashAnnotation] == desired.Annotations[frps.ConfigHashAnnotation] {
@@ -260,8 +274,18 @@ func (r *ServerReconciler) applySecret(ctx context.Context, srv *frpv1alpha1.Ser
 
 // applyService patches a Service in place (it is never recreated, so its IP survives) and clears
 // the fields the API server rejects after a type or traffic-policy change.
-func (r *ServerReconciler) applyService(ctx context.Context, srv *frpv1alpha1.Server, desired *corev1.Service) (*corev1.Service, error) {
+// With keepExisting, an existing Service is returned unchanged.
+func (r *ServerReconciler) applyService(ctx context.Context, srv *frpv1alpha1.Server, desired *corev1.Service, keepExisting bool) (*corev1.Service, error) {
 	svc := &corev1.Service{ObjectMeta: metav1.ObjectMeta{Name: desired.Name, Namespace: desired.Namespace}}
+	if keepExisting {
+		err := r.Get(ctx, client.ObjectKeyFromObject(svc), svc)
+		if err == nil {
+			return svc, nil
+		}
+		if !apierrors.IsNotFound(err) {
+			return nil, err
+		}
+	}
 	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, svc, func() error {
 		svc.Labels = desired.Labels
 		if svc.Annotations == nil {

@@ -483,3 +483,66 @@ func TestFrpsImageMatchesFrpcRelease(t *testing.T) {
 		t.Errorf("frpc %s and frps %s are different frp releases", frpcImage, frps.Image)
 	}
 }
+
+// An evicted frps pod (phase Failed) never restarts on its own: it must be replaced, under either
+// restart policy.
+func TestServerReconcile_EvictedPodIsReplaced(t *testing.T) {
+	for _, policy := range []string{frpv1alpha1.RestartPolicyAutomatic, frpv1alpha1.RestartPolicyManual} {
+		t.Run(policy, func(t *testing.T) {
+			f := newServerFixture(t, testServer(func(s *frpv1alpha1.ServerSpec) { s.RestartPolicy = policy }), serverTokenSecret("s3cret"))
+			f.mustReconcile()
+			p := f.pod()
+			p.Status = corev1.PodStatus{Phase: corev1.PodFailed, Reason: "Evicted", Message: "The node was low on resource: memory."}
+			f.updateStatus(p)
+
+			f.mustReconcile()
+			if f.podExists() {
+				t.Fatal("the evicted frps pod was kept")
+			}
+			f.mustReconcile()
+			if !f.podExists() {
+				t.Fatal("frps was not started again after the eviction")
+			}
+		})
+	}
+}
+
+// Under restartPolicy Manual the running frps keeps its old ports until its pod is deleted, so
+// the Services must keep pointing at them until then.
+func TestServerReconcile_ManualKeepsServicesUntilRestart(t *testing.T) {
+	f := newServerFixture(t, testServer(func(s *frpv1alpha1.ServerSpec) { s.RestartPolicy = frpv1alpha1.RestartPolicyManual }), serverTokenSecret("s3cret"))
+	f.mustReconcile()
+	bindPort := func() int32 {
+		svc := &corev1.Service{}
+		f.get("public-frps", svc)
+		for _, p := range svc.Spec.Ports {
+			if p.Name == "bind" {
+				return p.Port
+			}
+		}
+		return 0
+	}
+
+	f.updateSpec(func(s *frpv1alpha1.ServerSpec) {
+		s.Bind.Port = 7443
+		s.Dashboard = &frpv1alpha1.ServerSpec_Dashboard{Enabled: true}
+	})
+	f.mustReconcile()
+	if got := bindPort(); got != 7000 {
+		t.Errorf("bind port = %d while the restart is pending, want the running frps's 7000", got)
+	}
+	if f.exists("public-frps-web", &corev1.Service{}) {
+		t.Error("the web Service appeared before frps runs its web server")
+	}
+
+	if err := f.c.Delete(context.Background(), f.pod()); err != nil {
+		t.Fatal(err)
+	}
+	f.mustReconcile()
+	if got := bindPort(); got != 7443 {
+		t.Errorf("bind port = %d after the restart, want 7443", got)
+	}
+	if !f.exists("public-frps-web", &corev1.Service{}) {
+		t.Error("no web Service after the restart")
+	}
+}
