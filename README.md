@@ -11,6 +11,7 @@ Expose your service in Kubernetes to the Internet with open source FRP!
 - `Upstream` — a Kubernetes Service/port exposed through FRP
 - `Visitor` — inbound tunnel that consumes another client's STCP/XTCP `Upstream` (for P2P scenarios)
 - `ServerPool` — a pool of frps servers that backs `Service type=LoadBalancer` (see [LoadBalancer Controller](#loadbalancer-controller))
+- `Server` — frps itself, run by the operator in a public cluster for private clusters to connect to (see [Server (frps)](#server-frps))
 
 **Upstream protocols**
 - `TCP` and `UDP` — straightforward port forwarding with optional health checks and bandwidth limits
@@ -197,6 +198,64 @@ The operator matches `Upstream` objects to `Client` objects by name, across name
 
 See [`examples/loadbalancer`](https://github.com/zufardhiyaulhaq/frp-operator/tree/main/examples/loadbalancer).
 
+## Server (frps)
+
+The operator can also run **frps** itself. A `Server` becomes one frps pod behind a public Service (`LoadBalancer` by default), and private clusters connect ordinary `Client`s or `ServerPool` servers to it. The Service exposes the bind ports, the vhost ports and every port in `allowPorts`, each with its own protocol.
+
+```yaml
+apiVersion: frp.zufardhiyaulhaq.com/v1alpha1
+kind: Server
+metadata:
+  name: public-01
+spec:
+  bind:
+    port: 7000                      # tcp/websocket clients; kcpPort / quicPort for kcp / quic
+    tls:
+      certificate:
+        secret:
+          name: frps-cert           # tls.crt, tls.key (+ ca.crt); unset = frps's random, unverifiable certificate
+      # clientCA: {secret: {name: frps-client-ca}}   # mTLS
+      # force: true                 # default; false only for wss behind a TLS terminator
+  allowPorts:                       # remote ports for TCP/UDP Upstreams; nothing else is exposed
+    tcp: ["8000-8010"]
+    udp: ["5353"]
+  vhost:
+    httpPort: 80
+    httpsPort: 443
+    subdomainHost: example.com
+  # authentication: {token: {secret: {name: my-token, key: token}}}   # unset = generated
+  # restartPolicy: Automatic        # or Manual
+  service:
+    type: LoadBalancer              # or ClusterIP
+    annotations:
+      metallb.universe.tf/loadBalancerIPs: 203.0.113.10
+  dashboard:
+    enabled: true                   # UI + admin API on 7500, through its own Service only
+  metrics:
+    enabled: true                   # /metrics behind the dashboard login
+```
+
+| Status | Meaning |
+|--------|---------|
+| `address` | The Client's `host`: the load balancer's IP or hostname, or `<server>-frps.<namespace>.svc` for `ClusterIP` |
+| `tls.serverNames` | DNS names of `bind.tls.certificate`; use one as the Client's `tls.serverName` |
+| `exposedPorts` | The expanded `allowPorts`; a private ServerPool's `allowedPorts` |
+| `connectionSecret` | `<server>-connection` with `token` (and `ca.crt`); copy it to private clusters |
+| `Ready` | `True` when the pod is ready and the address is set; otherwise `PodStarting`, `PodFailed`, `AddressPending` or `LoadBalancerFailed` |
+| `ConfigSynced` | `True` when frps runs the current config; otherwise `InvalidConfig`, `Restarting` or `RestartPending` |
+
+A static IP keeps private clusters' `host` stable. Set it with your cloud's Service annotation: `service.beta.kubernetes.io/aws-load-balancer-eip-allocations` (AWS), `networking.gke.io/load-balancer-ip-addresses` (GKE), `service.beta.kubernetes.io/azure-load-balancer-ipv4` (Azure) or `metallb.universe.tf/loadBalancerIPs` (MetalLB). The Service is updated in place and never recreated, so its IP survives every change except deleting the Server.
+
+Good to know:
+- frps cannot reload: any change restarts the frps pod, and connected Clients reconnect on their own. `restartPolicy: Manual` waits until you delete the pod.
+- One frps pod per Server. For availability, run several Servers and spread Services over them with a ServerPool.
+- A cloud that rejects mixed TCP/UDP load balancers shows `Ready=False/LoadBalancerFailed`.
+- Don't enable PROXY protocol on the load balancer: frps cannot read it.
+- The dashboard is only ever a Service, never an Ingress; exposing it without `dashboard.tls` raises a `DashboardInsecure` warning.
+- The public Service may hold at most `server.maxPorts` (default 50) ports.
+
+See [`examples/server`](https://github.com/zufardhiyaulhaq/frp-operator/tree/main/examples/server).
+
 ## Monitoring
 
 The operator exposes Prometheus metrics on the `<release>-controller-manager-metrics-service` Service (port `http`/8080 by default):
@@ -235,6 +294,7 @@ A Grafana dashboard lives at [`dashboards/frp-operator.json`](https://github.com
 | resources.limits.memory | string | `"100Mi"` |  |
 | resources.requests.cpu | string | `"100m"` |  |
 | resources.requests.memory | string | `"20Mi"` |  |
+| server.maxPorts | int | `50` | Maximum number of ports on a Server's public Service (bind, vhost and allowPorts). Cloud load balancers limit listeners. |
 
 see example files [here](https://github.com/zufardhiyaulhaq/frp-operator/blob/main/charts/frp-operator/values.yaml)
 

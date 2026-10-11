@@ -1,0 +1,12 @@
+# Private cluster: expose a Service on the Server's port 8000 (inside allowPorts.tcp).
+apiVersion: frp.zufardhiyaulhaq.com/v1alpha1
+kind: Upstream
+metadata:
+  name: my-app
+spec:
+  client: to-public-01
+  tcp:
+    host: my-app.default.svc.cluster.local
+    port: 8080
+    server:
+      port: 8000
