@@ -10,6 +10,7 @@ import (
 
 // TestServerProtocols connects frpc to frps over each non-default transport and sends traffic.
 func TestServerProtocols(t *testing.T) {
+	t.Parallel() // without it the parent blocks every other top-level test until its subtests finish
 	cases := []struct {
 		name, host string
 		port       int

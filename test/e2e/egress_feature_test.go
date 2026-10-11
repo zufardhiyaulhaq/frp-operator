@@ -80,6 +80,7 @@ func (c *Case) probeEgressBlocked() {
 // TestEgressProxy runs frpc behind an http and a socks5 egress proxy with Secret-sourced
 // credentials. frps is unreachable directly, so working traffic proves the proxy carried it.
 func TestEgressProxy(t *testing.T) {
+	t.Parallel() // without it the parent blocks every other top-level test until its subtests finish
 	cases := []struct {
 		name       string
 		port       int

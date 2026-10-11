@@ -154,7 +154,8 @@ test-e2e: e2e-up ## Run the end-to-end suite on the k3d e2e cluster (needs Docke
 
 .PHONY: e2e-down
 e2e-down: ## Delete the k3d e2e cluster and its kubeconfig.
-	k3d cluster delete $(E2E_CLUSTER)
+	# k3d rewrites the "default" kubeconfig on delete; point it at the private file, not ~/.kube/config.
+	KUBECONFIG=$(abspath $(E2E_KUBECONFIG)) k3d cluster delete $(E2E_CLUSTER)
 	rm -f $(E2E_KUBECONFIG)
 
 ##@ Build
