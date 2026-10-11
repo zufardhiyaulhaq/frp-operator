@@ -1,3 +1,4 @@
+{% raw %}
 # E2E Tests in GitHub Actions (Tier 1) Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
@@ -2858,3 +2859,4 @@ Leave the workflow-repo skill and memory edits uncommitted. That repo commits on
 - OIDC: a second frps with `auth.method = "oidc"` and a mock IdP (for example `navikt/mock-oauth2-server`).
 - Plugins (socks5, http_proxy, static_file, https2http, …), loadBalancer groups, proxyProtocol.
 - **Operator:** `ClientReconciler` doesn't watch Secrets or Upstreams. Changes wait for the 30 s requeue, and InvalidConfig recovery waits for error backoff, which can grow to minutes. Consider watching referenced Secrets, or returning `RequeueAfter` instead of an error.
+{% endraw %}
