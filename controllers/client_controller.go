@@ -248,23 +248,8 @@ func (r *ClientReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		SetName(client.Name).
 		SetNamespace(client.Namespace).
 		SetImage(frpcImage).
-		SetPodTemplate(client.Spec.PodTemplate)
-
-	// Wire TLS secret if configured
-	if client.Spec.Server.TLS != nil {
-		if client.Spec.Server.TLS.CertFile != nil {
-			podBuilder.SetTLSSecret(client.Spec.Server.TLS.CertFile.Secret.Name)
-		} else if client.Spec.Server.TLS.KeyFile != nil {
-			podBuilder.SetTLSSecret(client.Spec.Server.TLS.KeyFile.Secret.Name)
-		}
-		if client.Spec.Server.TLS.TrustedCAFile != nil {
-			if client.Spec.Server.TLS.TrustedCAFile.ConfigMap != nil {
-				podBuilder.SetTLSCAConfigMap(client.Spec.Server.TLS.TrustedCAFile.ConfigMap.Name)
-			} else if client.Spec.Server.TLS.TrustedCAFile.Secret != nil && podBuilder.TLSSecret == "" {
-				podBuilder.SetTLSSecret(client.Spec.Server.TLS.TrustedCAFile.Secret.Name)
-			}
-		}
-	}
+		SetPodTemplate(client.Spec.PodTemplate).
+		SetTLS(client.Spec.Server.TLS)
 
 	pod, err := podBuilder.Build()
 	if err != nil {

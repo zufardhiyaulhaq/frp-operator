@@ -261,6 +261,11 @@ func featureCases() []featureCase {
 	c.Spec.Server.TLS = &v1.ClientSpec_Server_TLS{Enable: true, CertFile: sref("tls-crt"), KeyFile: sref("tls-key"), TrustedCAFile: &v1.ConfigMapOrSecretRef{Secret: ptr(sec("ca"))}}
 	add(featureCase{name: "client_tls", client: c, expect: []string{"transport.tls.enable = true", `transport.tls.certFile = "/etc/frp/tls/tls.crt"`, `transport.tls.keyFile = "/etc/frp/tls/tls.key"`, `transport.tls.trustedCaFile = "/etc/frp/tls/ca.crt"`}})
 
+	c = baseClient()
+	c.Spec.Server.Host = "203.0.113.10"
+	c.Spec.Server.TLS = &v1.ClientSpec_Server_TLS{Enable: true, ServerName: "frps.example.com", TrustedCAFile: &v1.ConfigMapOrSecretRef{Secret: ptr(sec("ca"))}}
+	add(featureCase{name: "client_tls_server_name", client: c, expect: []string{`transport.tls.serverName = "frps.example.com"`}})
+
 	for _, tc := range []struct {
 		name string
 		mux  bool

@@ -1,6 +1,7 @@
 package builder
 
 import (
+	"reflect"
 	"testing"
 
 	frpv1alpha1 "github.com/zufardhiyaulhaq/frp-operator/api/v1alpha1"
@@ -356,5 +357,95 @@ func TestPodBuilder_NoEnvByDefault(t *testing.T) {
 	}
 	if len(pod.Spec.Containers[0].Env) != 0 {
 		t.Errorf("Expected no env vars, got %v", pod.Spec.Containers[0].Env)
+	}
+}
+
+// projectedTLSFiles maps each file in the pod's tls-certs volume to "<kind>:<name>/<key>".
+func projectedTLSFiles(t *testing.T, pod *corev1.Pod) map[string]string {
+	t.Helper()
+	for _, v := range pod.Spec.Volumes {
+		if v.Name != "tls-certs" {
+			continue
+		}
+		if v.Projected == nil {
+			t.Fatalf("tls-certs volume is not projected: %+v", v.VolumeSource)
+		}
+		got := map[string]string{}
+		for _, src := range v.Projected.Sources {
+			switch {
+			case src.Secret != nil:
+				for _, it := range src.Secret.Items {
+					got[it.Path] = "secret:" + src.Secret.Name + "/" + it.Key
+				}
+			case src.ConfigMap != nil:
+				for _, it := range src.ConfigMap.Items {
+					got[it.Path] = "configmap:" + src.ConfigMap.Name + "/" + it.Key
+				}
+			}
+		}
+		return got
+	}
+	return nil
+}
+
+func TestPodBuilder_TLSFilesFromSeparateSources(t *testing.T) {
+	pod, err := NewPodBuilder().SetName("c").SetNamespace("ns").SetImage("img").
+		SetTLS(&frpv1alpha1.ClientSpec_Server_TLS{
+			Enable:        true,
+			CertFile:      &frpv1alpha1.SecretRef{Secret: frpv1alpha1.Secret{Name: "client-cert", Key: "cert.pem"}},
+			KeyFile:       &frpv1alpha1.SecretRef{Secret: frpv1alpha1.Secret{Name: "client-cert", Key: "key.pem"}},
+			TrustedCAFile: &frpv1alpha1.ConfigMapOrSecretRef{Secret: &frpv1alpha1.Secret{Name: "server-ca", Key: "ca.crt"}},
+		}).Build()
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]string{
+		"tls.crt": "secret:client-cert/cert.pem",
+		"tls.key": "secret:client-cert/key.pem",
+		"ca.crt":  "secret:server-ca/ca.crt",
+	}
+	if got := projectedTLSFiles(t, pod); !reflect.DeepEqual(got, want) {
+		t.Errorf("TLS files = %v, want %v", got, want)
+	}
+	mounted := false
+	for _, m := range pod.Spec.Containers[0].VolumeMounts {
+		if m.Name == "tls-certs" && m.MountPath == "/etc/frp/tls" && m.ReadOnly {
+			mounted = true
+		}
+	}
+	if !mounted {
+		t.Errorf("tls-certs is not mounted read-only at /etc/frp/tls: %+v", pod.Spec.Containers[0].VolumeMounts)
+	}
+}
+
+func TestPodBuilder_TLSCAFromConfigMapWithClientCertificate(t *testing.T) {
+	pod, err := NewPodBuilder().SetName("c").SetNamespace("ns").SetImage("img").
+		SetTLS(&frpv1alpha1.ClientSpec_Server_TLS{
+			Enable:        true,
+			CertFile:      &frpv1alpha1.SecretRef{Secret: frpv1alpha1.Secret{Name: "client-cert", Key: "tls.crt"}},
+			KeyFile:       &frpv1alpha1.SecretRef{Secret: frpv1alpha1.Secret{Name: "client-cert", Key: "tls.key"}},
+			TrustedCAFile: &frpv1alpha1.ConfigMapOrSecretRef{ConfigMap: &frpv1alpha1.ConfigMapRef{Name: "server-ca", Key: "root.pem"}},
+		}).Build()
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]string{
+		"tls.crt": "secret:client-cert/tls.crt",
+		"tls.key": "secret:client-cert/tls.key",
+		"ca.crt":  "configmap:server-ca/root.pem",
+	}
+	if got := projectedTLSFiles(t, pod); !reflect.DeepEqual(got, want) {
+		t.Errorf("TLS files = %v, want %v", got, want)
+	}
+}
+
+func TestPodBuilder_NoTLSVolumeWithoutFiles(t *testing.T) {
+	pod, err := NewPodBuilder().SetName("c").SetNamespace("ns").SetImage("img").
+		SetTLS(&frpv1alpha1.ClientSpec_Server_TLS{Enable: true}).Build()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if files := projectedTLSFiles(t, pod); files != nil {
+		t.Errorf("unexpected tls-certs volume with files %v", files)
 	}
 }

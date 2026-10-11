@@ -118,6 +118,11 @@ type ClientSpec_Server_TLS struct {
 	// +optional
 	// TrustedCAFile is a reference to the CA certificate for server verification
 	TrustedCAFile *ConfigMapOrSecretRef `json:"trustedCaFile,omitempty"`
+	// +optional
+	// ServerName is the name frpc verifies the server certificate against (transport.tls.serverName).
+	// Defaults to host. Set it when host is an IP or a name the certificate does not cover, for
+	// example to one of a Server's status.tls.serverNames.
+	ServerName string `json:"serverName,omitempty"`
 }
 
 type ClientSpec_Server_Authentication struct {

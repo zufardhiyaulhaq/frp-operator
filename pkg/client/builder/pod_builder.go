@@ -8,12 +8,11 @@ import (
 )
 
 type PodBuilder struct {
-	Name           string
-	Namespace      string
-	Image          string
-	PodTemplate    *frpv1alpha1.ClientSpec_PodTemplate
-	TLSSecret      string
-	TLSCAConfigMap string
+	Name        string
+	Namespace   string
+	Image       string
+	PodTemplate *frpv1alpha1.ClientSpec_PodTemplate
+	TLS         *frpv1alpha1.ClientSpec_Server_TLS
 }
 
 func NewPodBuilder() *PodBuilder {
@@ -40,14 +39,43 @@ func (n *PodBuilder) SetPodTemplate(podTemplate *frpv1alpha1.ClientSpec_PodTempl
 	return n
 }
 
-func (n *PodBuilder) SetTLSSecret(tlsSecret string) *PodBuilder {
-	n.TLSSecret = tlsSecret
+// SetTLS mounts the Client's TLS files at /etc/frp/tls as tls.crt, tls.key and ca.crt, each read
+// from its own Secret (or ConfigMap, for the CA) and key.
+func (n *PodBuilder) SetTLS(tls *frpv1alpha1.ClientSpec_Server_TLS) *PodBuilder {
+	n.TLS = tls
 	return n
 }
 
-func (n *PodBuilder) SetTLSCAConfigMap(tlsCAConfigMap string) *PodBuilder {
-	n.TLSCAConfigMap = tlsCAConfigMap
-	return n
+// tlsProjection lists the projected-volume sources for the TLS files that are set.
+func tlsProjection(t *frpv1alpha1.ClientSpec_Server_TLS) []corev1.VolumeProjection {
+	if t == nil {
+		return nil
+	}
+	var sources []corev1.VolumeProjection
+	secret := func(ref frpv1alpha1.Secret, path string) {
+		sources = append(sources, corev1.VolumeProjection{Secret: &corev1.SecretProjection{
+			LocalObjectReference: corev1.LocalObjectReference{Name: ref.Name},
+			Items:                []corev1.KeyToPath{{Key: ref.Key, Path: path}},
+		}})
+	}
+	if t.CertFile != nil {
+		secret(t.CertFile.Secret, "tls.crt")
+	}
+	if t.KeyFile != nil {
+		secret(t.KeyFile.Secret, "tls.key")
+	}
+	if ca := t.TrustedCAFile; ca != nil {
+		switch {
+		case ca.Secret != nil:
+			secret(*ca.Secret, "ca.crt")
+		case ca.ConfigMap != nil:
+			sources = append(sources, corev1.VolumeProjection{ConfigMap: &corev1.ConfigMapProjection{
+				LocalObjectReference: corev1.LocalObjectReference{Name: ca.ConfigMap.Name},
+				Items:                []corev1.KeyToPath{{Key: ca.ConfigMap.Key, Path: "ca.crt"}},
+			}})
+		}
+	}
+	return sources
 }
 
 func (n *PodBuilder) Build() (*corev1.Pod, error) {
@@ -121,46 +149,17 @@ func (n *PodBuilder) Build() (*corev1.Pod, error) {
 		},
 	}
 
-	// Add TLS volumes and mounts if configured
-	if n.TLSSecret != "" {
+	// Add the TLS files, each from its own reference
+	if sources := tlsProjection(n.TLS); len(sources) > 0 {
 		pod.Spec.Volumes = append(pod.Spec.Volumes, corev1.Volume{
-			Name: "tls-certs",
-			VolumeSource: corev1.VolumeSource{
-				Secret: &corev1.SecretVolumeSource{
-					SecretName: n.TLSSecret,
-				},
-			},
+			Name:         "tls-certs",
+			VolumeSource: corev1.VolumeSource{Projected: &corev1.ProjectedVolumeSource{Sources: sources}},
 		})
-		pod.Spec.Containers[0].VolumeMounts = append(
-			pod.Spec.Containers[0].VolumeMounts,
-			corev1.VolumeMount{
-				Name:      "tls-certs",
-				MountPath: "/etc/frp/tls",
-				ReadOnly:  true,
-			},
-		)
-	}
-
-	// Add TLS CA ConfigMap volume if configured separately
-	if n.TLSCAConfigMap != "" && n.TLSSecret == "" {
-		pod.Spec.Volumes = append(pod.Spec.Volumes, corev1.Volume{
-			Name: "tls-ca",
-			VolumeSource: corev1.VolumeSource{
-				ConfigMap: &corev1.ConfigMapVolumeSource{
-					LocalObjectReference: corev1.LocalObjectReference{
-						Name: n.TLSCAConfigMap,
-					},
-				},
-			},
+		pod.Spec.Containers[0].VolumeMounts = append(pod.Spec.Containers[0].VolumeMounts, corev1.VolumeMount{
+			Name:      "tls-certs",
+			MountPath: "/etc/frp/tls",
+			ReadOnly:  true,
 		})
-		pod.Spec.Containers[0].VolumeMounts = append(
-			pod.Spec.Containers[0].VolumeMounts,
-			corev1.VolumeMount{
-				Name:      "tls-ca",
-				MountPath: "/etc/frp/tls",
-				ReadOnly:  true,
-			},
-		)
 	}
 
 	// Apply PodTemplate fields to pod spec
