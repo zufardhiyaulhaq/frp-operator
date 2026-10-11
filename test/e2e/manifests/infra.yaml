@@ -1,0 +1,249 @@
+apiVersion: v1
+kind: Namespace
+metadata: {name: frps}
+---
+apiVersion: v1
+kind: Namespace
+metadata: {name: backends}
+---
+apiVersion: v1
+kind: Namespace
+metadata: {name: egress}
+---
+apiVersion: v1
+kind: Namespace
+metadata: {name: e2e-client}
+---
+# frps-main: token auth, every listener the cases use, and a server certificate. TLS is not
+# forced, so clients with and without trustedCaFile both work.
+apiVersion: v1
+kind: ConfigMap
+metadata: {name: frps-main, namespace: frps}
+data:
+  frps.toml: |
+    bindPort = 7000
+    kcpBindPort = 7000
+    quicBindPort = 7001
+    vhostHTTPPort = 8080
+    vhostHTTPSPort = 8443
+    tcpmuxHTTPConnectPort = 5002
+    auth.method = "token"
+    auth.token = "{{ .Token }}"
+    transport.tls.certFile = "/etc/frps/tls/tls.crt"
+    transport.tls.keyFile = "/etc/frps/tls/tls.key"
+---
+# frps-mtls: trustedCaFile makes frps force TLS and require a client certificate.
+apiVersion: v1
+kind: ConfigMap
+metadata: {name: frps-mtls, namespace: frps}
+data:
+  frps.toml: |
+    bindPort = 7000
+    auth.method = "token"
+    auth.token = "{{ .Token }}"
+    transport.tls.certFile = "/etc/frps/tls/tls.crt"
+    transport.tls.keyFile = "/etc/frps/tls/tls.key"
+    transport.tls.trustedCaFile = "/etc/frps/tls/ca.crt"
+---
+# wss-terminator: frps only accepts ws, so wss needs TLS terminated in front of it.
+apiVersion: v1
+kind: ConfigMap
+metadata: {name: wss-terminator, namespace: frps}
+data:
+  nginx.conf: |
+    worker_processes 1;
+    events {}
+    stream {
+      server {
+        listen 7443 ssl;
+        ssl_certificate     /etc/nginx/tls/tls.crt;
+        ssl_certificate_key /etc/nginx/tls/tls.key;
+        proxy_pass frps-main.frps.svc.cluster.local:7000;
+      }
+    }
+---
+apiVersion: v1
+kind: Service
+metadata: {name: frps-main, namespace: frps}
+spec:
+  selector: {app: frps-main}
+  ports:
+  - {name: bind, port: 7000, protocol: TCP}
+  - {name: kcp, port: 7000, protocol: UDP}
+  - {name: quic, port: 7001, protocol: UDP}
+---
+apiVersion: v1
+kind: Service
+metadata: {name: frps-mtls, namespace: frps}
+spec:
+  selector: {app: frps-mtls}
+  ports:
+  - {name: bind, port: 7000, protocol: TCP}
+---
+apiVersion: v1
+kind: Service
+metadata: {name: wss-terminator, namespace: frps}
+spec:
+  selector: {app: wss-terminator}
+  ports:
+  - {name: wss, port: 7443, protocol: TCP}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: frps-main, namespace: frps}
+spec:
+  replicas: 1
+  selector: {matchLabels: {app: frps-main}}
+  template:
+    metadata: {labels: {app: frps-main}}
+    spec:
+      containers:
+      - name: frps
+        image: fatedier/frps:v0.71.0
+        args: ["-c", "/etc/frps/frps.toml"]
+        readinessProbe: {tcpSocket: {port: 7000}, periodSeconds: 2}
+        volumeMounts:
+        - {name: config, mountPath: /etc/frps/frps.toml, subPath: frps.toml}
+        - {name: tls, mountPath: /etc/frps/tls, readOnly: true}
+      volumes:
+      - {name: config, configMap: {name: frps-main}}
+      - {name: tls, secret: {secretName: frps-tls}}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: frps-mtls, namespace: frps}
+spec:
+  replicas: 1
+  selector: {matchLabels: {app: frps-mtls}}
+  template:
+    metadata: {labels: {app: frps-mtls}}
+    spec:
+      containers:
+      - name: frps
+        image: fatedier/frps:v0.71.0
+        args: ["-c", "/etc/frps/frps.toml"]
+        readinessProbe: {tcpSocket: {port: 7000}, periodSeconds: 2}
+        volumeMounts:
+        - {name: config, mountPath: /etc/frps/frps.toml, subPath: frps.toml}
+        - {name: tls, mountPath: /etc/frps/tls, readOnly: true}
+      volumes:
+      - {name: config, configMap: {name: frps-mtls}}
+      - {name: tls, secret: {secretName: frps-tls}}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: wss-terminator, namespace: frps}
+spec:
+  replicas: 1
+  selector: {matchLabels: {app: wss-terminator}}
+  template:
+    metadata: {labels: {app: wss-terminator}}
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:1.27-alpine
+        readinessProbe: {tcpSocket: {port: 7443}, periodSeconds: 2}
+        volumeMounts:
+        - {name: config, mountPath: /etc/nginx/nginx.conf, subPath: nginx.conf}
+        - {name: tls, mountPath: /etc/nginx/tls, readOnly: true}
+      volumes:
+      - {name: config, configMap: {name: wss-terminator}}
+      - {name: tls, secret: {secretName: frps-tls}}
+---
+# Backends: one pod echoes TCP (9000) and UDP (9001), so one Service selector can carry both.
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: echo, namespace: backends}
+spec:
+  replicas: 1
+  selector: {matchLabels: {app: echo}}
+  template:
+    metadata: {labels: {app: echo}}
+    spec:
+      containers:
+      - name: tcp
+        image: alpine/socat:1.8.0.3
+        args: ["TCP-LISTEN:9000,fork,reuseaddr", "EXEC:cat"]
+        readinessProbe: {tcpSocket: {port: 9000}, periodSeconds: 2}
+      - name: udp
+        image: alpine/socat:1.8.0.3
+        args: ["UDP-RECVFROM:9001,fork", "EXEC:cat"]
+---
+apiVersion: v1
+kind: Service
+metadata: {name: tcp-echo, namespace: backends}
+spec:
+  selector: {app: echo}
+  ports:
+  - {name: tcp, port: 9000, protocol: TCP}
+---
+apiVersion: v1
+kind: Service
+metadata: {name: udp-echo, namespace: backends}
+spec:
+  selector: {app: echo}
+  ports:
+  - {name: udp, port: 9001, protocol: UDP}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: http-echo, namespace: backends}
+spec:
+  replicas: 1
+  selector: {matchLabels: {app: http-echo}}
+  template:
+    metadata: {labels: {app: http-echo}}
+    spec:
+      containers:
+      - name: echo
+        image: mendhak/http-https-echo:42
+        readinessProbe: {httpGet: {path: /, port: 8080}, periodSeconds: 2}
+---
+apiVersion: v1
+kind: Service
+metadata: {name: http-echo, namespace: backends}
+spec:
+  selector: {app: http-echo}
+  ports:
+  - {name: http, port: 80, targetPort: 8080, protocol: TCP}
+  - {name: https, port: 443, targetPort: 8443, protocol: TCP}
+---
+# Egress proxy (http :3128, socks5 :1080) with username/password. It resolves names through
+# cluster DNS, because frpc asks it to reach frps-main by its Service name.
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: egress-proxy, namespace: egress}
+spec:
+  replicas: 1
+  selector: {matchLabels: {app: egress-proxy}}
+  template:
+    metadata: {labels: {app: egress-proxy}}
+    spec:
+      containers:
+      - name: proxy
+        image: tarampampam/3proxy:2.3.0
+        env:
+        - {name: PROXY_LOGIN, value: "{{ .ProxyUser }}"}
+        - {name: PROXY_PASSWORD, value: "{{ .ProxyPassword }}"}
+        - {name: PRIMARY_RESOLVER, value: "{{ .ClusterDNS }}"}
+        - {name: LOG_OUTPUT, value: /dev/stdout}
+        readinessProbe: {tcpSocket: {port: 3128}, periodSeconds: 2}
+---
+apiVersion: v1
+kind: Service
+metadata: {name: egress-proxy, namespace: egress}
+spec:
+  selector: {app: egress-proxy}
+  ports:
+  - {name: http, port: 3128, protocol: TCP}
+  - {name: socks5, port: 1080, protocol: TCP}
+---
+# The "Internet side": every traffic check runs from this pod.
+apiVersion: v1
+kind: Pod
+metadata: {name: client, namespace: e2e-client}
+spec:
+  containers:
+  - name: client
+    image: nicolaka/netshoot:v0.14
+    command: ["sleep", "infinity"]

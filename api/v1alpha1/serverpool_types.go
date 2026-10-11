@@ -59,7 +59,8 @@ type ServerPoolServer struct {
 	AllowedPorts []PortRange `json:"allowedPorts,omitempty"`
 	// +kubebuilder:validation:Enum=tcp;kcp;quic;websocket;wss
 	// +optional
-	// TransportProtocol is the frpc→frps transport (Client.spec.server.protocol).
+	// TransportProtocol is the frpc→frps transport (Client.spec.server.protocol). wss needs a
+	// TLS terminator in front of frps, because frps itself only accepts ws.
 	TransportProtocol *string                          `json:"transportProtocol,omitempty"`
 	Authentication    ClientSpec_Server_Authentication `json:"authentication"`
 	// +optional

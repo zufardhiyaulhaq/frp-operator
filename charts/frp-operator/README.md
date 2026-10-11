@@ -28,6 +28,7 @@ Expose your service in Kubernetes to the Internet with open source FRP!
 **Advanced traffic features**
 - FRP plugins on `Upstream` (e.g. static_file, unix_domain_socket, http_proxy, socks5, https2http, etc.)
 - Transport tuning on `Client` (protocol: tcp/kcp/quic/websocket/wss, pool count, multiplexing, dial timeout/keepalive, egress proxy via `proxyURL` with Secret-sourced `proxyCredentials`, also used for the OIDC token request) and per `Upstream` (encryption, compression, bandwidth limits)
+- `protocol: wss` needs a TLS terminator in front of frps (frps itself only accepts websocket); the e2e suite runs nginx for this
 - Load balancing across TCP, HTTP, and HTTPS upstreams via FRP groups (HTTPS groups need frps >= v0.66.0)
 - Group-level health checks
 
@@ -227,6 +228,7 @@ A Grafana dashboard lives at [`dashboards/frp-operator.json`](https://github.com
 | metrics.serviceMonitor.enabled | bool | `false` |  |
 | metrics.serviceMonitor.interval | string | `"30s"` |  |
 | operator.image | string | `"ghcr.io/zufardhiyaulhaq/frp-operator"` |  |
+| operator.imagePullPolicy | string | `"Always"` | Image pull policy for the operator. `Always` keeps moving tags such as `main` fresh; use `IfNotPresent` for a locally imported image (the e2e suite does). |
 | operator.replica | int | `1` |  |
 | operator.tag | string | `"v0.12.1"` |  |
 | resources.limits.cpu | string | `"200m"` |  |

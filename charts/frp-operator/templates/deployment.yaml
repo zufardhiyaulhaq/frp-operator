@@ -36,7 +36,7 @@ spec:
         command:
         - /manager
         image: "{{ .Values.operator.image }}:{{ .Values.operator.tag }}"
-        imagePullPolicy: Always
+        imagePullPolicy: {{ .Values.operator.imagePullPolicy | default "Always" }}
         env:
         - name: POD_NAMESPACE
           valueFrom:
