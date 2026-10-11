@@ -92,11 +92,16 @@ func TestGeneratedConfigsPassFrpcVerify(t *testing.T) {
 
 var verifyMarker = regexp.MustCompile(`(?m)^### (\S+)$`)
 
-// frpcVerify runs `frpc verify` on every *.toml in dir inside a single container and returns
-// the combined output per file name.
+// frpcVerify runs `frpc verify` on every *.toml in dir inside a single container.
 func frpcVerify(t *testing.T, image, dir string) map[string]string {
+	return binaryVerify(t, image, "frpc", dir)
+}
+
+// binaryVerify runs `<binary> verify` (frpc or frps) on every *.toml in dir inside a single
+// container and returns the combined output per file name.
+func binaryVerify(t *testing.T, image, binary, dir string) map[string]string {
 	t.Helper()
-	script := `for f in /c/*.toml; do echo "### $(basename "$f")"; /usr/bin/frpc verify -c "$f" 2>&1; done`
+	script := `for f in /c/*.toml; do echo "### $(basename "$f")"; /usr/bin/` + binary + ` verify -c "$f" 2>&1; done`
 	cmd := exec.Command("docker", "run", "--rm", "-v", dir+":/c:ro", "--entrypoint", "sh", image, "-c", script)
 	var out bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &out, &out
@@ -159,6 +164,8 @@ var creds = map[string]string{
 	"special":     `pa"ss\w0rd`,
 	"proxy-user":  "svc-frp",
 	"proxy-pass":  "p@ss:w/rd",
+	"username":    "DASH-USER-VAL",
+	"password":    "DASH-PASS-VAL",
 }
 
 func credsSecret() *corev1.Secret {
@@ -433,6 +440,7 @@ type exampleSet struct {
 	objects   []client.Object
 	pools     []*v1.ServerPool
 	services  []*corev1.Service
+	servers   []*v1.Server
 }
 
 var docSeparator = regexp.MustCompile(`(?m)^---\s*$`)
@@ -509,6 +517,10 @@ func loadExamples(t *testing.T) map[string]*exampleSet {
 				o := &corev1.Service{}
 				decode(o)
 				set.services = append(set.services, o)
+			case "Server":
+				o := &v1.Server{}
+				decode(o)
+				set.servers = append(set.servers, o)
 			}
 		}
 		return nil

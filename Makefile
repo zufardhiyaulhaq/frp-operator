@@ -111,10 +111,11 @@ test:
 	go tool cover -html=./output/coverage.out -o ./output/coverage.html
 
 FRPC_IMAGE ?= $(shell sed -n 's/^const frpcImage = "\(.*\)"$$/\1/p' controllers/client_controller.go)
+FRPS_IMAGE ?= $(shell sed -n 's/^const Image = "\(.*\)"$$/\1/p' pkg/frps/names.go)
 
 .PHONY: test-frpc-config
-test-frpc-config: ## Validate generated frpc.toml for every feature and example with the real frpc (requires Docker).
-	FRPC_IMAGE=$(FRPC_IMAGE) go test -tags frpcverify -count=1 ./test/frpcconfig/...
+test-frpc-config: ## Validate every generated frpc.toml and frps.toml (features, examples, ServerPool) with the real frpc/frps (requires Docker).
+	FRPC_IMAGE=$(FRPC_IMAGE) FRPS_IMAGE=$(FRPS_IMAGE) go test -tags frpcverify -count=1 -v ./test/frpcconfig/...
 
 ##@ E2E
 
