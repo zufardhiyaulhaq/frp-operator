@@ -297,6 +297,9 @@ func (r *ClientReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	err = r.Client.Get(context.TODO(), types.NamespacedName{Name: pod.Name, Namespace: pod.Namespace}, createdPod)
 	if err != nil && errors.IsNotFound(err) {
 		log.Info("create pod")
+		if err := r.syncConfigMapForNewPod(ctx, createdConfigMap, configmap); err != nil {
+			return ctrl.Result{}, err
+		}
 		err = r.Client.Create(context.TODO(), pod)
 		if err != nil {
 			r.setCondition(client, status.ConditionTypeReady, metav1.ConditionFalse, status.ReasonPodFailed, err.Error())
@@ -339,15 +342,8 @@ func (r *ClientReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	}
 	if rollWhat != "" {
 		if createdPod.DeletionTimestamp == nil {
-			// createdConfigMap is empty when this reconcile created the ConfigMap: it already holds
-			// the new config.
-			if createdConfigMap.Name != "" && (!reflect.DeepEqual(createdConfigMap.Data, configmap.Data) ||
-				createdConfigMap.Annotations["frp.zufardhiyaulhaq.com/reload-pending"] == "true") {
-				createdConfigMap.Data = configmap.Data
-				delete(createdConfigMap.Annotations, "frp.zufardhiyaulhaq.com/reload-pending")
-				if err := r.Client.Update(ctx, createdConfigMap); err != nil {
-					return ctrl.Result{}, err
-				}
+			if err := r.syncConfigMapForNewPod(ctx, createdConfigMap, configmap); err != nil {
+				return ctrl.Result{}, err
 			}
 			log.Info("frpc "+rollWhat+" changed, deleting pod to recreate it",
 				"currentImage", createdPod.Spec.Containers[0].Image, "desiredImage", pod.Spec.Containers[0].Image)
@@ -518,6 +514,24 @@ func (r *ClientReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Owns(&corev1.ConfigMap{}).
 		Owns(&corev1.Service{}).
 		Complete(r)
+}
+
+// syncConfigMapForNewPod writes the desired config into the existing ConfigMap before a pod is
+// created, so the new frpc starts on it: frpc applies TLS and log settings only at start, and a hot
+// reload after the fact would not. The write clears reload-pending, since the new pod reads the file
+// at start. createdConfigMap is empty when this reconcile created the ConfigMap with the desired
+// config already.
+func (r *ClientReconciler) syncConfigMapForNewPod(ctx context.Context, createdConfigMap, desired *corev1.ConfigMap) error {
+	if createdConfigMap.Name == "" {
+		return nil
+	}
+	if reflect.DeepEqual(createdConfigMap.Data, desired.Data) &&
+		createdConfigMap.Annotations["frp.zufardhiyaulhaq.com/reload-pending"] != "true" {
+		return nil
+	}
+	createdConfigMap.Data = desired.Data
+	delete(createdConfigMap.Annotations, "frp.zufardhiyaulhaq.com/reload-pending")
+	return r.Client.Update(ctx, createdConfigMap)
 }
 
 // updateClientStatus updates the status of a Client resource and refreshes its metrics.

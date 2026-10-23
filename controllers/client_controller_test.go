@@ -471,3 +471,56 @@ func TestReconcile_RollWritesConfigMapFirst(t *testing.T) {
 		})
 	}
 }
+
+// A pod created because none exists (first start, eviction, or a roll whose old pod has gone) must
+// also start on the current config: the ConfigMap is brought up to date before the pod is created.
+func TestReconcile_NewPodStartsOnCurrentConfigMap(t *testing.T) {
+	scheme := runtime.NewScheme()
+	if err := frpv1alpha1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	if err := corev1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	ns, name := "ns-new", "fresh"
+	t.Cleanup(func() { metrics.DeleteClient(ns, name) })
+
+	c := &frpv1alpha1.Client{
+		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: ns},
+		Spec: frpv1alpha1.ClientSpec{
+			Server: frpv1alpha1.ClientSpec_Server{
+				Host: "203.0.113.10", Port: 7000,
+				Authentication: frpv1alpha1.ClientSpec_Server_Authentication{
+					Token: &frpv1alpha1.ClientSpec_Server_Authentication_Token{Secret: frpv1alpha1.Secret{Name: "frp-token", Key: "token"}},
+				},
+			},
+			Log: &frpv1alpha1.LogSpec{Level: "debug"},
+		},
+	}
+	token := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: "frp-token", Namespace: ns}, Data: map[string][]byte{"token": []byte("shh")}}
+	// Left behind by an earlier reconcile; the pod that used it is gone.
+	stale := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{Name: name + "-frpc-config", Namespace: ns,
+			Annotations: map[string]string{"frp.zufardhiyaulhaq.com/reload-pending": "true"}},
+		Data: map[string]string{"config.toml": "# config from before the change"},
+	}
+	k8s := fake.NewClientBuilder().WithScheme(scheme).WithObjects(c, token, stale).WithStatusSubresource(&frpv1alpha1.Client{}).Build()
+	r := &ClientReconciler{Client: k8s, Scheme: scheme, Recorder: record.NewFakeRecorder(10)}
+
+	if _, err := r.Reconcile(context.Background(), ctrl.Request{NamespacedName: types.NamespacedName{Namespace: ns, Name: name}}); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+	if err := k8s.Get(context.Background(), types.NamespacedName{Namespace: ns, Name: name + "-frpc"}, &corev1.Pod{}); err != nil {
+		t.Fatalf("no pod created: %v", err)
+	}
+	cm := &corev1.ConfigMap{}
+	if err := k8s.Get(context.Background(), types.NamespacedName{Namespace: ns, Name: name + "-frpc-config"}, cm); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(cm.Data["config.toml"], `log.level = "debug"`) {
+		t.Errorf("the pod was created on a stale ConfigMap:\n%s", cm.Data["config.toml"])
+	}
+	if cm.Annotations["frp.zufardhiyaulhaq.com/reload-pending"] == "true" {
+		t.Error("the ConfigMap for a new pod is still marked reload-pending")
+	}
+}
