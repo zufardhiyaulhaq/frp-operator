@@ -323,3 +323,151 @@ func TestReconcile_TLSChangeRecreatesPod(t *testing.T) {
 		t.Errorf("the pod was recreated again although TLS did not change (err=%v)", err)
 	}
 }
+
+// frpc applies its log level only at start (a reload does not), so a level change recreates the
+// pod. A pod at the default level carries no annotation, so existing Clients are not rolled.
+func TestReconcile_LogLevelChangeRecreatesPod(t *testing.T) {
+	scheme := runtime.NewScheme()
+	if err := frpv1alpha1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	if err := corev1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	ns, name := "ns-log", "logs"
+	t.Cleanup(func() { metrics.DeleteClient(ns, name) })
+
+	c := &frpv1alpha1.Client{
+		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: ns},
+		Spec: frpv1alpha1.ClientSpec{Server: frpv1alpha1.ClientSpec_Server{
+			Host: "example.com", Port: 7000,
+			Authentication: frpv1alpha1.ClientSpec_Server_Authentication{
+				Token: &frpv1alpha1.ClientSpec_Server_Authentication_Token{Secret: frpv1alpha1.Secret{Name: "frp-token", Key: "token"}},
+			},
+		}},
+	}
+	token := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: "frp-token", Namespace: ns}, Data: map[string][]byte{"token": []byte("shh")}}
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Name: name + "-frpc", Namespace: ns},
+		Spec:       corev1.PodSpec{Containers: []corev1.Container{{Name: "frpc", Image: frpcImage}}},
+		Status:     corev1.PodStatus{Phase: corev1.PodPending},
+	}
+	k8s := fake.NewClientBuilder().WithScheme(scheme).WithObjects(c, token, pod).WithStatusSubresource(&frpv1alpha1.Client{}).Build()
+	r := &ClientReconciler{Client: k8s, Scheme: scheme, Recorder: record.NewFakeRecorder(10)}
+	req := ctrl.Request{NamespacedName: types.NamespacedName{Namespace: ns, Name: name}}
+	podKey := types.NamespacedName{Namespace: ns, Name: name + "-frpc"}
+
+	// Default level: the existing pod is kept.
+	if _, err := r.Reconcile(context.Background(), req); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+	if err := k8s.Get(context.Background(), podKey, &corev1.Pod{}); err != nil {
+		t.Fatalf("a pod at the default log level was recreated: %v", err)
+	}
+
+	// An explicit "info" is the default: the pod is kept too.
+	if err := k8s.Get(context.Background(), req.NamespacedName, c); err != nil {
+		t.Fatal(err)
+	}
+	c.Spec.Log = &frpv1alpha1.LogSpec{Level: "info"}
+	if err := k8s.Update(context.Background(), c); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := r.Reconcile(context.Background(), req); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+	if err := k8s.Get(context.Background(), podKey, &corev1.Pod{}); err != nil {
+		t.Fatalf("a pod at an explicit info level was recreated: %v", err)
+	}
+
+	// debug: the pod is recreated.
+	if err := k8s.Get(context.Background(), req.NamespacedName, c); err != nil {
+		t.Fatal(err)
+	}
+	c.Spec.Log = &frpv1alpha1.LogSpec{Level: "debug"}
+	if err := k8s.Update(context.Background(), c); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := r.Reconcile(context.Background(), req); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+	if err := k8s.Get(context.Background(), podKey, &corev1.Pod{}); err == nil {
+		t.Fatal("the pod kept the old log level")
+	}
+}
+
+// When a pod is recreated (TLS, log level or image change), the new pod must start on the new
+// config: the ConfigMap is written before the pod is deleted, and without reload-pending, because the
+// new pod reads it at start.
+func TestReconcile_RollWritesConfigMapFirst(t *testing.T) {
+	cases := map[string]struct {
+		image  string
+		mutate func(*frpv1alpha1.ClientSpec)
+		want   string
+	}{
+		"TLS change": {image: frpcImage, mutate: func(s *frpv1alpha1.ClientSpec) {
+			s.Server.TLS = &frpv1alpha1.ClientSpec_Server_TLS{
+				Enable:        true,
+				ServerName:    "frps.example.com",
+				TrustedCAFile: &frpv1alpha1.ConfigMapOrSecretRef{Secret: &frpv1alpha1.Secret{Name: "frps-ca", Key: "ca.crt"}},
+			}
+		}, want: `transport.tls.serverName = "frps.example.com"`},
+		"image and log level change": {image: "fatedier/frpc:v0.0.1", mutate: func(s *frpv1alpha1.ClientSpec) {
+			s.Log = &frpv1alpha1.LogSpec{Level: "debug"}
+		}, want: `log.level = "debug"`},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			scheme := runtime.NewScheme()
+			if err := frpv1alpha1.AddToScheme(scheme); err != nil {
+				t.Fatal(err)
+			}
+			if err := corev1.AddToScheme(scheme); err != nil {
+				t.Fatal(err)
+			}
+			ns, cname := "ns-roll", "roll"
+			t.Cleanup(func() { metrics.DeleteClient(ns, cname) })
+
+			c := &frpv1alpha1.Client{
+				ObjectMeta: metav1.ObjectMeta{Name: cname, Namespace: ns},
+				Spec: frpv1alpha1.ClientSpec{Server: frpv1alpha1.ClientSpec_Server{
+					Host: "203.0.113.10", Port: 7000,
+					Authentication: frpv1alpha1.ClientSpec_Server_Authentication{
+						Token: &frpv1alpha1.ClientSpec_Server_Authentication_Token{Secret: frpv1alpha1.Secret{Name: "frp-token", Key: "token"}},
+					},
+				}},
+			}
+			tc.mutate(&c.Spec)
+			token := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: "frp-token", Namespace: ns}, Data: map[string][]byte{"token": []byte("shh")}}
+			ca := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: "frps-ca", Namespace: ns}, Data: map[string][]byte{"ca.crt": []byte("CA")}}
+			stale := &corev1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{Name: cname + "-frpc-config", Namespace: ns},
+				Data:       map[string]string{"config.toml": "# config from before the change"},
+			}
+			pod := &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{Name: cname + "-frpc", Namespace: ns},
+				Spec:       corev1.PodSpec{Containers: []corev1.Container{{Name: "frpc", Image: tc.image}}},
+				Status:     corev1.PodStatus{Phase: corev1.PodPending},
+			}
+			k8s := fake.NewClientBuilder().WithScheme(scheme).WithObjects(c, token, ca, stale, pod).WithStatusSubresource(&frpv1alpha1.Client{}).Build()
+			r := &ClientReconciler{Client: k8s, Scheme: scheme, Recorder: record.NewFakeRecorder(10)}
+
+			if _, err := r.Reconcile(context.Background(), ctrl.Request{NamespacedName: types.NamespacedName{Namespace: ns, Name: cname}}); err != nil {
+				t.Fatalf("reconcile: %v", err)
+			}
+			if err := k8s.Get(context.Background(), types.NamespacedName{Namespace: ns, Name: cname + "-frpc"}, &corev1.Pod{}); err == nil {
+				t.Fatal("the pod was not recreated")
+			}
+			cm := &corev1.ConfigMap{}
+			if err := k8s.Get(context.Background(), types.NamespacedName{Namespace: ns, Name: cname + "-frpc-config"}, cm); err != nil {
+				t.Fatal(err)
+			}
+			if !strings.Contains(cm.Data["config.toml"], tc.want) {
+				t.Errorf("the pod was recreated before the ConfigMap got the new config:\n%s", cm.Data["config.toml"])
+			}
+			if cm.Annotations["frp.zufardhiyaulhaq.com/reload-pending"] == "true" {
+				t.Error("the ConfigMap written during a roll is marked reload-pending")
+			}
+		})
+	}
+}

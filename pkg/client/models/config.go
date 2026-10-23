@@ -50,6 +50,7 @@ type Common struct {
 	ServerAddress        string
 	ServerPort           int
 	ServerProtocol       string
+	LogLevel             string // "info" when unset
 	ClientID             string
 	User                 string
 	ServerAuthentication ServerAuthentication
@@ -624,6 +625,11 @@ func NewConfig(k8sclient client.Client,
 	if clientObject.Spec.ClientID != nil {
 		config.Common.ClientID = *clientObject.Spec.ClientID
 	}
+	logLevel, err := clientObject.Spec.Log.LevelOrDefault()
+	if err != nil {
+		return config, errors.NewBadRequest(err.Error())
+	}
+	config.Common.LogLevel = logLevel
 	config.Common.User = clientObject.Spec.User
 
 	if clientObject.Spec.Server.Protocol != nil {

@@ -2479,3 +2479,23 @@ func TestNewConfig_TLSMissingKeyIsAnError(t *testing.T) {
 		})
 	}
 }
+
+func TestNewConfig_LogLevel(t *testing.T) {
+	fakeClient := createFakeClient(createDefaultTokenSecret("default")).Build()
+
+	clientObj := createBasicClient("default", "c", "frps.example.com", 7000)
+	config, err := NewConfig(fakeClient, clientObj, nil, nil)
+	if err != nil || config.Common.LogLevel != "info" {
+		t.Errorf("default: LogLevel = %q, err = %v; want info", config.Common.LogLevel, err)
+	}
+
+	clientObj.Spec.Log = &frpv1alpha1.LogSpec{Level: "debug"}
+	if config, err = NewConfig(fakeClient, clientObj, nil, nil); err != nil || config.Common.LogLevel != "debug" {
+		t.Errorf("debug: LogLevel = %q, err = %v", config.Common.LogLevel, err)
+	}
+
+	clientObj.Spec.Log = &frpv1alpha1.LogSpec{Level: "verbose"}
+	if _, err = NewConfig(fakeClient, clientObj, nil, nil); err == nil || !strings.Contains(err.Error(), `log.level "verbose"`) {
+		t.Errorf("invalid level: err = %v", err)
+	}
+}
