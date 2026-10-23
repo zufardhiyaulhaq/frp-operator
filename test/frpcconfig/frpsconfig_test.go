@@ -135,6 +135,8 @@ func renderServerFeatureCases(t *testing.T) []rendered {
 				s.Metrics = &v1.ServerSpec_Metrics{Enabled: true}
 			}), expect: []string{"webServer.port = 7500", `webServer.user = "DASH-USER-VAL"`, "enablePrometheus = true",
 				`webServer.tls.certFile = "/etc/frps/dashboard-tls/tls.crt"`}},
+		{name: "server_log_debug", server: base(func(s *v1.ServerSpec) { s.Log = &v1.LogSpec{Level: "debug"} }),
+			expect: []string{`log.to = "console"`, `log.level = "debug"`}},
 		{name: "server_metrics_only", server: base(func(s *v1.ServerSpec) { s.Metrics = &v1.ServerSpec_Metrics{Enabled: true} }),
 			expect: []string{"webServer.port = 7500", "enablePrometheus = true"}},
 	}

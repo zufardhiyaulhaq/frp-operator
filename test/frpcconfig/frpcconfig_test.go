@@ -273,6 +273,10 @@ func featureCases() []featureCase {
 	c.Spec.Server.TLS = &v1.ClientSpec_Server_TLS{Enable: true, ServerName: "frps.example.com", TrustedCAFile: &v1.ConfigMapOrSecretRef{Secret: ptr(sec("ca"))}}
 	add(featureCase{name: "client_tls_server_name", client: c, expect: []string{`transport.tls.serverName = "frps.example.com"`}})
 
+	c = baseClient()
+	c.Spec.Log = &v1.LogSpec{Level: "debug"}
+	add(featureCase{name: "client_log_debug", client: c, expect: []string{`log.to = "console"`, `log.level = "debug"`}})
+
 	for _, tc := range []struct {
 		name string
 		mux  bool

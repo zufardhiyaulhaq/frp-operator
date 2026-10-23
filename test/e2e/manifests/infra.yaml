@@ -99,7 +99,7 @@ spec:
     spec:
       containers:
       - name: frps
-        image: fatedier/frps:v0.71.0
+        image: fatedier/frps:v0.71.1
         args: ["-c", "/etc/frps/frps.toml"]
         readinessProbe: {tcpSocket: {port: 7000}, periodSeconds: 2}
         volumeMounts:
@@ -120,7 +120,7 @@ spec:
     spec:
       containers:
       - name: frps
-        image: fatedier/frps:v0.71.0
+        image: fatedier/frps:v0.71.1
         args: ["-c", "/etc/frps/frps.toml"]
         readinessProbe: {tcpSocket: {port: 7000}, periodSeconds: 2}
         volumeMounts:

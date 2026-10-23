@@ -89,8 +89,8 @@ FRP-specific Prometheus gauges (`frp_client_*`, `frp_proxy_*`) registered on the
 
 ### Key Constants
 
-- FRP image: `fatedier/frpc:v0.71.0`
-- frps image: `fatedier/frps:v0.71.0` (`pkg/frps.Image`; same release as frpc)
+- FRP image: `fatedier/frpc:v0.71.1`
+- frps image: `fatedier/frps:v0.71.1` (`pkg/frps.Image`; same release as frpc)
 - Admin port: 7400
 - Default credentials: frpc-user / frpc-password (configurable via Secrets)
 

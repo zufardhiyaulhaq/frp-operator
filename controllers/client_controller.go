@@ -84,7 +84,7 @@ func tlsHash(tls *frpv1alpha1.ClientSpec_Server_TLS) string {
 }
 
 // frpcImage is the frpc container image managed by the operator.
-const frpcImage = "fatedier/frpc:v0.71.0"
+const frpcImage = "fatedier/frpc:v0.71.1"
 
 // ClientReconciler reconciles a Client object
 type ClientReconciler struct {
