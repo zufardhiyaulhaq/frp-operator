@@ -26,6 +26,7 @@ func testPool(mode string) *frpv1alpha1.ServerPool {
 			}},
 			ClientTemplate: &frpv1alpha1.ServerPoolClientTemplate{
 				PodTemplate: &frpv1alpha1.ClientSpec_PodTemplate{NodeSelector: map[string]string{"zone": "a"}},
+				Log:         &frpv1alpha1.LogSpec{Level: "debug"},
 			},
 		},
 	}
@@ -53,6 +54,9 @@ func TestBuildClient_PerService(t *testing.T) {
 	}
 	if c.Spec.PodTemplate == nil || c.Spec.PodTemplate.NodeSelector["zone"] != "a" {
 		t.Fatalf("podTemplate not applied: %+v", c.Spec.PodTemplate)
+	}
+	if c.Spec.Log == nil || c.Spec.Log.Level != "debug" {
+		t.Fatalf("log not applied: %+v", c.Spec.Log)
 	}
 	for k, v := range map[string]string{LabelManagedBy: ManagedByValue, LabelPool: "prod", LabelServer: "sg-01",
 		LabelServiceUID: "uid-1", LabelServiceNamespace: "default", LabelServiceName: "web"} {
