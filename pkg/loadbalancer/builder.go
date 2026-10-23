@@ -69,6 +69,7 @@ func BuildClient(pool *frpv1alpha1.ServerPool, server frpv1alpha1.ServerPoolServ
 	}
 	if pool.Spec.ClientTemplate != nil {
 		c.Spec.PodTemplate = pool.Spec.ClientTemplate.PodTemplate
+		c.Spec.Log = pool.Spec.ClientTemplate.Log
 	}
 	return c
 }

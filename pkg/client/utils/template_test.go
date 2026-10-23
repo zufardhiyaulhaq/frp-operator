@@ -28,6 +28,7 @@ type testCommon struct {
 	ServerAddress        string
 	ServerPort           int
 	ServerProtocol       string
+	LogLevel             string
 	ClientID             string
 	User                 string
 	ServerAuthentication testServerAuthentication
@@ -1894,4 +1895,16 @@ func TestTemplateTLSServerName(t *testing.T) {
 	output := renderTemplate(t, config)
 
 	assertContains(t, output, `transport.tls.serverName = "frps.example.com"`)
+}
+
+func TestTemplateLog(t *testing.T) {
+	base := testCommon{ServerAddress: "frp.example.com", ServerPort: 7000, AdminAddress: "0.0.0.0", AdminPort: 7400, AdminUsername: "admin", AdminPassword: "secret"}
+
+	output := renderTemplate(t, testConfig{Common: base})
+	assertContains(t, output, `log.to = "console"`)
+	assertContains(t, output, `log.level = "info"`)
+
+	base.LogLevel = "debug"
+	output = renderTemplate(t, testConfig{Common: base})
+	assertContains(t, output, `log.level = "debug"`)
 }

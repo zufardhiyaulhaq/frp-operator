@@ -84,6 +84,9 @@ func Validate(spec *v1.ServerSpec, maxPorts int) (*Ports, error) {
 	if m := spec.Metrics; m != nil && m.ServiceMonitor && !m.Enabled {
 		return nil, fmt.Errorf("metrics.serviceMonitor requires metrics.enabled")
 	}
+	if _, err := spec.Log.LevelOrDefault(); err != nil {
+		return nil, err
+	}
 
 	p := &Ports{Bind: spec.Bind.Port, KCP: deref(spec.Bind.KCPPort), QUIC: deref(spec.Bind.QUICPort), WebServer: WebServerEnabled(spec)}
 	if p.Bind == 0 {

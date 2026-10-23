@@ -40,6 +40,9 @@ func Resolve(ctx context.Context, c client.Client, s *v1.Server, maxPorts int) (
 	}
 	r := &Resolved{Ports: ports, Mounted: map[string][]byte{}}
 	cfg := Config{Ports: ports}
+	if cfg.LogLevel, err = s.Spec.Log.LevelOrDefault(); err != nil {
+		return nil, err
+	}
 	if v := s.Spec.Vhost; v != nil {
 		cfg.SubdomainHost = v.SubdomainHost
 	}

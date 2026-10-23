@@ -59,6 +59,23 @@ spec:
                   that only one client per clientID may be online at a time, so omit it if you run the same
                   manifests against one frps from multiple clusters.
                 type: string
+              log:
+                description: |-
+                  Log configures frpc's logging (always to stdout). Changing it recreates the frpc pod, because
+                  frpc applies log settings only at start.
+                properties:
+                  level:
+                    default: info
+                    description: 'Level is the minimum log level: trace, debug, info
+                      (default), warn or error.'
+                    enum:
+                    - trace
+                    - debug
+                    - info
+                    - warn
+                    - error
+                    type: string
+                type: object
               podTemplate:
                 description: PodTemplate allows customization of the FRP client pod
                 properties:

@@ -74,6 +74,9 @@ type ServerPoolServer struct {
 type ServerPoolClientTemplate struct {
 	// +optional
 	PodTemplate *ClientSpec_PodTemplate `json:"podTemplate,omitempty"`
+	// +optional
+	// Log configures frpc's logging in every generated Client.
+	Log *LogSpec `json:"log,omitempty"`
 }
 
 type AllocatedPort struct {

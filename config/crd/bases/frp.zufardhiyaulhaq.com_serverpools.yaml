@@ -82,6 +82,22 @@ spec:
                 description: ClientTemplate is applied to every Client generated from
                   this pool.
                 properties:
+                  log:
+                    description: Log configures frpc's logging in every generated
+                      Client.
+                    properties:
+                      level:
+                        default: info
+                        description: 'Level is the minimum log level: trace, debug,
+                          info (default), warn or error.'
+                        enum:
+                        - trace
+                        - debug
+                        - info
+                        - warn
+                        - error
+                        type: string
+                    type: object
                   podTemplate:
                     description: ClientSpec_PodTemplate allows customization of the
                       FRP client pod

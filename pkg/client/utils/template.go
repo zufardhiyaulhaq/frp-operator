@@ -2,6 +2,8 @@ package utils
 
 const CLIENT_TEMPLATE = `
 # frpc.toml
+log.to = "console"
+log.level = {{ if .Common.LogLevel }}{{ quote .Common.LogLevel }}{{ else }}"info"{{ end }}
 serverAddr = {{ quote .Common.ServerAddress }}
 serverPort = {{ .Common.ServerPort }}
 {{ if .Common.ClientID }}

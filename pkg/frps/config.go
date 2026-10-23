@@ -14,6 +14,7 @@ type Config struct {
 	TLS           *TLSConfig // nil: frps defaults (random certificate, TLS not forced)
 	SubdomainHost string
 	WebServer     *WebServerConfig // nil: no dashboard, admin API or metrics
+	LogLevel      string           // "" renders "info"
 }
 
 type TLSConfig struct {

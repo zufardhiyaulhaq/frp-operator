@@ -37,6 +37,10 @@ type ClientSpec struct {
 	// +optional
 	// PodTemplate allows customization of the FRP client pod
 	PodTemplate *ClientSpec_PodTemplate `json:"podTemplate,omitempty"`
+	// +optional
+	// Log configures frpc's logging (always to stdout). Changing it recreates the frpc pod, because
+	// frpc applies log settings only at start.
+	Log *LogSpec `json:"log,omitempty"`
 }
 
 type ClientSpec_Server struct {

@@ -60,7 +60,13 @@ const (
 	EventReasonPodImageUpdated    = "PodImageUpdated"
 	EventReasonInvalidConfig      = "InvalidConfig"
 	EventReasonPodTLSUpdated      = "PodTLSUpdated"
+	EventReasonPodLogLevelUpdated = "PodLogLevelUpdated"
 )
+
+// logLevelAnnotation records a non-default log level a Client pod was started with. frpc applies
+// log settings only at start, so a change recreates the pod. A pod at "info" carries no annotation,
+// so pods from before this annotation existed are not recreated.
+const logLevelAnnotation = "frp.zufardhiyaulhaq.com/log-level"
 
 // tlsHashAnnotation records the TLS settings a Client pod was started with. frpc reads its TLS
 // files and serverName only at start (a reload does not apply them), so a change recreates the pod.
@@ -78,7 +84,7 @@ func tlsHash(tls *frpv1alpha1.ClientSpec_Server_TLS) string {
 }
 
 // frpcImage is the frpc container image managed by the operator.
-const frpcImage = "fatedier/frpc:v0.71.0"
+const frpcImage = "fatedier/frpc:v0.71.1"
 
 // ClientReconciler reconciles a Client object
 type ClientReconciler struct {
@@ -277,6 +283,9 @@ func (r *ClientReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	if h := tlsHash(client.Spec.Server.TLS); h != "" {
 		pod.Annotations[tlsHashAnnotation] = h
 	}
+	if config.Common.LogLevel != "info" {
+		pod.Annotations[logLevelAnnotation] = config.Common.LogLevel
+	}
 
 	log.Info("set reference pod")
 	if err := controllerutil.SetControllerReference(client, pod, r.Scheme); err != nil {
@@ -288,6 +297,9 @@ func (r *ClientReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	err = r.Client.Get(context.TODO(), types.NamespacedName{Name: pod.Name, Namespace: pod.Namespace}, createdPod)
 	if err != nil && errors.IsNotFound(err) {
 		log.Info("create pod")
+		if err := r.syncConfigMapForNewPod(ctx, createdConfigMap, configmap); err != nil {
+			return ctrl.Result{}, err
+		}
 		err = r.Client.Create(context.TODO(), pod)
 		if err != nil {
 			r.setCondition(client, status.ConditionTypeReady, metav1.ConditionFalse, status.ReasonPodFailed, err.Error())
@@ -311,39 +323,38 @@ func (r *ClientReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return ctrl.Result{}, err
 	}
 
-	// Roll the pod when the TLS settings changed: frpc reads its TLS files and serverName only at
-	// start. Pods from before this annotation existed are rolled once, which also moves them to the
+	// Roll the pod when something frpc reads only at start changed: the image (an operator upgrade
+	// may render config an older frpc cannot load), the TLS settings (files and serverName) or the log
+	// level. A hot reload would not apply them. The new config is written first, so the new pod starts
+	// on it; pods from before the TLS annotation existed are rolled once, which also moves them to the
 	// per-reference TLS mount.
-	if createdPod.Annotations[tlsHashAnnotation] != pod.Annotations[tlsHashAnnotation] {
-		if createdPod.DeletionTimestamp == nil {
-			log.Info("TLS settings changed, deleting pod to recreate it")
-			if err := r.Client.Delete(context.TODO(), createdPod); err != nil && !errors.IsNotFound(err) {
-				return ctrl.Result{}, err
-			}
-			r.Recorder.Event(client, corev1.EventTypeNormal, EventReasonPodTLSUpdated, "Recreating FRP client pod with the current TLS settings")
-		}
-		r.setCondition(client, status.ConditionTypeReady, metav1.ConditionFalse, status.ReasonPodCreated, "Recreating pod with updated TLS settings")
-		if err := r.updateClientStatus(ctx, client, status.ClientPhasePending, "Recreating pod with updated TLS settings", len(filteredUpstreams), len(filteredVisitors)); err != nil {
-			log.Error(err, "failed to update client status")
-		}
-		metrics.RecordProxies(client.Namespace, client.Name, nil, fmt.Errorf("pod being recreated"))
-		return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
+	var rollWhat, rollEvent, rollMessage string
+	switch {
+	case len(createdPod.Spec.Containers) > 0 && createdPod.Spec.Containers[0].Image != pod.Spec.Containers[0].Image:
+		rollWhat, rollEvent = "image", EventReasonPodImageUpdated
+		rollMessage = fmt.Sprintf("Recreating FRP client pod with image %s", pod.Spec.Containers[0].Image)
+	case createdPod.Annotations[tlsHashAnnotation] != pod.Annotations[tlsHashAnnotation]:
+		rollWhat, rollEvent = "TLS settings", EventReasonPodTLSUpdated
+		rollMessage = "Recreating FRP client pod with the current TLS settings"
+	case createdPod.Annotations[logLevelAnnotation] != pod.Annotations[logLevelAnnotation]:
+		rollWhat, rollEvent = "log level", EventReasonPodLogLevelUpdated
+		rollMessage = fmt.Sprintf("Recreating FRP client pod with log level %s", config.Common.LogLevel)
 	}
-
-	// Roll the pod when the image has changed (e.g. operator upgrade bumped the frpc version).
-	// The config written by this operator may not be loadable by an older frpc binary.
-	if len(createdPod.Spec.Containers) > 0 && createdPod.Spec.Containers[0].Image != pod.Spec.Containers[0].Image {
+	if rollWhat != "" {
 		if createdPod.DeletionTimestamp == nil {
-			log.Info("frpc image changed, deleting pod to recreate it",
-				"current", createdPod.Spec.Containers[0].Image, "desired", pod.Spec.Containers[0].Image)
+			if err := r.syncConfigMapForNewPod(ctx, createdConfigMap, configmap); err != nil {
+				return ctrl.Result{}, err
+			}
+			log.Info("frpc "+rollWhat+" changed, deleting pod to recreate it",
+				"currentImage", createdPod.Spec.Containers[0].Image, "desiredImage", pod.Spec.Containers[0].Image)
 			if err := r.Client.Delete(context.TODO(), createdPod); err != nil && !errors.IsNotFound(err) {
 				return ctrl.Result{}, err
 			}
-			r.Recorder.Event(client, corev1.EventTypeNormal, EventReasonPodImageUpdated,
-				fmt.Sprintf("Recreating FRP client pod with image %s", pod.Spec.Containers[0].Image))
+			r.Recorder.Event(client, corev1.EventTypeNormal, rollEvent, rollMessage)
 		}
-		r.setCondition(client, status.ConditionTypeReady, metav1.ConditionFalse, status.ReasonPodCreated, "Recreating pod with updated image")
-		if err := r.updateClientStatus(ctx, client, status.ClientPhasePending, "Recreating pod with updated image", len(filteredUpstreams), len(filteredVisitors)); err != nil {
+		msg := "Recreating pod with updated " + rollWhat
+		r.setCondition(client, status.ConditionTypeReady, metav1.ConditionFalse, status.ReasonPodCreated, msg)
+		if err := r.updateClientStatus(ctx, client, status.ClientPhasePending, msg, len(filteredUpstreams), len(filteredVisitors)); err != nil {
 			log.Error(err, "failed to update client status")
 		}
 		metrics.RecordProxies(client.Namespace, client.Name, nil, fmt.Errorf("pod being recreated"))
@@ -503,6 +514,24 @@ func (r *ClientReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Owns(&corev1.ConfigMap{}).
 		Owns(&corev1.Service{}).
 		Complete(r)
+}
+
+// syncConfigMapForNewPod writes the desired config into the existing ConfigMap before a pod is
+// created, so the new frpc starts on it: frpc applies TLS and log settings only at start, and a hot
+// reload after the fact would not. The write clears reload-pending, since the new pod reads the file
+// at start. createdConfigMap is empty when this reconcile created the ConfigMap with the desired
+// config already.
+func (r *ClientReconciler) syncConfigMapForNewPod(ctx context.Context, createdConfigMap, desired *corev1.ConfigMap) error {
+	if createdConfigMap.Name == "" {
+		return nil
+	}
+	if reflect.DeepEqual(createdConfigMap.Data, desired.Data) &&
+		createdConfigMap.Annotations["frp.zufardhiyaulhaq.com/reload-pending"] != "true" {
+		return nil
+	}
+	createdConfigMap.Data = desired.Data
+	delete(createdConfigMap.Annotations, "frp.zufardhiyaulhaq.com/reload-pending")
+	return r.Client.Update(ctx, createdConfigMap)
 }
 
 // updateClientStatus updates the status of a Client resource and refreshes its metrics.
