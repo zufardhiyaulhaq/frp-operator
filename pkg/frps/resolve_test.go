@@ -213,3 +213,15 @@ func TestResolve_InvalidSpec(t *testing.T) {
 		t.Fatal("Resolve accepted a NodePort Service")
 	}
 }
+
+func TestResolve_LogLevel(t *testing.T) {
+	token := secret("token", map[string][]byte{"token": []byte("t")})
+	r := mustResolve(t, testServer(func(s *v1.ServerSpec) { s.Log = &v1.LogSpec{Level: "debug"} }), token)
+	if !strings.Contains(r.TOML, `log.level = "debug"`) {
+		t.Errorf("TOML =\n%s", r.TOML)
+	}
+	if _, err := resolve(t, testServer(func(s *v1.ServerSpec) { s.Log = &v1.LogSpec{Level: "verbose"} }), token); err == nil ||
+		!strings.Contains(err.Error(), `log.level "verbose"`) {
+		t.Errorf("invalid level: error = %v", err)
+	}
+}

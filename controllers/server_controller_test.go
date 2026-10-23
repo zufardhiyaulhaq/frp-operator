@@ -546,3 +546,35 @@ func TestServerReconcile_ManualKeepsServicesUntilRestart(t *testing.T) {
 		t.Error("no web Service after the restart")
 	}
 }
+
+// A log-level change is a config change: Automatic restarts frps, Manual waits for the pod to be
+// deleted and keeps the running config untouched.
+func TestServerReconcile_LogLevelChange(t *testing.T) {
+	t.Run("Automatic", func(t *testing.T) {
+		f := newServerFixture(t, testServer(nil), serverTokenSecret("s3cret"))
+		f.mustReconcile()
+		f.updateSpec(func(s *frpv1alpha1.ServerSpec) { s.Log = &frpv1alpha1.LogSpec{Level: "debug"} })
+		f.mustReconcile()
+		if f.podExists() {
+			t.Fatal("frps kept running at the old log level")
+		}
+		f.mustReconcile()
+		if toml := f.secretData("public-frps-config", "frps.toml"); !strings.Contains(toml, `log.level = "debug"`) {
+			t.Errorf("frps.toml =\n%s", toml)
+		}
+	})
+	t.Run("Manual", func(t *testing.T) {
+		f := newServerFixture(t, testServer(func(s *frpv1alpha1.ServerSpec) { s.RestartPolicy = frpv1alpha1.RestartPolicyManual }), serverTokenSecret("s3cret"))
+		f.mustReconcile()
+		before := f.secretData("public-frps-config", "frps.toml")
+		f.updateSpec(func(s *frpv1alpha1.ServerSpec) { s.Log = &frpv1alpha1.LogSpec{Level: "debug"} })
+		f.mustReconcile()
+		if !f.podExists() {
+			t.Fatal("Manual: frps was restarted")
+		}
+		if got := f.secretData("public-frps-config", "frps.toml"); got != before {
+			t.Error("Manual: the running config changed before the pod was deleted")
+		}
+		f.expectCondition("ConfigSynced", metav1.ConditionFalse, frps.ReasonRestartPending)
+	})
+}

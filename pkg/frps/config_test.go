@@ -10,7 +10,9 @@ func TestRender_Minimal(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := "bindAddr = \"0.0.0.0\"\n" +
+	want := "log.to = \"console\"\n" +
+		"log.level = \"info\"\n" +
+		"bindAddr = \"0.0.0.0\"\n" +
 		"bindPort = 7000\n" +
 		"auth.method = \"token\"\n" +
 		"auth.token = \"t\"\n" +
@@ -59,6 +61,16 @@ func TestRender_TLSWithoutCertificate(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !strings.Contains(got, "transport.tls.force = false") || strings.Contains(got, "certFile") || strings.Contains(got, "trustedCaFile") {
+		t.Errorf("Render() =\n%s", got)
+	}
+}
+
+func TestRender_LogLevel(t *testing.T) {
+	got, err := Render(Config{Ports: &Ports{Bind: 7000}, Token: "t", LogLevel: "debug"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(got, `log.to = "console"`) || !strings.Contains(got, `log.level = "debug"`) {
 		t.Errorf("Render() =\n%s", got)
 	}
 }

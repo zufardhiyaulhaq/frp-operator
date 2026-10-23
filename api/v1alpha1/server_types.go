@@ -53,6 +53,9 @@ type ServerSpec struct {
 	// PodTemplate customizes the frps pod. Its securityContext replaces the operator's pod-level
 	// one, including the sysctl that lets the non-root frps bind ports below 1024.
 	PodTemplate *ClientSpec_PodTemplate `json:"podTemplate,omitempty"`
+	// +optional
+	// Log configures frps's logging (always to stdout). Changing it restarts frps.
+	Log *LogSpec `json:"log,omitempty"`
 }
 
 type ServerSpec_Bind struct {

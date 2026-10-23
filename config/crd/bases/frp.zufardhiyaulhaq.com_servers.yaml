@@ -231,6 +231,22 @@ spec:
                     - certificate
                     type: object
                 type: object
+              log:
+                description: Log configures frps's logging (always to stdout). Changing
+                  it restarts frps.
+                properties:
+                  level:
+                    default: info
+                    description: 'Level is the minimum log level: trace, debug, info
+                      (default), warn or error.'
+                    enum:
+                    - trace
+                    - debug
+                    - info
+                    - warn
+                    - error
+                    type: string
+                type: object
               metrics:
                 properties:
                   enabled:

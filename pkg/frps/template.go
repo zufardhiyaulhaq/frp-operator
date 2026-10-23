@@ -2,7 +2,9 @@ package frps
 
 // FRPS_TEMPLATE renders frps.toml from a Config. Every string goes through quote; optional keys
 // are omitted when unset. allowPorts is always rendered (see Ports.AllowRanges).
-const FRPS_TEMPLATE = `bindAddr = "0.0.0.0"
+const FRPS_TEMPLATE = `log.to = "console"
+log.level = {{ if .LogLevel }}{{ quote .LogLevel }}{{ else }}"info"{{ end }}
+bindAddr = "0.0.0.0"
 bindPort = {{ .Ports.Bind }}
 {{- if .Ports.KCP }}
 kcpBindPort = {{ .Ports.KCP }}
