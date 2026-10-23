@@ -12,3 +12,5 @@ spec:
         secret:
           name: client-01-secret
           key: token
+  log:
+    level: info   # trace, debug, info, warn or error; frpc logs to stdout

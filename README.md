@@ -34,6 +34,7 @@ Expose your service in Kubernetes to the Internet with open source FRP!
 - Group-level health checks
 
 **Operational features**
+- `log.level` (`trace`, `debug`, `info` (default), `warn`, `error`) on `Client`, `Server` and a ServerPool's `clientTemplate`; frpc and frps always log to stdout. A level change recreates the frpc pod or restarts frps, because they apply log settings only at start
 - Pod templates on `Client` to set resources, node selectors, tolerations, labels, annotations, affinity, security context, environment variables (e.g. `GOMEMLIMIT`), and more
 - `enabled: false` on `Upstream` and `Visitor` to pause a tunnel without deleting it (its port is released)
 - Wire protocol v2 (`transport.wireProtocol`) on `Client` for an AEAD-encrypted control channel (frps >= v0.69.0)
@@ -135,6 +136,8 @@ spec:
       resources:
         limits:
           memory: 64Mi
+    log:
+      level: info                   # trace|debug|info|warn|error; a change recreates every generated frpc pod at about the same time
 ```
 
 `status.servers[].allocatedPorts` shows which Service holds which port on each server, and the `Ready` condition reports validation problems (missing token Secret, duplicate or invalid server names, bad `allowedPorts`).
@@ -235,6 +238,8 @@ spec:
     enabled: true                   # UI + admin API on 7500, through its own Service only
   metrics:
     enabled: true                   # /metrics behind the dashboard login
+  log:
+    level: info                     # trace|debug|info|warn|error, to stdout; a change restarts frps (Manual: waits for you)
 ```
 
 | Status | Meaning |

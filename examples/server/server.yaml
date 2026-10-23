@@ -44,3 +44,5 @@ spec:
     enabled: true
   metrics:
     enabled: true
+  log:
+    level: info   # trace, debug, info, warn or error; frps logs to stdout
