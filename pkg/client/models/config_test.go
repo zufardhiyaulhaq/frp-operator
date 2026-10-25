@@ -2499,3 +2499,31 @@ func TestNewConfig_LogLevel(t *testing.T) {
 		t.Errorf("invalid level: err = %v", err)
 	}
 }
+
+func TestNewConfig_HTTPSAndTCPMUXSubdomain(t *testing.T) {
+	fakeClient := createFakeClient(createDefaultTokenSecret("default")).Build()
+	clientObj := createBasicClient("default", "c", "frps.example.com", 7000)
+	upstreams := []frpv1alpha1.Upstream{
+		{ObjectMeta: metav1.ObjectMeta{Name: "pay"}, Spec: frpv1alpha1.UpstreamSpec{Client: "c",
+			HTTPS: &frpv1alpha1.UpstreamSpec_HTTPS{Host: "pay.svc", Port: 443, Subdomain: "pay"}}},
+		{ObjectMeta: metav1.ObjectMeta{Name: "ssh"}, Spec: frpv1alpha1.UpstreamSpec{Client: "c",
+			TCPMUX: &frpv1alpha1.UpstreamSpec_TCPMUX{Host: "bastion.svc", Port: 22, Multiplexer: "httpconnect", Subdomain: "ssh"}}},
+	}
+
+	config, err := NewConfig(fakeClient, clientObj, upstreams, nil)
+	if err != nil {
+		t.Fatalf("NewConfig() error = %v", err)
+	}
+	got := map[string]string{}
+	for _, u := range config.Upstreams {
+		switch u.Type {
+		case HTTPS:
+			got[u.Name] = u.HTTPS.Subdomain
+		case TCPMUX:
+			got[u.Name] = u.TCPMUX.Subdomain
+		}
+	}
+	if got["pay"] != "pay" || got["ssh"] != "ssh" {
+		t.Errorf("subdomains = %v, want pay=pay, ssh=ssh", got)
+	}
+}

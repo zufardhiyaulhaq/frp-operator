@@ -78,6 +78,7 @@ type testUpstreamTCPMUX struct {
 	Host          string
 	Port          int
 	Multiplexer   string
+	Subdomain     string
 	CustomDomains []string
 	Transport     *testTransport
 }
@@ -159,6 +160,7 @@ type testUpstreamHTTP struct {
 type testUpstreamHTTPS struct {
 	Host          string
 	Port          int
+	Subdomain     string
 	CustomDomains []string
 	ProxyProtocol *string
 	Transport     *testTransport
@@ -1907,4 +1909,36 @@ func TestTemplateLog(t *testing.T) {
 	base.LogLevel = "debug"
 	output = renderTemplate(t, testConfig{Common: base})
 	assertContains(t, output, `log.level = "debug"`)
+}
+
+func domainTestConfig(u testUpstream) testConfig {
+	return testConfig{
+		Common:    testCommon{ServerAddress: "frp.example.com", ServerPort: 7000, AdminAddress: "0.0.0.0", AdminPort: 7400, AdminUsername: "admin", AdminPassword: "secret"},
+		Upstreams: []testUpstream{u},
+	}
+}
+
+func TestTemplateHTTPSSubdomain(t *testing.T) {
+	https := func(sub string, domains ...string) testConfig {
+		return domainTestConfig(testUpstream{Name: "pay", Type: 6, HTTPS: testUpstreamHTTPS{Host: "pay.svc", Port: 443, Subdomain: sub, CustomDomains: domains}})
+	}
+
+	output := renderTemplate(t, https("pay"))
+	assertContains(t, output, `subdomain = "pay"`)
+	assertNotContains(t, output, `customDomains`)
+
+	output = renderTemplate(t, https("", "pay.mycompany.com"))
+	assertContains(t, output, `customDomains = ["pay.mycompany.com"]`)
+	assertNotContains(t, output, `subdomain`)
+
+	output = renderTemplate(t, https("pay", "pay.mycompany.com"))
+	assertContains(t, output, `subdomain = "pay"`)
+	assertContains(t, output, `customDomains = ["pay.mycompany.com"]`)
+}
+
+func TestTemplateTCPMUXSubdomain(t *testing.T) {
+	output := renderTemplate(t, domainTestConfig(testUpstream{Name: "ssh", Type: 7,
+		TCPMUX: testUpstreamTCPMUX{Host: "bastion.svc", Port: 22, Multiplexer: "httpconnect", Subdomain: "ssh"}}))
+	assertContains(t, output, `subdomain = "ssh"`)
+	assertNotContains(t, output, `customDomains`)
 }

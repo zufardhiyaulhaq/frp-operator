@@ -155,6 +155,7 @@ type Upstream_TCPMUX struct {
 	Host          string
 	Port          int
 	Multiplexer   string
+	Subdomain     string
 	CustomDomains []string
 	Transport     *ProxyTransport
 }
@@ -326,6 +327,7 @@ type Upstream_HTTP_HealthCheck struct {
 type Upstream_HTTPS struct {
 	Host          string
 	Port          int
+	Subdomain     string
 	CustomDomains []string
 	ProxyProtocol *string
 	Transport     *ProxyTransport
@@ -982,6 +984,7 @@ func NewConfig(k8sclient client.Client,
 			upstream.Type = HTTPS
 			upstream.HTTPS.Host = upstreamObject.Spec.HTTPS.Host
 			upstream.HTTPS.Port = upstreamObject.Spec.HTTPS.Port
+			upstream.HTTPS.Subdomain = upstreamObject.Spec.HTTPS.Subdomain
 			upstream.HTTPS.CustomDomains = upstreamObject.Spec.HTTPS.CustomDomains
 
 			if upstreamObject.Spec.HTTPS.ProxyProtocol != nil {
@@ -1002,6 +1005,7 @@ func NewConfig(k8sclient client.Client,
 			upstream.TCPMUX.Host = upstreamObject.Spec.TCPMUX.Host
 			upstream.TCPMUX.Port = upstreamObject.Spec.TCPMUX.Port
 			upstream.TCPMUX.Multiplexer = upstreamObject.Spec.TCPMUX.Multiplexer
+			upstream.TCPMUX.Subdomain = upstreamObject.Spec.TCPMUX.Subdomain
 			upstream.TCPMUX.CustomDomains = upstreamObject.Spec.TCPMUX.CustomDomains
 
 			upstream.TCPMUX.Transport = newProxyTransport(upstreamObject.Spec.TCPMUX.Transport)

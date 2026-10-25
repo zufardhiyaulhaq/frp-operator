@@ -385,6 +385,15 @@ func featureCases() []featureCase {
 	add(featureCase{name: "tcpmux_maximal", upstream: []v1.Upstream{upstream("mux-max", v1.UpstreamSpec{TCPMUX: &v1.UpstreamSpec_TCPMUX{
 		Host: "svc", Port: 22, Multiplexer: "httpconnect", CustomDomains: []string{"mux.example.com"}, Transport: proxyTransport(),
 	}})}, expect: append([]string{`type = "tcpmux"`, `multiplexer = "httpconnect"`, `customDomains = ["mux.example.com"]`}, proxyTransportExpect...)})
+	add(featureCase{name: "https_subdomain", upstream: []v1.Upstream{upstream("https-sub", v1.UpstreamSpec{HTTPS: &v1.UpstreamSpec_HTTPS{
+		Host: "pay.ns.svc", Port: 443, Subdomain: "pay",
+	}})}, expect: []string{`type = "https"`, `subdomain = "pay"`}})
+	add(featureCase{name: "https_subdomain_and_domains", upstream: []v1.Upstream{upstream("https-both", v1.UpstreamSpec{HTTPS: &v1.UpstreamSpec_HTTPS{
+		Host: "pay.ns.svc", Port: 443, Subdomain: "pay", CustomDomains: []string{"pay.mycompany.com"},
+	}})}, expect: []string{`subdomain = "pay"`, `customDomains = ["pay.mycompany.com"]`}})
+	add(featureCase{name: "tcpmux_subdomain", upstream: []v1.Upstream{upstream("mux-sub", v1.UpstreamSpec{TCPMUX: &v1.UpstreamSpec_TCPMUX{
+		Host: "bastion.ns.svc", Port: 22, Multiplexer: "httpconnect", Subdomain: "ssh",
+	}})}, expect: []string{`type = "tcpmux"`, `subdomain = "ssh"`}})
 
 	// --- Visitors ---
 	add(featureCase{name: "visitor_stcp", visitor: []v1.Visitor{visitor("v-stcp", v1.VisitorSpec{STCP: &v1.VisitorSpec_STCP{

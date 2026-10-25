@@ -311,6 +311,10 @@ enabled = false
 localIP = {{ quote $upstream.HTTPS.Host }}
 localPort = {{ $upstream.HTTPS.Port }}
 
+{{ if $upstream.HTTPS.Subdomain }}
+subdomain = {{ quote $upstream.HTTPS.Subdomain }}
+{{ end }}
+
 {{ if $upstream.HTTPS.CustomDomains }}
 customDomains = [{{ range $i, $d := $upstream.HTTPS.CustomDomains }}{{ if $i }}, {{ end }}{{ quote $d }}{{ end }}]
 {{ end }}
@@ -338,6 +342,10 @@ enabled = false
 multiplexer = {{ quote $upstream.TCPMUX.Multiplexer }}
 localIP = {{ quote $upstream.TCPMUX.Host }}
 localPort = {{ $upstream.TCPMUX.Port }}
+
+{{ if $upstream.TCPMUX.Subdomain }}
+subdomain = {{ quote $upstream.TCPMUX.Subdomain }}
+{{ end }}
 
 {{ if $upstream.TCPMUX.CustomDomains }}
 customDomains = [{{ range $i, $d := $upstream.TCPMUX.CustomDomains }}{{ if $i }}, {{ end }}{{ quote $d }}{{ end }}]
