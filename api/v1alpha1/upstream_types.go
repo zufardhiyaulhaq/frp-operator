@@ -49,8 +49,15 @@ type UpstreamSpec_TCPMUX struct {
 	Host string `json:"host"`
 	Port int    `json:"port"`
 	// +kubebuilder:validation:Enum=httpconnect
-	Multiplexer   string   `json:"multiplexer"`
-	CustomDomains []string `json:"customDomains"`
+	Multiplexer string `json:"multiplexer"`
+	// +kubebuilder:validation:Pattern=`^[^.*]+$`
+	// +optional
+	// Subdomain is one label (no "." or "*"); frps serves it as "<subdomain>.<subDomainHost>". Names
+	// under the frps's subDomainHost can only be claimed this way, not with customDomains.
+	Subdomain string `json:"subdomain,omitempty"`
+	// +optional
+	// CustomDomains are full hostnames you own. Set customDomains or subdomain (or both).
+	CustomDomains []string `json:"customDomains,omitempty"`
 	// +optional
 	Transport *UpstreamSpec_TCP_Transport `json:"transport,omitempty"`
 }
@@ -100,7 +107,10 @@ type UpstreamSpec_XTCP_SecretKey struct {
 type UpstreamSpec_HTTP struct {
 	Host string `json:"host"`
 	Port int    `json:"port"`
+	// +kubebuilder:validation:Pattern=`^[^.*]+$`
 	// +optional
+	// Subdomain is one label (no "." or "*"); frps serves it as "<subdomain>.<subDomainHost>". Names
+	// under the frps's subDomainHost can only be claimed this way, not with customDomains.
 	Subdomain string `json:"subdomain,omitempty"`
 	// +optional
 	CustomDomains []string `json:"customDomains,omitempty"`
@@ -139,9 +149,17 @@ type UpstreamSpec_HTTP_HealthCheck struct {
 }
 
 type UpstreamSpec_HTTPS struct {
-	Host          string   `json:"host"`
-	Port          int      `json:"port"`
-	CustomDomains []string `json:"customDomains"`
+	Host string `json:"host"`
+	Port int    `json:"port"`
+	// +kubebuilder:validation:Pattern=`^[^.*]+$`
+	// +optional
+	// Subdomain is one label (no "." or "*"); frps serves it as "<subdomain>.<subDomainHost>". Names
+	// under the frps's subDomainHost can only be claimed this way, not with customDomains.
+	Subdomain string `json:"subdomain,omitempty"`
+	// +optional
+	// CustomDomains are full hostnames you own. Set customDomains or subdomain (or both). TLS passes
+	// through frps to the backend, which holds the certificate.
+	CustomDomains []string `json:"customDomains,omitempty"`
 	// +kubebuilder:validation:Enum=v1;v2
 	// +optional
 	ProxyProtocol *string `json:"proxyProtocol,omitempty"`

@@ -155,6 +155,7 @@ type Upstream_TCPMUX struct {
 	Host          string
 	Port          int
 	Multiplexer   string
+	Subdomain     string
 	CustomDomains []string
 	Transport     *ProxyTransport
 }
@@ -326,6 +327,7 @@ type Upstream_HTTP_HealthCheck struct {
 type Upstream_HTTPS struct {
 	Host          string
 	Port          int
+	Subdomain     string
 	CustomDomains []string
 	ProxyProtocol *string
 	Transport     *ProxyTransport
@@ -516,6 +518,33 @@ func validateVisitorPorts(visitorObjects []frpv1alpha1.Visitor) error {
 // spec.client across namespaces, so two Upstreams named the same in different namespaces
 // would otherwise collide. Disabled upstreams still count: frpc validates names before
 // applying `enabled`.
+// validateUpstreamDomains requires customDomains or subdomain (or both) on every enabled http, https
+// and tcpmux Upstream: frpc refuses such a proxy otherwise. Disabled Upstreams are skipped, as frpc
+// drops them before validating.
+func validateUpstreamDomains(upstreamObjects []frpv1alpha1.Upstream) error {
+	for _, u := range upstreamObjects {
+		if !isEnabled(u.Spec.Enabled) {
+			continue
+		}
+		var kind, subdomain string
+		var customDomains []string
+		switch {
+		case u.Spec.HTTP != nil:
+			kind, subdomain, customDomains = "http", u.Spec.HTTP.Subdomain, u.Spec.HTTP.CustomDomains
+		case u.Spec.HTTPS != nil:
+			kind, subdomain, customDomains = "https", u.Spec.HTTPS.Subdomain, u.Spec.HTTPS.CustomDomains
+		case u.Spec.TCPMUX != nil:
+			kind, subdomain, customDomains = "tcpmux", u.Spec.TCPMUX.Subdomain, u.Spec.TCPMUX.CustomDomains
+		default:
+			continue
+		}
+		if subdomain == "" && len(customDomains) == 0 {
+			return errors.NewBadRequest(fmt.Sprintf("upstream %q: %s needs customDomains or subdomain", u.Name, kind))
+		}
+	}
+	return nil
+}
+
 func validateUpstreamNames(upstreamObjects []frpv1alpha1.Upstream) error {
 	seen := make(map[string]frpv1alpha1.Upstream) // proxy name -> first upstream with that name
 
@@ -598,6 +627,11 @@ func NewConfig(k8sclient client.Client,
 	}
 
 	// Validate that no duplicate names exist for upstreams (frpc rejects duplicate proxy names)
+	// Validate that http, https and tcpmux upstreams name a domain (frpc rejects them otherwise)
+	if err := validateUpstreamDomains(upstreamObjects); err != nil {
+		return Config{}, err
+	}
+
 	if err := validateUpstreamNames(upstreamObjects); err != nil {
 		return Config{}, err
 	}
@@ -982,6 +1016,7 @@ func NewConfig(k8sclient client.Client,
 			upstream.Type = HTTPS
 			upstream.HTTPS.Host = upstreamObject.Spec.HTTPS.Host
 			upstream.HTTPS.Port = upstreamObject.Spec.HTTPS.Port
+			upstream.HTTPS.Subdomain = upstreamObject.Spec.HTTPS.Subdomain
 			upstream.HTTPS.CustomDomains = upstreamObject.Spec.HTTPS.CustomDomains
 
 			if upstreamObject.Spec.HTTPS.ProxyProtocol != nil {
@@ -1002,6 +1037,7 @@ func NewConfig(k8sclient client.Client,
 			upstream.TCPMUX.Host = upstreamObject.Spec.TCPMUX.Host
 			upstream.TCPMUX.Port = upstreamObject.Spec.TCPMUX.Port
 			upstream.TCPMUX.Multiplexer = upstreamObject.Spec.TCPMUX.Multiplexer
+			upstream.TCPMUX.Subdomain = upstreamObject.Spec.TCPMUX.Subdomain
 			upstream.TCPMUX.CustomDomains = upstreamObject.Spec.TCPMUX.CustomDomains
 
 			upstream.TCPMUX.Transport = newProxyTransport(upstreamObject.Spec.TCPMUX.Transport)

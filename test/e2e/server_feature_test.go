@@ -131,3 +131,35 @@ func TestServerInvalidConfig(t *testing.T) {
 	must(t, env.Kube.Update(context.Background(), secret))
 	c.waitServer("public", "Ready", metav1.ConditionTrue, "")
 }
+
+// TestServerSubdomain: on a Server with vhost.subdomainHost, http and https Upstreams claim names
+// under it with subdomain (frps rejects them as customDomains) — issue #16.
+func TestServerSubdomain(t *testing.T) {
+	c := newCase(t, "server-sub")
+	c.Server("public", func(s *frpv1alpha1.ServerSpec) {
+		s.Authentication = &frpv1alpha1.ServerSpec_Authentication{
+			Token: &frpv1alpha1.ClientSpec_Server_Authentication_Token{Secret: frpv1alpha1.Secret{Name: "frps-token", Key: "token"}},
+		}
+		s.Vhost = &frpv1alpha1.ServerSpec_Vhost{HTTPPort: ptr(int32(8080)), HTTPSPort: ptr(int32(8443)), SubdomainHost: "e2e.test"}
+	})
+	srv := c.waitServer("public", "Ready", metav1.ConditionTrue, "")
+
+	c.Client("frpc", func(s *frpv1alpha1.ClientSpec_Server) { s.Host = srv.Status.Address })
+	web := c.Upstream("frpc", "web", frpv1alpha1.UpstreamSpec{HTTP: &frpv1alpha1.UpstreamSpec_HTTP{
+		Host: httpEchoHost, Port: 80, Subdomain: "web",
+	}})
+	secure := c.Upstream("frpc", "secure", frpv1alpha1.UpstreamSpec{HTTPS: &frpv1alpha1.UpstreamSpec_HTTPS{
+		Host: httpEchoHost, Port: 443, Subdomain: "secure",
+	}})
+	c.waitClientSynced("frpc")
+	c.waitProxyRunning("frpc", web)
+	c.waitProxyRunning("frpc", secure)
+
+	svc := &corev1.Service{}
+	must(t, env.Kube.Get(context.Background(), client.ObjectKey{Namespace: c.NS, Name: "public-frps"}, svc))
+	ip := svc.Spec.ClusterIP
+	expectBody(t, "http via subdomain",
+		fmt.Sprintf("--resolve web.e2e.test:8080:%s http://web.e2e.test:8080/hello", ip), `"path": "/hello"`)
+	expectBody(t, "https via subdomain, TLS passed through to the backend",
+		fmt.Sprintf("-k --resolve secure.e2e.test:8443:%s https://secure.e2e.test:8443/hello", ip), `"path": "/hello"`)
+}

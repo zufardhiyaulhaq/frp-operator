@@ -2499,3 +2499,71 @@ func TestNewConfig_LogLevel(t *testing.T) {
 		t.Errorf("invalid level: err = %v", err)
 	}
 }
+
+func TestNewConfig_HTTPSAndTCPMUXSubdomain(t *testing.T) {
+	fakeClient := createFakeClient(createDefaultTokenSecret("default")).Build()
+	clientObj := createBasicClient("default", "c", "frps.example.com", 7000)
+	upstreams := []frpv1alpha1.Upstream{
+		{ObjectMeta: metav1.ObjectMeta{Name: "pay"}, Spec: frpv1alpha1.UpstreamSpec{Client: "c",
+			HTTPS: &frpv1alpha1.UpstreamSpec_HTTPS{Host: "pay.svc", Port: 443, Subdomain: "pay"}}},
+		{ObjectMeta: metav1.ObjectMeta{Name: "ssh"}, Spec: frpv1alpha1.UpstreamSpec{Client: "c",
+			TCPMUX: &frpv1alpha1.UpstreamSpec_TCPMUX{Host: "bastion.svc", Port: 22, Multiplexer: "httpconnect", Subdomain: "ssh"}}},
+	}
+
+	config, err := NewConfig(fakeClient, clientObj, upstreams, nil)
+	if err != nil {
+		t.Fatalf("NewConfig() error = %v", err)
+	}
+	got := map[string]string{}
+	for _, u := range config.Upstreams {
+		switch u.Type {
+		case HTTPS:
+			got[u.Name] = u.HTTPS.Subdomain
+		case TCPMUX:
+			got[u.Name] = u.TCPMUX.Subdomain
+		}
+	}
+	if got["pay"] != "pay" || got["ssh"] != "ssh" {
+		t.Errorf("subdomains = %v, want pay=pay, ssh=ssh", got)
+	}
+}
+
+// http, https and tcpmux need customDomains or subdomain (or both); a paused Upstream is skipped,
+// as frpc drops disabled proxies before validating them.
+func TestNewConfig_DomainRule(t *testing.T) {
+	no := false
+	cases := []struct {
+		name    string
+		spec    frpv1alpha1.UpstreamSpec
+		wantErr bool
+	}{
+		{"http neither", frpv1alpha1.UpstreamSpec{HTTP: &frpv1alpha1.UpstreamSpec_HTTP{Host: "h", Port: 80}}, true},
+		{"https neither", frpv1alpha1.UpstreamSpec{HTTPS: &frpv1alpha1.UpstreamSpec_HTTPS{Host: "h", Port: 443}}, true},
+		{"tcpmux neither", frpv1alpha1.UpstreamSpec{TCPMUX: &frpv1alpha1.UpstreamSpec_TCPMUX{Host: "h", Port: 22, Multiplexer: "httpconnect"}}, true},
+		{"http subdomain", frpv1alpha1.UpstreamSpec{HTTP: &frpv1alpha1.UpstreamSpec_HTTP{Host: "h", Port: 80, Subdomain: "web"}}, false},
+		{"http customDomains", frpv1alpha1.UpstreamSpec{HTTP: &frpv1alpha1.UpstreamSpec_HTTP{Host: "h", Port: 80, CustomDomains: []string{"web.mycompany.com"}}}, false},
+		{"https subdomain", frpv1alpha1.UpstreamSpec{HTTPS: &frpv1alpha1.UpstreamSpec_HTTPS{Host: "h", Port: 443, Subdomain: "pay"}}, false},
+		{"https customDomains", frpv1alpha1.UpstreamSpec{HTTPS: &frpv1alpha1.UpstreamSpec_HTTPS{Host: "h", Port: 443, CustomDomains: []string{"pay.mycompany.com"}}}, false},
+		{"https both", frpv1alpha1.UpstreamSpec{HTTPS: &frpv1alpha1.UpstreamSpec_HTTPS{Host: "h", Port: 443, Subdomain: "pay", CustomDomains: []string{"pay.mycompany.com"}}}, false},
+		{"tcpmux subdomain", frpv1alpha1.UpstreamSpec{TCPMUX: &frpv1alpha1.UpstreamSpec_TCPMUX{Host: "h", Port: 22, Multiplexer: "httpconnect", Subdomain: "ssh"}}, false},
+		{"tcpmux customDomains", frpv1alpha1.UpstreamSpec{TCPMUX: &frpv1alpha1.UpstreamSpec_TCPMUX{Host: "h", Port: 22, Multiplexer: "httpconnect", CustomDomains: []string{"ssh.mycompany.com"}}}, false},
+		{"https neither but paused", frpv1alpha1.UpstreamSpec{Enabled: &no, HTTPS: &frpv1alpha1.UpstreamSpec_HTTPS{Host: "h", Port: 443}}, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			fakeClient := createFakeClient(createDefaultTokenSecret("default")).Build()
+			clientObj := createBasicClient("default", "c", "frps.example.com", 7000)
+			tc.spec.Client = "c"
+			up := []frpv1alpha1.Upstream{{ObjectMeta: metav1.ObjectMeta{Name: "site"}, Spec: tc.spec}}
+
+			_, err := NewConfig(fakeClient, clientObj, up, nil)
+			if tc.wantErr {
+				if err == nil || !strings.Contains(err.Error(), `upstream "site"`) || !strings.Contains(err.Error(), "needs customDomains or subdomain") {
+					t.Fatalf("NewConfig() error = %v, want the domain rule", err)
+				}
+			} else if err != nil {
+				t.Fatalf("NewConfig() error = %v", err)
+			}
+		})
+	}
+}
