@@ -6416,7 +6416,9 @@ spec:
                     minimum: 1
                     type: integer
                   subdomainHost:
-                    description: SubdomainHost lets HTTP/HTTPS Upstreams use "<subdomain>.<subdomainHost>".
+                    description: |-
+                      SubdomainHost lets HTTP, HTTPS and TCPMUX Upstreams use "<subdomain>.<subdomainHost>". frps then
+                      rejects customDomains under it: those names can only be claimed with subdomain.
                     type: string
                   tcpmuxPort:
                     format: int32

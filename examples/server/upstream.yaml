@@ -10,3 +10,17 @@ spec:
     port: 8080
     server:
       port: 8000
+---
+# Private cluster: HTTPS on pay.example.com, under the Server's vhost.subdomainHost. Names under
+# subdomainHost can only be claimed with subdomain (frps rejects them as customDomains). TLS passes
+# through to the backend, which holds the certificate for pay.example.com.
+apiVersion: frp.zufardhiyaulhaq.com/v1alpha1
+kind: Upstream
+metadata:
+  name: pay
+spec:
+  client: to-public-01
+  https:
+    host: pay.default.svc.cluster.local
+    port: 443
+    subdomain: pay

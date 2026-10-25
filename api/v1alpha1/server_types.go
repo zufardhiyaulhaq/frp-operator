@@ -116,7 +116,8 @@ type ServerSpec_Vhost struct {
 	// +optional
 	TCPMuxPort *int32 `json:"tcpmuxPort,omitempty"`
 	// +optional
-	// SubdomainHost lets HTTP/HTTPS Upstreams use "<subdomain>.<subdomainHost>".
+	// SubdomainHost lets HTTP, HTTPS and TCPMUX Upstreams use "<subdomain>.<subdomainHost>". frps then
+	// rejects customDomains under it: those names can only be claimed with subdomain.
 	SubdomainHost string `json:"subdomainHost,omitempty"`
 }
 

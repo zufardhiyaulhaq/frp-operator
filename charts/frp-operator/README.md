@@ -17,7 +17,7 @@ Expose your service in Kubernetes to the Internet with open source FRP!
 - `TCP` and `UDP` — straightforward port forwarding with optional health checks and bandwidth limits
 - `STCP` — secret-key TCP, private to clients that share the key (with `allowUsers`)
 - `XTCP` — encrypted peer-to-peer with NAT traversal, including the `enableAssistedAddrs` toggle for STUN-only or full address discovery, and an STCP fallback visitor
-- `HTTP` / `HTTPS` — virtual-host routing, custom headers, locations, basic auth, and per-route health checks
+- `HTTP` / `HTTPS` — virtual-host routing, custom headers, locations, basic auth, and per-route health checks; names come from `customDomains` or `subdomain` (see [Domains](#domains-customdomains-or-subdomain))
 - `TCPMUX` — multiplexed TCP for sharing a single server port across upstreams
 
 **Secure access to the FRP Server**
@@ -99,6 +99,35 @@ nginx   17m
 3. access the URL
 ```console
 http://178.128.100.87:8080/
+```
+
+## Domains: `customDomains` or `subdomain`
+
+`http`, `https` and `tcpmux` Upstreams are routed by hostname on frps's shared vhost ports. Each needs `customDomains` **or** `subdomain` **or both**; with neither, the Client reports `ConfigSynced=False/InvalidConfig`.
+
+| | `customDomains` | `subdomain` |
+|---|---|---|
+| You write | full hostnames: `["zufardhiyaulhaq.com", "www.zufardhiyaulhaq.com"]` | one label: `pay` (no `.` or `*`) |
+| Served as | exactly those names | `<label>.<frps subDomainHost>`, e.g. `pay.example.com` |
+| Who owns the domain | you | the frps operator |
+| DNS | one record per name, pointing at frps | one wildcard `*.example.com`, set up once by the frps operator |
+
+frps reserves names under its `subDomainHost` for `subdomain`: `customDomains: ["pay.example.com"]` is rejected when frps has `subDomainHost = example.com`. Use `subdomain: pay` instead. `subdomain` needs an frps with `subDomainHost` (on a [`Server`](#server-frps): `vhost.subdomainHost`).
+
+frps never terminates TLS for websites: `http` is plain HTTP end to end, and `https` passes TLS through by SNI, so the backend Service holds the certificate for whichever name it gets.
+
+```yaml
+apiVersion: frp.zufardhiyaulhaq.com/v1alpha1
+kind: Upstream
+metadata:
+  name: pay
+spec:
+  client: edge
+  https:
+    host: pay.default.svc.cluster.local
+    port: 443
+    subdomain: pay                          # → pay.example.com
+    customDomains: ["pay.mycompany.com"]    # optional: also pay.mycompany.com
 ```
 
 ## LoadBalancer Controller
