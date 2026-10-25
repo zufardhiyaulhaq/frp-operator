@@ -282,6 +282,8 @@ spec:
 
 A static IP keeps private clusters' `host` stable. Set it with your cloud's Service annotation: `service.beta.kubernetes.io/aws-load-balancer-eip-allocations` (AWS), `networking.gke.io/load-balancer-ip-addresses` (GKE), `service.beta.kubernetes.io/azure-load-balancer-ipv4` (Azure) or `metallb.universe.tf/loadBalancerIPs` (MetalLB). The Service is updated in place and never recreated, so its IP survives every change except deleting the Server.
 
+With `vhost.subdomainHost`, Upstreams claim names under it with `subdomain`; frps rejects them as `customDomains`. See [Domains](#domains-customdomains-or-subdomain).
+
 Good to know:
 - frps cannot reload: any change restarts the frps pod, and connected Clients reconnect on their own. `restartPolicy: Manual` waits until you delete the pod.
 - One frps pod per Server. For availability, run several Servers and spread Services over them with a ServerPool.
