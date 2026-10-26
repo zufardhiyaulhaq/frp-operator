@@ -2,7 +2,7 @@
 
 Expose your service in Kubernetes to the Internet with open source FRP!
 
-![Version: 1.12.0](https://img.shields.io/badge/Version-1.12.0-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 0.14.0](https://img.shields.io/badge/AppVersion-0.14.0-informational?style=flat-square) [![made with Go](https://img.shields.io/badge/made%20with-Go-brightgreen)](http://golang.org) [![Github main branch build](https://img.shields.io/github/workflow/status/zufardhiyaulhaq/frp-operator/Main)](https://github.com/zufardhiyaulhaq/frp-operator/actions/workflows/main.yml) [![GitHub issues](https://img.shields.io/github/issues/zufardhiyaulhaq/frp-operator)](https://github.com/zufardhiyaulhaq/frp-operator/issues) [![GitHub pull requests](https://img.shields.io/github/issues-pr/zufardhiyaulhaq/frp-operator)](https://github.com/zufardhiyaulhaq/frp-operator/pulls)[![Artifact Hub](https://img.shields.io/endpoint?url=https://artifacthub.io/badge/repository/frp-operator)](https://artifacthub.io/packages/search?repo=frp-operator)
+![Version: 1.13.0](https://img.shields.io/badge/Version-1.13.0-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 0.15.0](https://img.shields.io/badge/AppVersion-0.15.0-informational?style=flat-square) [![made with Go](https://img.shields.io/badge/made%20with-Go-brightgreen)](http://golang.org) [![Github main branch build](https://img.shields.io/github/workflow/status/zufardhiyaulhaq/frp-operator/Main)](https://github.com/zufardhiyaulhaq/frp-operator/actions/workflows/main.yml) [![GitHub issues](https://img.shields.io/github/issues/zufardhiyaulhaq/frp-operator)](https://github.com/zufardhiyaulhaq/frp-operator/issues) [![GitHub pull requests](https://img.shields.io/github/issues-pr/zufardhiyaulhaq/frp-operator)](https://github.com/zufardhiyaulhaq/frp-operator/pulls)[![Artifact Hub](https://img.shields.io/endpoint?url=https://artifacthub.io/badge/repository/frp-operator)](https://artifacthub.io/packages/search?repo=frp-operator)
 
 ## Features
 
@@ -327,7 +327,7 @@ A Grafana dashboard lives at [`dashboards/frp-operator.json`](https://github.com
 | operator.image | string | `"ghcr.io/zufardhiyaulhaq/frp-operator"` |  |
 | operator.imagePullPolicy | string | `"Always"` | Image pull policy for the operator. `Always` keeps moving tags such as `main` fresh; use `IfNotPresent` for a locally imported image (the e2e suite does). |
 | operator.replica | int | `1` |  |
-| operator.tag | string | `"v0.14.0"` |  |
+| operator.tag | string | `"v0.15.0"` |  |
 | resources.limits.cpu | string | `"200m"` |  |
 | resources.limits.memory | string | `"100Mi"` |  |
 | resources.requests.cpu | string | `"100m"` |  |
