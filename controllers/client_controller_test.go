@@ -2,6 +2,8 @@ package controllers
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"strings"
 	"testing"
 	"time"
@@ -257,6 +259,19 @@ func TestSetCondition_KeepsTransitionTimeWhenStatusUnchanged(t *testing.T) {
 	cond = meta.FindStatusCondition(c.Status.Conditions, "ConfigSynced")
 	if cond.LastTransitionTime.Equal(&earlier) {
 		t.Error("status changed but LastTransitionTime was not updated")
+	}
+}
+
+// frpc reads useSystemCa only at start, so it must change the hash and roll the pod. Unset, the JSON
+// must stay as it was, or upgrading the operator would roll every Client with TLS.
+func TestTLSHash_UseSystemCa(t *testing.T) {
+	before := sha256.Sum256([]byte(`{"enable":true}`))
+	plain := tlsHash(&frpv1alpha1.ClientSpec_Server_TLS{Enable: true})
+	if want := hex.EncodeToString(before[:])[:16]; plain != want {
+		t.Errorf("hash of a Client without useSystemCa = %s, want %s", plain, want)
+	}
+	if tlsHash(&frpv1alpha1.ClientSpec_Server_TLS{Enable: true, UseSystemCA: true}) == plain {
+		t.Error("useSystemCa does not change the TLS hash")
 	}
 }
 

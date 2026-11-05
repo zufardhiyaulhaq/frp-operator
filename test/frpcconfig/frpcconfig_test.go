@@ -274,6 +274,15 @@ func featureCases() []featureCase {
 	add(featureCase{name: "client_tls_server_name", client: c, expect: []string{`transport.tls.serverName = "frps.example.com"`}})
 
 	c = baseClient()
+	c.Spec.Server.TLS = &v1.ClientSpec_Server_TLS{Enable: true, UseSystemCA: true}
+	add(featureCase{name: "client_tls_system_ca", client: c, expect: []string{"transport.tls.useSystemCa = true"}})
+
+	c = baseClient()
+	c.Spec.Server.Protocol = ptr("wss")
+	c.Spec.Server.TLS = &v1.ClientSpec_Server_TLS{UseSystemCA: true}
+	add(featureCase{name: "client_tls_system_ca_wss", client: c, expect: []string{"transport.tls.enable = false", "transport.tls.useSystemCa = true"}})
+
+	c = baseClient()
 	c.Spec.Log = &v1.LogSpec{Level: "debug"}
 	add(featureCase{name: "client_log_debug", client: c, expect: []string{`log.to = "console"`, `log.level = "debug"`}})
 

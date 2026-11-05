@@ -1,0 +1,19 @@
+# frpc verifies an frps with a publicly trusted certificate (for example Let's Encrypt) against the
+# system CAs in the frpc image, so no CA has to be mounted. Without useSystemCa or trustedCaFile,
+# frpc does not verify the server certificate at all.
+apiVersion: frp.zufardhiyaulhaq.com/v1alpha1
+kind: Client
+metadata:
+  name: tls-system-ca-client
+spec:
+  server:
+    host: frp.example.com
+    port: 7000
+    authentication:
+      token:
+        secret:
+          name: frp-token
+          key: token
+    tls:
+      enable: true
+      useSystemCa: true
