@@ -2472,8 +2472,8 @@ func TestNewConfig_TLSUseSystemCa(t *testing.T) {
 
 			config, err := NewConfig(fakeClient, clientObj, nil, nil)
 			if tc.wantErr {
-				if err == nil || !strings.Contains(err.Error(), "useSystemCa") {
-					t.Fatalf("NewConfig() error = %v, want one naming useSystemCa", err)
+				if !errors.IsBadRequest(err) || !strings.Contains(err.Error(), "useSystemCa") {
+					t.Fatalf("NewConfig() error = %v, want a BadRequest naming useSystemCa", err)
 				}
 				return
 			}
