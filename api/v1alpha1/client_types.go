@@ -123,9 +123,15 @@ type ClientSpec_Server_TLS struct {
 	// TrustedCAFile is a reference to the CA certificate for server verification
 	TrustedCAFile *ConfigMapOrSecretRef `json:"trustedCaFile,omitempty"`
 	// +optional
+	// UseSystemCA makes frpc verify the server certificate against the system CAs in the frpc image
+	// (transport.tls.useSystemCa), for an frps with a publicly trusted certificate. With trustedCaFile
+	// set too, that CA is added to the system ones. Needs enable: true, unless protocol is wss.
+	UseSystemCA bool `json:"useSystemCa,omitempty"`
+	// +optional
 	// ServerName is the name frpc verifies the server certificate against (transport.tls.serverName).
-	// Defaults to host. Set it when host is an IP or a name the certificate does not cover, for
-	// example to one of a Server's status.tls.serverNames.
+	// Without trustedCaFile or useSystemCa frpc does not verify the certificate at all, and this is
+	// only sent as SNI. Defaults to host. Set it when host is an IP or a name the certificate does
+	// not cover, for example to one of a Server's status.tls.serverNames.
 	ServerName string `json:"serverName,omitempty"`
 }
 

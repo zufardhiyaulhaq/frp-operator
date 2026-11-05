@@ -135,6 +135,22 @@ func TestConfigurationBuilder_Build(t *testing.T) {
 			},
 		},
 		{
+			name: "TLS with system CAs",
+			config: models.Config{
+				Common: models.Common{
+					ServerAddress: "frp.example.com",
+					ServerPort:    7000,
+					AdminAddress:  "0.0.0.0",
+					AdminPort:     7400,
+					AdminUsername: "admin",
+					AdminPassword: "secret",
+					TLS:           &models.TLSConfig{Enable: true, UseSystemCA: true},
+				},
+			},
+			wantErr:      false,
+			wantContains: []string{`transport.tls.useSystemCa = true`},
+		},
+		{
 			name: "common config with OIDC authentication",
 			config: models.Config{
 				Common: models.Common{

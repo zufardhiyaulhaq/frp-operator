@@ -69,6 +69,7 @@ type TLSConfig struct {
 	CertFile      string
 	KeyFile       string
 	TrustedCAFile string
+	UseSystemCA   bool
 	ServerName    string
 }
 
@@ -734,7 +735,11 @@ func NewConfig(k8sclient client.Client,
 	// the keys here: a wrong key is an InvalidConfig, not a pod stuck in ContainerCreating.
 	if t := clientObject.Spec.Server.TLS; t != nil {
 		namespace := clientObject.Namespace
-		config.Common.TLS = &TLSConfig{Enable: t.Enable, ServerName: t.ServerName}
+		// wss keeps TLS on whatever enable says; frpc refuses every other combination at start.
+		if t.UseSystemCA && !t.Enable && config.Common.ServerProtocol != "wss" {
+			return config, errors.NewBadRequest("spec.server.tls.useSystemCa needs spec.server.tls.enable: true unless spec.server.protocol is wss")
+		}
+		config.Common.TLS = &TLSConfig{Enable: t.Enable, UseSystemCA: t.UseSystemCA, ServerName: t.ServerName}
 
 		if t.CertFile != nil {
 			if _, err := secretValue(k8sclient, namespace, t.CertFile.Secret); err != nil {

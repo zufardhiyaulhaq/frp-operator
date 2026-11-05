@@ -3,7 +3,7 @@ package frps
 import v1 "github.com/zufardhiyaulhaq/frp-operator/api/v1alpha1"
 
 // Image is the frps image the operator runs; keep it on the same frp release as frpcImage.
-const Image = "fatedier/frps:v0.71.1"
+const Image = "fatedier/frps:v0.72.0"
 
 const (
 	// ConfigDir holds frps.toml in the frps pod.

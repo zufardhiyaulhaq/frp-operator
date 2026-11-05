@@ -69,7 +69,8 @@ const (
 const logLevelAnnotation = "frp.zufardhiyaulhaq.com/log-level"
 
 // tlsHashAnnotation records the TLS settings a Client pod was started with. frpc reads its TLS
-// files and serverName only at start (a reload does not apply them), so a change recreates the pod.
+// files, serverName and useSystemCa only at start (a reload does not apply them), so a change
+// recreates the pod.
 const tlsHashAnnotation = "frp.zufardhiyaulhaq.com/tls-hash"
 
 // tlsHash identifies a Client's TLS settings; "" without TLS, so pods of Clients without TLS
@@ -84,7 +85,7 @@ func tlsHash(tls *frpv1alpha1.ClientSpec_Server_TLS) string {
 }
 
 // frpcImage is the frpc container image managed by the operator.
-const frpcImage = "fatedier/frpc:v0.71.1"
+const frpcImage = "fatedier/frpc:v0.72.0"
 
 // ClientReconciler reconciles a Client object
 type ClientReconciler struct {
@@ -324,7 +325,7 @@ func (r *ClientReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	}
 
 	// Roll the pod when something frpc reads only at start changed: the image (an operator upgrade
-	// may render config an older frpc cannot load), the TLS settings (files and serverName) or the log
+	// may render config an older frpc cannot load), the TLS settings (files, serverName and useSystemCa) or the log
 	// level. A hot reload would not apply them. The new config is written first, so the new pod starts
 	// on it; pods from before the TLS annotation existed are rolled once, which also moves them to the
 	// per-reference TLS mount.

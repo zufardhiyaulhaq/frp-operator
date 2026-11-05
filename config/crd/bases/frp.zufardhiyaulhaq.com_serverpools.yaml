@@ -1680,8 +1680,9 @@ spec:
                         serverName:
                           description: |-
                             ServerName is the name frpc verifies the server certificate against (transport.tls.serverName).
-                            Defaults to host. Set it when host is an IP or a name the certificate does not cover, for
-                            example to one of a Server's status.tls.serverNames.
+                            Without trustedCaFile or useSystemCa frpc does not verify the certificate at all, and this is
+                            only sent as SNI. Defaults to host. Set it when host is an IP or a name the certificate does
+                            not cover, for example to one of a Server's status.tls.serverNames.
                           type: string
                         trustedCaFile:
                           description: TrustedCAFile is a reference to the CA certificate
@@ -1708,6 +1709,12 @@ spec:
                               - name
                               type: object
                           type: object
+                        useSystemCa:
+                          description: |-
+                            UseSystemCA makes frpc verify the server certificate against the system CAs in the frpc image
+                            (transport.tls.useSystemCa), for an frps with a publicly trusted certificate. With trustedCaFile
+                            set too, that CA is added to the system ones. Needs enable: true, unless protocol is wss.
+                          type: boolean
                       required:
                       - enable
                       type: object

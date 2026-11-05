@@ -2448,6 +2448,45 @@ func TestNewConfig_TLSServerName(t *testing.T) {
 	}
 }
 
+// frpc refuses useSystemCa when TLS is off, unless the protocol is wss (which keeps TLS on), so the
+// same combination must be an InvalidConfig error instead of a pod that fails at start.
+func TestNewConfig_TLSUseSystemCa(t *testing.T) {
+	cases := map[string]struct {
+		enable   bool
+		protocol string
+		wantErr  bool
+	}{
+		"tls enabled":      {enable: true},
+		"wss without tls":  {protocol: "wss"},
+		"tcp without tls":  {wantErr: true},
+		"quic without tls": {protocol: "quic", wantErr: true},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			fakeClient := createFakeClient(createDefaultTokenSecret("default")).Build()
+			clientObj := createBasicClient("default", "c", "frps.example.com", 7000)
+			clientObj.Spec.Server.TLS = &frpv1alpha1.ClientSpec_Server_TLS{Enable: tc.enable, UseSystemCA: true}
+			if tc.protocol != "" {
+				clientObj.Spec.Server.Protocol = &tc.protocol
+			}
+
+			config, err := NewConfig(fakeClient, clientObj, nil, nil)
+			if tc.wantErr {
+				if !errors.IsBadRequest(err) || !strings.Contains(err.Error(), "useSystemCa") {
+					t.Fatalf("NewConfig() error = %v, want a BadRequest naming useSystemCa", err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("NewConfig() error = %v", err)
+			}
+			if !config.Common.TLS.UseSystemCA {
+				t.Error("UseSystemCA = false, want true")
+			}
+		})
+	}
+}
+
 // The TLS files are mounted key by key, so a wrong key must be an InvalidConfig error instead of
 // a pod stuck in ContainerCreating.
 func TestNewConfig_TLSMissingKeyIsAnError(t *testing.T) {

@@ -47,6 +47,7 @@ type testTLSConfig struct {
 	CertFile      string
 	KeyFile       string
 	TrustedCAFile string
+	UseSystemCA   bool
 	ServerName    string
 }
 
